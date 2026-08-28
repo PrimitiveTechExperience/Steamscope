@@ -3,6 +3,9 @@ package scraper
 import (
 	"fmt"
 	"log"
+	"net/http/cookiejar"
+	"strconv"
+	"time"
 
 	"github.com/PrimitiveTechExperience/Steamscope/internal/models"
 	"github.com/gocolly/colly/v2"
@@ -19,8 +22,82 @@ func New() *Scraper {
 	)
 	c.Async = true
 
+	jar, err := cookiejar.New(nil)
+	if err != nil {
+		panic(fmt.Sprintf("Failed to create cookie jar: %v", err))
+	}
+	c.SetCookieJar(jar)
+
+
+	c.Limit(&colly.LimitRule{
+		DomainGlob: "*store.steampowered.com*",
+		Parallelism: 4,
+		Delay: 250*time.Millisecond,
+	})
+
 	c.OnRequest(func(r *colly.Request){
 		log.Printf("Visiting: %s", r.URL.String())
+	})
+	// Debugging: Find body
+	// c.OnHTML("body", func(h *colly.HTMLElement) {
+	// 	if strings.Contains(h.Text, "not appropriate for all ages") {
+	// 		log.Printf("Game with AppID %s is not appropriate for all ages.", h.Request.Ctx.Get("appID"))
+	// 		// Check the inputs (they are selects)
+	// 		h.DOM.Find("select").Each(func(i int, s *goquery.Selection) {
+	// 			name, exists := s.Attr("name")
+	// 			if !exists {
+	// 				return
+	// 			}
+	// 			log.Printf("Found select with name: %s", name)
+	// 		})
+	// 	}
+	// })
+
+	c.OnHTML(".agegate_birthday_selector", func(e *colly.HTMLElement) {
+		if e.DOM.Find("select[name='ageDay']").Length() == 0 {
+			log.Printf("No age day select found for AppID: %s", e.Request.Ctx.Get("appID"))
+			return	
+		}
+
+		if e.DOM.Find("select[name='ageMonth']").Length() == 0 {
+			log.Printf("No age month select found for AppID: %s", e.Request.Ctx.Get("appID"))
+			return
+		}
+
+		if e.DOM.Find("select[name='ageYear']").Length() == 0 {
+			log.Printf("No age year select found for AppID: %s", e.Request.Ctx.Get("appID"))
+			return
+		}
+
+		log.Printf(
+			"Submitting an age check for AppID: %s",
+			e.Request.Ctx.Get("appID"),
+		)
+		log.Printf("URL: %s", e.Request.URL.String())
+		action, _ := e.DOM.Attr("action")
+
+		log.Printf("Age verification form:")
+		log.Printf("  Action: %s", action)
+	})
+
+	c.OnHTML("html", func(e *colly.HTMLElement) {
+		appIDStr := e.Request.Ctx.Get("appID")
+		appID, err := strconv.Atoi(appIDStr)
+		if err != nil {
+			log.Printf("Failed to convert appID %s to int: %v", appIDStr, err)
+			return
+		}
+		game := parseGamePage(e.DOM, appID, e.Request.URL.String())
+		fmt.Printf(
+			"%d: %s\n",
+			game.AppID,
+			game.Name,
+		)
+		// log.Printf(
+		// 	"AppID %s title: %q",
+		// 	e.Request.Ctx.Get("appID"),
+		// 	e.Text,
+		// )
 	})
 	// Test to ensure that we are connecting to Steam.
 	// c.OnHTML(".apphub_AppName", func(e *colly.HTMLElement) {
@@ -58,22 +135,29 @@ func New() *Scraper {
 	}
 }
 
-func (s *Scraper) ScrapeGame(appID int) (models.Game, error) {
-	url := fmt.Sprintf("https://store.steampowered.com/app/%d/", appID)
-	var game models.Game
-	s.Collector.OnHTML("html", func(e *colly.HTMLElement) {
-		doc := e.DOM
-		game = parseGamePage(doc, appID, url)
-	})
+func (s *Scraper) ScrapeGame(appID int) (error) {
+	url := fmt.Sprintf(
+		"https://store.steampowered.com/app/%d/",
+		appID,
+	)
 
-	err := s.Collector.Visit(url)
-	if err != nil {
-		return models.Game{}, fmt.Errorf("failed to visit URL %s: %w", url, err)
-	}
-	s.Collector.Wait() // Wait for all asynchronous requests to complete
+	ctx := colly.NewContext()
 
-	if game.AppID == 0 {
-		return models.Game{}, fmt.Errorf("failed to scrape game data for AppID %d", appID)
-	}
-	return game, nil
+	ctx.Put(
+		"appID",
+		strconv.Itoa(appID),
+	)
+
+	return s.Collector.Request(
+		"GET",
+		url,
+		nil,
+		ctx,
+		nil,
+	)
+}
+
+func (s *Scraper) Wait(){
+	// Move to here so that we wait in main rather than waiting per game scrape.
+	s.Collector.Wait()
 }
