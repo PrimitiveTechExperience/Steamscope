@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PrimitiveTechExperience/Steamscope/internal/models"
 	"github.com/PuerkitoBio/goquery"
@@ -18,13 +19,24 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	game.Name = strings.TrimSpace(doc.Find(".apphub_AppName").First().Text())
 	game.Developer = strings.TrimSpace(doc.Find(".dev_row .summary.column a").First().Text())
 	game.Publisher = strings.TrimSpace(doc.Find(".dev_row .summary.column a").Eq(1).Text())
-	game.ReleaseDate = strings.TrimSpace(doc.Find(".date").First().Text())
+	// Convert ReleaseDate to time.Time
+	releaseDateStr := strings.TrimSpace(doc.Find(".date").First().Text())
+	if releaseDate, err := time.Parse("Jan 2, 2006", releaseDateStr); err == nil {
+		game.ReleaseDate = releaseDate
+	}
 	// Check if game is on discount by basing off the existance of .game_purchas_price or .discount_final_price
 	if doc.Find(".discount_final_price").Length() > 0 {
-		game.Price = strings.TrimSpace(doc.Find(".discount_final_price").First().Text())
-		game.OriginalPrice = strings.TrimSpace(doc.Find(".discount_original_price").First().Text())
+		// Convert to float64
+		if price, err := strconv.ParseFloat(strings.TrimSpace(doc.Find(".discount_final_price").First().Text()), 64); err == nil {
+			game.Price = price
+		}
+		if originalPrice, err := strconv.ParseFloat(strings.TrimSpace(doc.Find(".discount_original_price").First().Text()), 64); err == nil {
+			game.OriginalPrice = originalPrice
+		}
 	}else{
-		game.Price = strings.TrimSpace(doc.Find(".game_purchase_price").First().Text())
+		if price, err := strconv.ParseFloat(strings.TrimSpace(doc.Find(".game_purchase_price").First().Text()), 64); err == nil {
+			game.Price = price
+		}
 		game.OriginalPrice = game.Price
 	}
 	game.DiscountPercentage = parseDiscountPercentage(doc.Find(".discount_pct").First().Text())

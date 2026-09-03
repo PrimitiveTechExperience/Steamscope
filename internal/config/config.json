@@ -1,0 +1,21 @@
+
+[
+    {
+        "name": "birthtime",
+        "value": "283993201",
+        "path": "/",
+        "domain": "store.steampowered.com"
+    },
+    {
+        "name": "wants_mature_content",
+        "value": "1",
+        "path": "/",
+        "domain": "store.steampowered.com"
+    },
+    {
+        "name": "lastagecheckage",
+        "value": "1-0-1900",
+        "path": "/",
+        "domain": "store.steampowered.com"
+    }
+]

@@ -5,3 +5,6 @@
 .idea/
 # Ignore the bin directory and its contents
 bin/
+# Ignore .env
+.env
+

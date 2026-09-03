@@ -1,14 +1,16 @@
 package models
 
+import "time"
+
 type Game struct {
 	AppID              int
 	Name               string
 	URL                string
 	Developer          string
 	Publisher          string
-	ReleaseDate        string
-	Price              string
-	OriginalPrice      string
+	ReleaseDate        time.Time
+	Price              float64
+	OriginalPrice      float64
 	DiscountPercentage int
 	Genres             []string
 	Tags               []string

@@ -3,81 +3,42 @@ package scraper
 import (
 	"fmt"
 	"log"
+	"net/http"
 	"net/http/cookiejar"
+	"net/url"
 	"strconv"
 	"time"
 
-	"github.com/PrimitiveTechExperience/Steamscope/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/internal/config"
 	"github.com/gocolly/colly/v2"
 )
 
 type Scraper struct {
 	Collector *colly.Collector
-	results chan models.Game
+	Jar http.CookieJar
 }
 
 func New() *Scraper {
 	c := colly.NewCollector(
 		colly.AllowedDomains("store.steampowered.com"),
 	)
-	c.Async = true
 
 	jar, err := cookiejar.New(nil)
 	if err != nil {
 		panic(fmt.Sprintf("Failed to create cookie jar: %v", err))
 	}
 	c.SetCookieJar(jar)
-
+	c.Async = true
 
 	c.Limit(&colly.LimitRule{
 		DomainGlob: "*store.steampowered.com*",
 		Parallelism: 4,
 		Delay: 250*time.Millisecond,
+		RandomDelay: 250*time.Millisecond,
 	})
 
 	c.OnRequest(func(r *colly.Request){
 		log.Printf("Visiting: %s", r.URL.String())
-	})
-	// Debugging: Find body
-	// c.OnHTML("body", func(h *colly.HTMLElement) {
-	// 	if strings.Contains(h.Text, "not appropriate for all ages") {
-	// 		log.Printf("Game with AppID %s is not appropriate for all ages.", h.Request.Ctx.Get("appID"))
-	// 		// Check the inputs (they are selects)
-	// 		h.DOM.Find("select").Each(func(i int, s *goquery.Selection) {
-	// 			name, exists := s.Attr("name")
-	// 			if !exists {
-	// 				return
-	// 			}
-	// 			log.Printf("Found select with name: %s", name)
-	// 		})
-	// 	}
-	// })
-
-	c.OnHTML(".agegate_birthday_selector", func(e *colly.HTMLElement) {
-		if e.DOM.Find("select[name='ageDay']").Length() == 0 {
-			log.Printf("No age day select found for AppID: %s", e.Request.Ctx.Get("appID"))
-			return	
-		}
-
-		if e.DOM.Find("select[name='ageMonth']").Length() == 0 {
-			log.Printf("No age month select found for AppID: %s", e.Request.Ctx.Get("appID"))
-			return
-		}
-
-		if e.DOM.Find("select[name='ageYear']").Length() == 0 {
-			log.Printf("No age year select found for AppID: %s", e.Request.Ctx.Get("appID"))
-			return
-		}
-
-		log.Printf(
-			"Submitting an age check for AppID: %s",
-			e.Request.Ctx.Get("appID"),
-		)
-		log.Printf("URL: %s", e.Request.URL.String())
-		action, _ := e.DOM.Attr("action")
-
-		log.Printf("Age verification form:")
-		log.Printf("  Action: %s", action)
 	})
 
 	c.OnHTML("html", func(e *colly.HTMLElement) {
@@ -132,6 +93,7 @@ func New() *Scraper {
 	
 	return &Scraper{
 		Collector: c,
+		Jar: jar,
 	}
 }
 
@@ -160,4 +122,26 @@ func (s *Scraper) ScrapeGame(appID int) (error) {
 func (s *Scraper) Wait(){
 	// Move to here so that we wait in main rather than waiting per game scrape.
 	s.Collector.Wait()
+}
+
+func (s *Scraper) SetSteamCookies(cookies []config.Cookie) error {
+	u, err := url.Parse("https://store.steampowered.com")
+	if err != nil {
+		return fmt.Errorf("failed to parse domain %s: %w", "https://store.steampowered.com", err)
+	}
+	httpCookies := make([]*http.Cookie, 0, len(cookies))
+	for _, cookie := range cookies {
+		httpCookies = append(httpCookies, &http.Cookie{
+			Name:  cookie.Name,
+			Value: cookie.Value,
+			Domain: cookie.Domain,
+		})
+	}
+	s.Jar.SetCookies(u, httpCookies)
+	
+	return nil
+}
+
+func (s *Scraper) JarCookies(u *url.URL) []*http.Cookie {
+	return s.Jar.Cookies(u)
 }
