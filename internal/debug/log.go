@@ -8,8 +8,8 @@ import (
 
 func OutputGameToConsole(game models.Game) {
 	log.Printf("Scraped Game: %s\n", game.Name)
-	log.Printf("Developer: %s\n", game.Developer)
-	log.Printf("Publisher: %s\n", game.Publisher)
+	log.Printf("Developer: %v\n", game.Developers)
+	log.Printf("Publisher: %v\n", game.Publishers)
 	log.Printf("Release Date: %s\n", game.ReleaseDate)
 	log.Printf("Price: %s\n", game.Price)
 	log.Printf("Original Price: %s\n", game.OriginalPrice)
@@ -22,4 +22,5 @@ func OutputGameToConsole(game models.Game) {
 	log.Printf("Windows Compatible: %t\n", game.WindowsCompatible)
 	log.Printf("Linux Compatible: %t\n", game.LinuxCompatible)
 	log.Printf("Mac Compatible: %t\n", game.MacCompatible)
+	log.Printf("Supported Languages: %v\n", game.SupportedLanguages)
 }

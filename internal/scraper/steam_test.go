@@ -39,8 +39,8 @@ func TestParseGamePage(t *testing.T) {
 	if game.Name != "Test Game Name" {
 		t.Errorf("Expected Name 'Test Game Name', got '%s'", game.Name)
 	}
-	if game.Developer != "Test Developer" {
-		t.Errorf("Expected Developer 'Test Developer', got '%s'", game.Developer)
+	if game.Developers[0] != "Test Developer" {
+		t.Errorf("Expected Developer 'Test Developer', got '%s'", game.Developers[0])
 	}
 	if game.URL != "https://store.steampowered.com/app/12345/" {
 		t.Errorf("Expected URL 'https://store.steampowered.com/app/12345/', got '%s'", game.URL)
@@ -97,16 +97,13 @@ func TestScrapeGame(t *testing.T) {
 		if game.Name != "Test Game Name" {
 			t.Errorf("Expected Name 'Test Game Name', got '%s'", game.Name)
 		}
-		if game.Developer != "Test Developer" {
-			t.Errorf("Expected Developer 'Test Developer', got '%s'", game.Developer)
+		if game.Developers[0] != "Test Developer" {
+			t.Errorf("Expected Developer 'Test Developer', got '%s'", game.Developers[0])
 		}
 	})
 
-	game, err := s.ScrapeGame(12345)
+	err := s.ScrapeGame(12345)
 	if err != nil {
 		t.Fatalf("Failed to scrape game: %v", err)
-	}
-	if game.Name != "Test Game Name" {
-		t.Errorf("Expected Name 'Test Game Name', got '%s'", game.Name)
 	}
 }

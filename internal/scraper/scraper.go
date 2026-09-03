@@ -49,40 +49,13 @@ func New() *Scraper {
 			return
 		}
 		game := parseGamePage(e.DOM, appID, e.Request.URL.String())
-		fmt.Printf(
+		log.Printf(
 			"%d: %s\n",
 			game.AppID,
 			game.Name,
 		)
-		// log.Printf(
-		// 	"AppID %s title: %q",
-		// 	e.Request.Ctx.Get("appID"),
-		// 	e.Text,
-		// )
 	})
-	// Test to ensure that we are connecting to Steam.
-	// c.OnHTML(".apphub_AppName", func(e *colly.HTMLElement) {
-	// 	log.Printf("Game Name: %s\n", e.Text)
-	// })
-
-	// c.OnHTML(".dev_row .summary.column a", func(e *colly.HTMLElement) {
-	// 	log.Printf("Developer: %s\n", e.Text)
-	// })
-	// c.OnHTML("html", func(e *colly.HTMLElement) {
-	// 	doc, err := goquery.NewDocumentFromReader(strings.NewReader(string(e.Response.Body)))
-	// 	if err != nil {
-	// 		log.Printf("Failed to create document: %v", err)
-	// 		return
-	// 	}
-	// 	appID, err := parseAppIDFromURL(e.Request.URL.String())
-	// 	if err != nil {
-	// 		log.Printf("Failed to parse AppID from URL %s: %v", e.Request.URL.String(), err)
-	// 		return
-	// 	}
-	// 	game := parseGamePage(doc, appID, e.Request.URL.String())
-	// 	log.Printf("Scraped Game: %+v\n", game)
-	// })
-
+	
 	c.OnResponse(func(r *colly.Response) {
 		fmt.Printf("Received %d bytes\n", len(r.Body))
 	})	

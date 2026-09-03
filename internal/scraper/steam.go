@@ -17,8 +17,17 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	}
 
 	game.Name = strings.TrimSpace(doc.Find(".apphub_AppName").First().Text())
-	game.Developer = strings.TrimSpace(doc.Find(".dev_row .summary.column a").First().Text())
-	game.Publisher = strings.TrimSpace(doc.Find(".dev_row .summary.column a").Eq(1).Text())
+	// Since Devs, Pubs are split by commas, we split them into slices of strings. We also trim spaces from each element.
+	devStrings := strings.Split(doc.Find(".dev_row .summary.column a").First().Text(), ",")
+	game.Developers = []string{}
+	for _, dev := range devStrings {
+		game.Developers = append(game.Developers, strings.TrimSpace(dev))
+	}
+	pubStrings := strings.Split(doc.Find(".dev_row .summary.column a").Eq(1).Text(), ",")
+	game.Publishers = []string{}
+	for _, pub := range pubStrings {
+		game.Publishers = append(game.Publishers, strings.TrimSpace(pub))
+	}
 	// Convert ReleaseDate to time.Time
 	releaseDateStr := strings.TrimSpace(doc.Find(".date").First().Text())
 	if releaseDate, err := time.Parse("Jan 2, 2006", releaseDateStr); err == nil {
@@ -63,6 +72,12 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	game.WindowsCompatible = doc.Find(".sysreq_tabs [data-os='win']").Length() > 0
 	game.LinuxCompatible = doc.Find(".sysreq_tabs [data-os='linux']").Length() > 0
 	game.MacCompatible = doc.Find(".sysreq_tabs [data-os='mac']").Length() > 0
+
+	// Fetch supported languages from .game_language_options .ellipsis
+	game.SupportedLanguages = []string{}
+	doc.Find(".game_language_options .ellipsis").Each(func(i int, s *goquery.Selection) {
+		game.SupportedLanguages = append(game.SupportedLanguages, strings.TrimSpace(s.Text()))
+	})
 
 	return game
 }
