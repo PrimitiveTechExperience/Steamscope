@@ -42,7 +42,7 @@ func (s *Scraper) newCollector() *colly.Collector {
 		log.Printf("Visiting: %s", r.URL.String())
 	})
 	c.OnResponse(func(r *colly.Response) {
-		fmt.Printf("Received %d bytes\n", len(r.Body))
+		log.Printf("Received %d bytes\n", len(r.Body))
 	})	
 
 	return c
@@ -134,14 +134,14 @@ func (s *Scraper) ScrapeGamePages(appIDs []int) ([]models.Game, error) {
 	return games, nil
 }
 
-func (s *Scraper) ScrapeGames(appIDs []int, options reviewOption) ([]models.Game, error) {
+func (s *Scraper) ScrapeGames(appIDs []int, options ReviewOption) ([]models.Game, error) {
 	// Get game info
 	games, err := s.ScrapeGamePages(appIDs)
 	if err != nil {
 		return nil, fmt.Errorf("failed to scrape game pages: %w", err)
 	}
 	// Get reviews for each game
-	reviews, err := s.FetchReviewsForGames(appIDs, options)
+	reviews, err := s.FetchReviewsForGames(games, options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch reviews for games: %w", err)
 	}

@@ -38,15 +38,15 @@ func main() {
 
 	appIDs := []int{
 		730,    // Counter-Strike: Global Offensive
-		570,    // Dota 2
-		440,    // Team Fortress 2
-		578080, // PLAYERUNKNOWN'S BATTLEGROUNDS
-		4000,   // Garry's Mod
-		550,    // Left 4 Dead 2
-		252490, // Rust
-		304930, // Unturned
-		271590, // Grand Theft Auto V
-		1174180, // Cyberpunk 2077
+		// 570,    // Dota 2
+		// 440,    // Team Fortress 2
+		// 578080, // PLAYERUNKNOWN'S BATTLEGROUNDS
+		// 4000,   // Garry's Mod
+		// 550,    // Left 4 Dead 2
+		// 252490, // Rust
+		// 304930, // Unturned
+		// 271590, // Grand Theft Auto V
+		// 1174180, // Cyberpunk 2077
 	}
 
 	games, errors := s.ScrapeGamePages(appIDs)
@@ -56,6 +56,20 @@ func main() {
 	for _, games := range games {
 		log.Printf("Scraped game: %s (AppID: %d)", games.Name, games.AppID)
 	}
+	reviews, err := s.FetchReviewsForGames(games, scraper.ReviewOption{
+		Filter: "recent",
+		MaxReviews: 1,
+		Language: "english",
+	})
+
+	if err != nil {
+		log.Printf("Errors occurred while fetching reviews: %v", err)
+	}
+	for appID, reviewList := range reviews {
+		for _, review := range reviewList {
+			log.Printf("Scraped review for game %d: %s", appID, review.Review)
+		}
+	}
+
 
 }
-
