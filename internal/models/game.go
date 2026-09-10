@@ -24,6 +24,7 @@ type Game struct {
 	// Review Overview
 	ReviewScore        string
 	ReviewCount        int
+	Reviews 		   []Review
 	// Compatibility flags
 	WindowsCompatible  bool
 	LinuxCompatible    bool

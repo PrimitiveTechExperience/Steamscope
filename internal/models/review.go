@@ -1,6 +1,7 @@
 package models
 
 type Review struct {
+	// Basic information
 	RecommendationID string
 	SteamID          string
 	Language         string
@@ -12,7 +13,7 @@ type Review struct {
 	// Playtime in minutes
 	PlaytimeForever  int
 	PlaytimeAtReview int
-	// Number of people who found this review helpful
+	// Vote informations
 	HelpfulVotes int
 	FunnyVotes   int
 }

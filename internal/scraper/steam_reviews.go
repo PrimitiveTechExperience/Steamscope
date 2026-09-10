@@ -3,11 +3,19 @@ package scraper
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
+	"sync"
 
 	"github.com/PrimitiveTechExperience/Steamscope/internal/models"
 )
+
+type reviewOption struct {
+	Filter string
+	MaxReviews int
+	Language string
+}
 
 type steamReviewResponse struct {
 	Success bool `json:"success"`
@@ -44,17 +52,18 @@ type steamReview struct {
 
 func (s *Scraper) FetchReviews(
 	appID int,
+	options reviewOption,
 ) ([]models.Review, error) {
 	params := url.Values{}
 	params.Set("json", "1")
-	params.Set("filter", "recent")
-	params.Set("language", "all")
-	params.Set("num_per_page", "100")
+	params.Set("filter", options.Filter)
+	params.Set("language", options.Language)
+	params.Set("num_per_page", fmt.Sprintf("%d", options.MaxReviews))
 	params.Set("cursor", "*")
 
 	endpoint := fmt.Sprintf("https://store.steampowered.com/appreviews/%d?%s", appID, params.Encode())
 
-	resp, err := http.Get(endpoint)
+	resp, err := s.Client.Get(endpoint)
 	if err != nil {
 		return nil, fmt.Errorf("failed to fetch reviews: %w", err)
 	}
@@ -87,4 +96,47 @@ func (s *Scraper) FetchReviews(
 		}
 	}
 	return reviews, nil
+}
+
+func (s *Scraper) FetchReviewsForGames(appIDs []int, options reviewOption) (map[int][]models.Review, error) {
+	type reviewResult struct {
+		AppID   int
+		Reviews []models.Review
+		Error   error
+	}
+	jobs := make(chan int)
+	results := make(chan reviewResult)
+
+	var wg sync.WaitGroup
+	workers := 5 // Number of concurrent workers
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for appID := range jobs {
+				reviews, err := s.FetchReviews(appID, options)
+				results <- reviewResult{AppID: appID, Reviews: reviews, Error: err}
+			}
+		}()
+	}
+
+	for _, appID := range appIDs {
+		jobs <- appID
+	}
+	close(jobs)
+
+	go func() {
+		wg.Wait()
+		close(results)
+	}()
+
+	reviewsMap := make(map[int][]models.Review)
+	for result := range results {
+		if result.Error != nil {
+			log.Printf("Error fetching reviews for AppID %d: %v", result.AppID, result.Error)
+			continue
+		}
+		reviewsMap[result.AppID] = result.Reviews
+	}
+	return reviewsMap, nil
 }
