@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PrimitiveTechExperience/Steamscope/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 	"github.com/PuerkitoBio/goquery"
 )
 

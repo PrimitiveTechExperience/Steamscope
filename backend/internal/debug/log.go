@@ -3,7 +3,7 @@ package debug
 import (
 	"log"
 
-	"github.com/PrimitiveTechExperience/Steamscope/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 )
 
 func OutputGameToConsole(game models.Game) {

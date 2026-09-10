@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"os"
 
-	"github.com/PrimitiveTechExperience/Steamscope/internal/config"
-	"github.com/PrimitiveTechExperience/Steamscope/internal/scraper"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scraper"
 )
 	
 func main() {

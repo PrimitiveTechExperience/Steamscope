@@ -9,8 +9,8 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/PrimitiveTechExperience/Steamscope/internal/config"
-	"github.com/PrimitiveTechExperience/Steamscope/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 	"github.com/gocolly/colly/v2"
 )
 
