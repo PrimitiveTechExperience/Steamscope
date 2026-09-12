@@ -1,22 +1,33 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/url"
 	"os"
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scraper"
+
+	"github.com/joho/godotenv"
 )
 	
 func main() {
-	cwd, err := os.Getwd()
+	// Start database connection.
+	err := godotenv.Load()
 	if err != nil {
-		log.Fatal(err)
+		log.Println("Error loading .env file")
 	}
+	ctx := context.Background()
 
-	log.Println("Working directory:", cwd)
+	db, err := database.New(ctx, os.Getenv("DATABASE_URL"))
+	if err != nil {
+		log.Fatalf("Failed to connect to database: %v", err)
+	}
+	defer db.Close()
 
+	// Load configuration, cookies
 	cfg := config.LoadConfig()
 
 	s := scraper.New()
@@ -35,18 +46,18 @@ func main() {
 		log.Printf("Loaded cookie: %s", c.Name)
 	}
 
-
+	// Scrape games.
 	appIDs := []int{
 		730,    // Counter-Strike: Global Offensive
-		// 570,    // Dota 2
-		// 440,    // Team Fortress 2
-		// 578080, // PLAYERUNKNOWN'S BATTLEGROUNDS
-		// 4000,   // Garry's Mod
-		// 550,    // Left 4 Dead 2
-		// 252490, // Rust
-		// 304930, // Unturned
-		// 271590, // Grand Theft Auto V
-		// 1174180, // Cyberpunk 2077
+		570,    // Dota 2
+		440,    // Team Fortress 2
+		578080, // PLAYERUNKNOWN'S BATTLEGROUNDS
+		4000,   // Garry's Mod
+		550,    // Left 4 Dead 2
+		252490, // Rust
+		304930, // Unturned
+		271590, // Grand Theft Auto V
+		1174180, // Cyberpunk 2077
 	}
 
 	games, errors := s.ScrapeGamePages(appIDs)
@@ -55,21 +66,26 @@ func main() {
 	}
 	for _, games := range games {
 		log.Printf("Scraped game: %s (AppID: %d)", games.Name, games.AppID)
-	}
-	reviews, err := s.FetchReviewsForGames(games, scraper.ReviewOption{
-		Filter: "recent",
-		MaxReviews: 1,
-		Language: "english",
-	})
-
-	if err != nil {
-		log.Printf("Errors occurred while fetching reviews: %v", err)
-	}
-	for appID, reviewList := range reviews {
-		for _, review := range reviewList {
-			log.Printf("Scraped review for game %d: %s", appID, review.Review)
+		if err := db.InsertGame(ctx, games); err != nil {
+			log.Printf("Failed to insert game into database: %v", err)
+			continue
 		}
+		log.Printf("Inserted game into database: %s (AppID: %d)", games.Name, games.AppID)
 	}
+	// reviews, err := s.FetchReviewsForGames(games, scraper.ReviewOption{
+	// 	Filter: "recent",
+	// 	MaxReviews: 1,
+	// 	Language: "english",
+	// })
+
+	// if err != nil {
+	// 	log.Printf("Errors occurred while fetching reviews: %v", err)
+	// }
+	// for appID, reviewList := range reviews {
+	// 	for _, review := range reviewList {
+	// 		log.Printf("Scraped review for game %d: %s", appID, review.Review)
+	// 	}
+	// }
 
 
 }

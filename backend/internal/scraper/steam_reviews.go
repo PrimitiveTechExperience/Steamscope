@@ -169,6 +169,7 @@ func (s *Scraper) FetchReviewsForGames(games []models.Game, options ReviewOption
 		reviews := make([]models.Review, len(data.Reviews))
 		for i, rev := range data.Reviews {
 			reviews[i] = models.Review{
+				AppID: appID,
 				RecommendationID: rev.RecommendationID,
 				SteamID: rev.Author.SteamID,
 				Language: rev.Language,

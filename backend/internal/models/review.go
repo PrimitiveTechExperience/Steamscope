@@ -2,8 +2,10 @@ package models
 
 type Review struct {
 	// Basic information
+	AppID            int
 	RecommendationID string
 	SteamID          string
+	SteamUsername    string
 	Language         string
 	Review           string
 	VotedUp          bool
