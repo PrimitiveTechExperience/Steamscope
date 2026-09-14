@@ -17,17 +17,16 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	}
 
 	game.Name = strings.TrimSpace(doc.Find(".apphub_AppName").First().Text())
-	// Since Devs, Pubs are split by commas, we split them into slices of strings. We also trim spaces from each element.
-	devStrings := strings.Split(doc.Find(".dev_row .summary.column a").First().Text(), ",")
+	// Devs and publishers are distinguished from the dev_row class, where 1 is devs and 2 is publishers.
+	// Each dev_row has a "summary column" class, which contains the devs/publishers as <a> tags.
 	game.Developers = []string{}
-	for _, dev := range devStrings {
-		game.Developers = append(game.Developers, strings.TrimSpace(dev))
-	}
-	pubStrings := strings.Split(doc.Find(".dev_row .summary.column a").Eq(1).Text(), ",")
+	doc.Find(".dev_row").Eq(0).Find(".summary.column a").Each(func(i int, s *goquery.Selection) {
+		game.Developers = append(game.Developers, strings.TrimSpace(s.Text()))
+	})
 	game.Publishers = []string{}
-	for _, pub := range pubStrings {
-		game.Publishers = append(game.Publishers, strings.TrimSpace(pub))
-	}
+	doc.Find(".dev_row").Eq(1).Find(".summary.column a").Each(func(i int, s *goquery.Selection) {
+		game.Publishers = append(game.Publishers, strings.TrimSpace(s.Text()))
+	})
 	// Convert ReleaseDate to time.Time
 	releaseDateStr := strings.TrimSpace(doc.Find(".date").First().Text())
 	if releaseDate, err := time.Parse("Jan 2, 2006", releaseDateStr); err == nil {
