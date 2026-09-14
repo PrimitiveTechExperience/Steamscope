@@ -11,7 +11,7 @@ create table games (
     original_price numeric(10, 2),
     discount_percentage decimal(5, 2),
 
-    review_score decimal(5, 2),
+    review_score integer,
     review_count integer,
 
     windows_compatible boolean,
@@ -43,7 +43,7 @@ create table reviews (
 
 create table developers (
     developer_id bigint generated always as identity primary key,
-    name text not null unique
+    developer text not null unique
 );
 
 create table game_developers (
@@ -55,7 +55,7 @@ create table game_developers (
 
 create table publishers (
     publisher_id bigint generated always as identity primary key,
-    name text not null unique
+    publisher text not null unique
 );
 
 create table game_publishers (
@@ -67,7 +67,7 @@ create table game_publishers (
 
 create table genres (
     genre_id bigint generated always as identity primary key,
-    name text not null unique
+    genre text not null unique
 );
 
 create table game_genres (
@@ -79,7 +79,7 @@ create table game_genres (
 
 create table tags (
     tag_id bigint generated always as identity primary key,
-    name text not null unique
+    tag text not null unique
 );
 
 create table game_tags (
@@ -91,7 +91,7 @@ create table game_tags (
 
 create table languages (
     language_id bigint generated always as identity primary key,
-    name text not null unique
+    language text not null unique
 );
 
 create table game_languages (

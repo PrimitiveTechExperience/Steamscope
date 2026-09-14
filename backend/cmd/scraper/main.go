@@ -53,14 +53,18 @@ func main() {
 		440,    // Team Fortress 2
 		578080, // PLAYERUNKNOWN'S BATTLEGROUNDS
 		4000,   // Garry's Mod
-		550,    // Left 4 Dead 2
-		252490, // Rust
-		304930, // Unturned
-		271590, // Grand Theft Auto V
-		1174180, // Cyberpunk 2077
+		// 550,    // Left 4 Dead 2
+		// 252490, // Rust
+		// 304930, // Unturned
+		// 271590, // Grand Theft Auto V
+		// 1174180, // Cyberpunk 2077
 	}
 
-	games, errors := s.ScrapeGamePages(appIDs)
+	games, errors := s.ScrapeGames(appIDs, scraper.ReviewOption{
+		Filter: cfg.Steam.ReviewFilter,
+		MaxReviews: cfg.Steam.ReviewMaxReviews,
+		Language: cfg.Steam.ReviewLanguage,
+	})
 	if errors != nil {
 		log.Printf("Errors occurred while scraping game pages: %v", errors)
 	}
