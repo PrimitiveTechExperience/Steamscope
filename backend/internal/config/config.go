@@ -18,6 +18,7 @@ type SteamConfig struct {
 	ReviewFilter string
 	ReviewMaxReviews int
 	ReviewLanguage string
+	BaseURL string
 }
 
 type Cookie struct{
@@ -44,6 +45,7 @@ func LoadConfig() *Config {
 				return value
 			}(),
 			ReviewLanguage: getEnv("REVIEW_LANGUAGE", "english"),
+			BaseURL: getEnv("STEAM_BASE_URL", "https://store.steampowered.com"),
 		},
 	}
 }

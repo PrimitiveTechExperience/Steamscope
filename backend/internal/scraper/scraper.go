@@ -18,6 +18,7 @@ type Scraper struct {
 	// Collector *colly.Collector
 	Jar http.CookieJar
 	Client *http.Client
+	BaseURL string
 	// GameResult chan GameResult
 }
 
@@ -27,13 +28,17 @@ type GameResult struct{
 }
 
 func (s *Scraper) newCollector() *colly.Collector {
+	baseURL, err := url.Parse(s.BaseURL)
+	if err != nil {
+		log.Fatalf("Failed to parse base URL %s: %v", s.BaseURL, err)
+	}
 	c := colly.NewCollector(
-		colly.AllowedDomains("store.steampowered.com"),
+		colly.AllowedDomains(baseURL.Hostname()),
 	)
 	c.Async = true
 	c.SetCookieJar(s.Jar)
 	c.Limit(&colly.LimitRule{
-		DomainGlob: "*store.steampowered.com*",
+		DomainGlob: fmt.Sprintf("*%s*", baseURL.Hostname()),
 		Parallelism: 4,
 		Delay: 250*time.Millisecond,
 		RandomDelay: 250*time.Millisecond,
@@ -48,7 +53,7 @@ func (s *Scraper) newCollector() *colly.Collector {
 	return c
 }
 
-func New() *Scraper {
+func New(baseURL string) *Scraper {
 	// Set cookie jar for cookies
 	jar, err := cookiejar.New(nil)
 	if err != nil {
@@ -63,6 +68,7 @@ func New() *Scraper {
 	s := &Scraper{
 		Jar: jar,
 		Client: client,
+		BaseURL: baseURL,
 	}
 	return s
 }
@@ -70,7 +76,7 @@ func New() *Scraper {
 // GAME SCRAPING FUNCTIONS
 // 
 func (s *Scraper) ScrapeGame(appID int, c *colly.Collector) (error) {
-	url := fmt.Sprintf("https://store.steampowered.com/app/%d", appID)
+	url := fmt.Sprintf("%s/app/%d", s.BaseURL, appID)
 	ctx := colly.NewContext()
 	ctx.Put("appID", strconv.Itoa(appID))
 	return c.Request("GET", url, nil, ctx, nil)

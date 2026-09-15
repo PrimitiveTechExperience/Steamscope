@@ -32,7 +32,7 @@ func main() {
 	// Load configuration, cookies
 	cfg := config.LoadConfig()
 
-	s := scraper.New()
+	s := scraper.New(cfg.Steam.BaseURL)
 
 	cookies, err := config.LoadCookies(cfg.Steam.CookieFilePath)
 	if err != nil {

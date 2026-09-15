@@ -103,7 +103,7 @@ func TestParseGamePage(t *testing.T) {
 					<body>
 						<div class="apphub_AppName">Test Game Name</div>
 						<div class="game_area_description">Test Game Description</div>
-						<div class="date">19 Sept, 2023</div>
+						<div class="date">19 Sep, 2023</div>
 					</body>
 				</html>
 			`,
@@ -228,6 +228,8 @@ func TestParseGamePage(t *testing.T) {
 								<span class="game_review_summary">Mostly Positive</span>
 							</div>
 							<div class="responsive_hidden">123</div>
+						</div>
+						<div class="user_reviews_summary_row">
 							<div class="summary column">
 								<span class="game_review_summary">Very Positive</span>
 							</div>
@@ -386,6 +388,29 @@ func TestParseGamePage(t *testing.T) {
 				WindowsCompatible: true,
 				MacCompatible:     false,
 				LinuxCompatible:   true,
+			},
+		},
+		{
+			name: "Game Page with Price in Canadian Dollars",
+			html: `
+				<html>
+					<head><title>Test Game</title></head>
+					<body>
+						<div class="apphub_AppName">Test Game Name</div>
+						<div class="discount_final_price">CDN$ 9.99</div>
+						<div class="discount_original_price">CDN$ 19.99</div>
+						<div class="discount_pct">-50%</div>
+					</body>
+				</html>
+			`,
+			expected: models.Game{
+				AppID:              12345,
+				Name:               "Test Game Name",
+				Developers:         []string{},
+				URL:                "https://store.steampowered.com/app/12345/",
+				Price:              9.99,
+				OriginalPrice:      19.99,
+				DiscountPercentage: 50,
 			},
 		},
 	}

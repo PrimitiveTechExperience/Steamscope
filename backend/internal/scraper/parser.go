@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"fmt"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -29,23 +30,25 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	})
 	// Convert ReleaseDate to time.Time
 	releaseDateStr := strings.TrimSpace(doc.Find(".date").First().Text())
-	if releaseDate, err := time.Parse("Jan 2, 2006", releaseDateStr); err == nil {
+	if releaseDate, err := time.Parse("2 Jan, 2006", releaseDateStr); err == nil {
 		game.ReleaseDate = releaseDate
 	}
 	// Check if game is on discount by basing off the existance of .game_purchas_price or .discount_final_price
 	if doc.Find(".discount_final_price").Length() > 0 {
-		// Convert to float64
-		if price, err := strconv.ParseFloat(strings.TrimSpace(doc.Find(".discount_final_price").First().Text()), 64); err == nil {
-			game.Price = price
-		}
-		if originalPrice, err := strconv.ParseFloat(strings.TrimSpace(doc.Find(".discount_original_price").First().Text()), 64); err == nil {
-			game.OriginalPrice = originalPrice
-		}
+		// Remove currency symbols and convert to float64
+		priceStr := strings.TrimSpace(doc.Find(".discount_final_price").First().Text())
+		originalPriceStr := strings.TrimSpace(doc.Find(".discount_original_price").First().Text())
+		discountPrice, _ := parsePrice(priceStr)
+		originalPrice, _ := parsePrice(originalPriceStr)
+		game.Price = discountPrice
+		game.OriginalPrice = originalPrice
+		game.DiscountPercentage = parseDiscountPercentage(doc.Find(".discount_pct").First().Text())
 	}else{
-		if price, err := strconv.ParseFloat(strings.TrimSpace(doc.Find(".game_purchase_price").First().Text()), 64); err == nil {
-			game.Price = price
-		}
-		game.OriginalPrice = game.Price
+		priceStr := strings.TrimSpace(doc.Find(".game_purchase_price").First().Text())
+		price, _ := parsePrice(priceStr)
+		game.Price = price
+		game.OriginalPrice = price
+		game.DiscountPercentage = 0
 	}
 	game.DiscountPercentage = parseDiscountPercentage(doc.Find(".discount_pct").First().Text())
 	game.Genres = []string{}
@@ -66,7 +69,6 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	game.ReviewCount, _ = strconv.Atoi(reviewCountText)
 	// Need to fetch from second or third instance of .user_reviews_summary_row as html layout is odd.
 	game.ReviewScore = strings.TrimSpace(doc.Find(".user_reviews_summary_row").Eq(1).Find(".game_review_summary").First().Text())
-
 	game.Description = strings.TrimSpace(doc.Find(".game_area_description").First().Text())
 	game.WindowsCompatible = doc.Find(".sysreq_tabs [data-os='win']").Length() > 0
 	game.LinuxCompatible = doc.Find(".sysreq_tabs [data-os='linux']").Length() > 0
@@ -107,4 +109,22 @@ func parseDiscountPercentage(discountText string) int {
 		return 0
 	}
 	return discount
+}
+
+func parsePrice(priceText string) (float64, string) {
+    priceText = strings.TrimSpace(priceText)
+
+    re := regexp.MustCompile(`^\s*([^\d]*?)\s*(\d+(?:\.\d+)?)\s*([^\d]*)\s*$`)
+    matches := re.FindStringSubmatch(priceText)
+    if len(matches) != 4 {
+        return 0, ""
+    }
+
+    price, err := strconv.ParseFloat(matches[2], 64)
+    if err != nil {
+        return 0, ""
+    }
+
+    currency := strings.TrimSpace(matches[1] + matches[3])
+    return price, currency
 }
