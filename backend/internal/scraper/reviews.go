@@ -107,13 +107,17 @@ type steamReview struct {
 
 // We use colly approach here as well
 func (s *Scraper) newReviewCollector() *colly.Collector {
+	baseURL, err := url.Parse(s.BaseURL)
+	if err != nil {
+		log.Fatalf("Failed to parse base URL: %v", err)
+	}
 	c := colly.NewCollector(
-		colly.AllowedDomains("store.steampowered.com"),
+		colly.AllowedDomains(baseURL.Hostname()),
 	)
 	c.Async = true
 	c.SetCookieJar(s.Jar)
 	c.Limit(&colly.LimitRule{
-		DomainGlob: "*store.steampowered.com*",
+		DomainGlob: fmt.Sprintf("*%s*", baseURL.Hostname()),
 		Parallelism: 4,
 		Delay: 250*time.Millisecond,
 		RandomDelay: 250*time.Millisecond,
@@ -140,7 +144,12 @@ func (s *Scraper) FetchReviews(
 	params.Set("num_per_page", fmt.Sprintf("%d", options.MaxReviews))
 	params.Set("cursor", "*")
 
-	endpoint := fmt.Sprintf("https://store.steampowered.com/appreviews/%d?%s", appID, params.Encode())
+	baseURL, err := url.Parse(s.BaseURL)
+	if err != nil {
+		return fmt.Errorf("Failed to parse base URL: %v", err)
+	}
+
+	endpoint := fmt.Sprintf("https://%s/appreviews/%d?%s", baseURL.Hostname(), appID, params.Encode())
 
 	ctx := colly.NewContext()
 	ctx.Put("appID", strconv.Itoa(appID))
