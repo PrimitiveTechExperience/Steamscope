@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"log"
-	"time"
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 	"github.com/jackc/pgx/v5"
@@ -12,8 +11,8 @@ import (
 
 func (db *DB) InsertReview(ctx context.Context, tx pgx.Tx, review models.Review) error {
 	// Need to convert timestamp_created and timestamp_updated from int64 to time.Time
-	createdTime := time.Unix(review.TimestampCreated, 0)
-	updatedTime := time.Unix(review.TimestampUpdated, 0)
+	createdTime := review.TimestampCreated
+	updatedTime := review.TimestampUpdated
 	_, err := tx.Exec(
 		ctx,
 		`

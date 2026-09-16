@@ -1,17 +1,18 @@
 package models
 
+import "time"
+
 type Review struct {
 	// Basic information
 	AppID            int
 	RecommendationID string
 	SteamID          string
-	SteamUsername    string
 	Language         string
 	Review           string
 	VotedUp          bool
 	// Unix timestamp of the review
-	TimestampCreated int64
-	TimestampUpdated int64
+	TimestampCreated time.Time
+	TimestampUpdated time.Time
 	// Playtime in minutes
 	PlaytimeForever  int
 	PlaytimeAtReview int
