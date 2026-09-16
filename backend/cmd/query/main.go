@@ -77,5 +77,14 @@ func main() {
 	for _, review := range game.Reviews {
 		fmt.Printf("  Review: %s\n", review.Review)
 	}
+
+	games, err = db.GetGamesByGenre(ctx, "Action", 1)
+	if err != nil {
+		log.Fatalf("Failed to get games by genre: %v", err)
+	}
+	for _, game := range games {
+		fmt.Printf("Game: %s\n", game.Name)
+	}
+	
 }
 
