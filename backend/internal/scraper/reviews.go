@@ -149,7 +149,7 @@ func (s *Scraper) FetchReviews(
 		return fmt.Errorf("Failed to parse base URL: %v", err)
 	}
 
-	endpoint := fmt.Sprintf("https://%s/appreviews/%d?%s", baseURL.Hostname(), appID, params.Encode())
+	endpoint := fmt.Sprintf("%s://%s/appreviews/%d?%s", baseURL.Scheme, baseURL.Host, appID, params.Encode())
 
 	ctx := colly.NewContext()
 	ctx.Put("appID", strconv.Itoa(appID))

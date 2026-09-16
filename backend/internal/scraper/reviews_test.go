@@ -221,7 +221,29 @@ func TestReviewScraper_FetchReviewsForGames_BasicCorrectness(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected no error, but got %v", err)
 	}
-	if len(reviews) != 2 {
-		t.Errorf("Expected 2 reviews, but got %d", len(reviews))
+	if len(reviews[12345]) != 2 {
+		t.Errorf("Expected 2 reviews, but got %d", len(reviews[12345]))
+	}
+	// Check the contents of the first review
+	firstReview := reviews[12345][0]
+	if firstReview.RecommendationID != "123456789" {
+		t.Errorf("Expected RecommendationID '123456789', but got '%s'", firstReview.RecommendationID)
+	}
+	if firstReview.SteamID != "11111111111111111" {
+		t.Errorf("Expected SteamID '11111111111111111', but got '%s'", firstReview.SteamID)
+	}
+	if firstReview.Review != "This is a great game!" {
+		t.Errorf("Expected Review 'This is a great game!', but got '%s'", firstReview.Review)
+	}
+	// Check the contents of the second review
+	secondReview := reviews[12345][1]
+	if secondReview.RecommendationID != "987654321" {
+		t.Errorf("Expected RecommendationID '987654321', but got '%s'", secondReview.RecommendationID)
+	}
+	if secondReview.SteamID != "22222222222222222" {
+		t.Errorf("Expected SteamID '22222222222222222', but got '%s'", secondReview.SteamID)
+	}
+	if secondReview.Review != "Pretty good game." {
+		t.Errorf("Expected Review 'Pretty good game.', but got '%s'", secondReview.Review)
 	}
 }
