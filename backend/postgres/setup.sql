@@ -3,20 +3,20 @@ create table games (
 
     name text not null,
     url text not null,
-    description text,
+    description text not null,
 
-    release_date date,
+    release_date date not null,
 
-    price numeric(10, 2),
-    original_price numeric(10, 2),
-    discount_percentage decimal(5, 2),
+    price numeric(10, 2) not null,
+    original_price numeric(10, 2) not null,
+    discount_percentage decimal(5, 2) not null,
 
-    review_score integer,
-    review_count integer,
+    review_score integer not null,
+    review_count integer not null,
 
-    windows_compatible boolean,
-    mac_compatible boolean,
-    linux_compatible boolean,
+    windows_compatible boolean not null,
+    mac_compatible boolean not null,
+    linux_compatible boolean not null,
 
     created_at timestamptz NOT NULL DEFAULT now(),
     updated_at timestamptz NOT NULL DEFAULT now()

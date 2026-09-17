@@ -85,6 +85,77 @@ func main() {
 	for _, game := range games {
 		fmt.Printf("Game: %s\n", game.Name)
 	}
-	
+
+	games, err = db.GetGamesByTag(ctx, "Multiplayer", 1)
+	if err != nil {
+		log.Fatalf("Failed to get games by tag: %v", err)
+	}
+	for _, game := range games {
+		fmt.Printf("Game: %s\n", game.Name)
+	}
+
+	games, err = db.GetGamesByDeveloper(ctx, "Valve", 1)
+	if err != nil {
+		log.Fatalf("Failed to get games by developer: %v", err)
+	}
+	for _, game := range games {
+		fmt.Printf("Game: %s\n", game.Name)
+	}
+
+	games, err = db.GetGamesByPublisher(ctx, "Valve", 1)
+	if err != nil {
+		log.Fatalf("Failed to get games by publisher: %v", err)
+	}
+	for _, game := range games {
+		fmt.Printf("Game: %s\n", game.Name)
+	}
+
+	games, err = db.GetGamesByLanguage(ctx, "english", 1)
+	if err != nil {
+		log.Fatalf("Failed to get games by language: %v", err)
+	}
+	for _, game := range games {
+		fmt.Printf("Game: %s\n", game.Name)
+	}
+
+	games, err = db.SearchGames(ctx, "Dota", 10, 1)
+	if err != nil {
+		log.Fatalf("Failed to search games: %v", err)
+	}
+	for _, game := range games {
+		fmt.Printf("Game: %s\n", game.Name)
+	}
+
+	count, err := db.GetCountOfGames(ctx)
+	if err != nil {
+		log.Fatalf("Failed to get count of games: %v", err)
+	}
+	fmt.Printf("Total number of games in the database: %d\n", count)
+	count, err = db.GetCountOfGamesByGenre(ctx, "Action")
+	if err != nil {
+		log.Fatalf("Failed to get count of games by genre: %v", err)
+	}
+	fmt.Printf("Total number of Action games in the database: %d\n", count)
+	count, err = db.GetCountOfGamesByTag(ctx, "FPS")
+	if err != nil {
+		log.Fatalf("Failed to get count of games by tag: %v", err)
+	}
+	fmt.Printf("Total number of FPS games in the database: %d\n", count)
+	count, err = db.GetCountOfGamesByDeveloper(ctx, "Facepunch Studios")
+	if err != nil {
+		log.Fatalf("Failed to get count of games by developer: %v", err)
+	}
+	fmt.Printf("Total number of games by Facepunch Studios in the database: %d\n", count)
+	count, err = db.GetCountOfGamesByPublisher(ctx, "Valve")
+	if err != nil {
+		log.Fatalf("Failed to get count of games by publisher: %v", err)
+	}
+	fmt.Printf("Total number of games by Valve in the database: %d\n", count)
+	count, err = db.GetCountOfGamesByLanguage(ctx, "english")
+	if err != nil {
+		log.Fatalf("Failed to get count of games by language: %v", err)
+	}
+	fmt.Printf("Total number of games with English language support in the database: %d\n", count)
+
 }
 

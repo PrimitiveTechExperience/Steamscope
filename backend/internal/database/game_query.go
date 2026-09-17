@@ -542,6 +542,73 @@ func (db *DB) GetCountOfGamesByLanguage(ctx context.Context, language string) (i
 	return count, nil
 }
 
+func (db *DB) SearchGames(ctx context.Context, searchTerm string, limit int, offset int) ([]models.Game, error) {
+	query := `
+	SELECT app_id, name, url, description, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, mac_compatible, linux_compatible
+	FROM games
+	WHERE name ILIKE $1 OR description ILIKE $1
+	ORDER BY name
+	LIMIT $2 OFFSET $3
+	`
+	rows, err := db.Pool.Query(ctx, query, "%"+searchTerm+"%", limit, offset)
+	if err != nil {
+		return nil, fmt.Errorf("failed to search games: %w", err)
+	}
+	defer rows.Close()
+
+	var score int
+	var games []models.Game
+	for rows.Next() {
+		var game models.Game
+		err := rows.Scan(
+			&game.AppID,
+			&game.Name,
+			&game.URL,
+			&game.Description,
+			&game.ReleaseDate,
+			&game.Price,
+			&game.OriginalPrice,
+			&game.DiscountPercentage,
+			&score,
+			&game.ReviewCount,
+			&game.WindowsCompatible,
+			&game.MacCompatible,
+			&game.LinuxCompatible,
+		)
+		game.ReviewScore = GetReviewScoreDescription(score)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan game: %w", err)
+		}
+		game.Developers, err = db.getGameDevelopers(ctx, game.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get game developers: %w", err)
+		}
+		game.Publishers, err = db.getGamePublishers(ctx, game.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get game publishers: %w", err)
+		}
+		game.Tags, err = db.getGameTags(ctx, game.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get game tags: %w", err)
+		}
+		game.Genres, err = db.getGameGenres(ctx, game.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get game genres: %w", err)
+		}
+		game.SupportedLanguages, err = db.getGameLanguages(ctx, game.AppID)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get game languages: %w", err)
+		}
+		game.Reviews, err = db.GetReviews(ctx, game.AppID, 10, 1) // Fetch the first 10 reviews for the game
+		if err != nil {
+			return nil, fmt.Errorf("failed to get reviews for game with app_id %d: %w", game.AppID, err)
+		}
+		games = append(games, game)
+	}
+	return games, nil
+}
+
+
 func (db *DB) getGameDevelopers(ctx context.Context, appID int) ([]string, error) {
 	rows, err := db.Pool.Query(ctx, `
         SELECT d.developer
