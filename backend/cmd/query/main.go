@@ -9,6 +9,7 @@ import (
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scraper"
 	"github.com/joho/godotenv"
 )
@@ -59,7 +60,7 @@ func main() {
 		// 1174180, // Cyberpunk 2077
 	}
 	fmt.Printf("Querying games: %v\n", appIDs)
-	games, err := db.GetGames(ctx, appIDs, 1)
+	games, err := db.GetGames(ctx, models.GameFilters{Limit: 20})
 	if err != nil {
 		log.Fatalf("Failed to get games: %v", err)
 	}
@@ -78,47 +79,56 @@ func main() {
 		fmt.Printf("  Review: %s\n", review.Review)
 	}
 
-	games, err = db.GetGamesByGenre(ctx, "Action", 1)
+	games, err = db.GetGames(ctx, models.GameFilters{Genre: "Action", Limit: 100})
 	if err != nil {
 		log.Fatalf("Failed to get games by genre: %v", err)
 	}
+	fmt.Printf("Games in Action genre:\n")
 	for _, game := range games {
 		fmt.Printf("Game: %s\n", game.Name)
 	}
-
-	games, err = db.GetGamesByTag(ctx, "Multiplayer", 1)
-	if err != nil {
-		log.Fatalf("Failed to get games by tag: %v", err)
-	}
-	for _, game := range games {
-		fmt.Printf("Game: %s\n", game.Name)
-	}
-
-	games, err = db.GetGamesByDeveloper(ctx, "Valve", 1)
+	fmt.Printf("Games made by Valve:\n")
+	games, err = db.GetGames(ctx, models.GameFilters{Developer: "Valve", Limit: 100})
 	if err != nil {
 		log.Fatalf("Failed to get games by developer: %v", err)
 	}
 	for _, game := range games {
 		fmt.Printf("Game: %s\n", game.Name)
 	}
-
-	games, err = db.GetGamesByPublisher(ctx, "Valve", 1)
+	fmt.Printf("Games published by Valve:\n")
+	games, err = db.GetGames(ctx, models.GameFilters{Publisher: "Valve", Limit: 100})
 	if err != nil {
 		log.Fatalf("Failed to get games by publisher: %v", err)
 	}
 	for _, game := range games {
 		fmt.Printf("Game: %s\n", game.Name)
 	}
-
-	games, err = db.GetGamesByLanguage(ctx, "english", 1)
+	fmt.Printf("Games with Action genre:\n")
+	games, err = db.GetGames(ctx, models.GameFilters{Genres: []string{"action"}, Limit: 100})
 	if err != nil {
-		log.Fatalf("Failed to get games by language: %v", err)
+		log.Fatalf("Failed to get games by genres: %v", err)
 	}
 	for _, game := range games {
 		fmt.Printf("Game: %s\n", game.Name)
 	}
-
-	games, err = db.SearchGames(ctx, "Dota", 10, 1)
+	fmt.Printf("Games with Multiplayer tag:\n")
+	games, err = db.GetGames(ctx, models.GameFilters{Tags: []string{"multiplayer"}, Limit: 100})
+	if err != nil {
+		log.Fatalf("Failed to get games by tags: %v", err)
+	}
+	for _, game := range games {
+		fmt.Printf("Game: %s\n", game.Name)
+	}
+	fmt.Printf("Games with English language support:\n")
+	games, err = db.GetGames(ctx, models.GameFilters{Languages: []string{"english"}, Limit: 100})
+	if err != nil {
+		log.Fatalf("Failed to get games by languages: %v", err)
+	}
+	for _, game := range games {
+		fmt.Printf("Game: %s\n", game.Name)
+	}
+	fmt.Printf("Games matching search query 'Dota':\n")
+	games, err = db.GetGames(ctx, models.GameFilters{Search: "Dota", Limit: 10})
 	if err != nil {
 		log.Fatalf("Failed to search games: %v", err)
 	}
@@ -126,36 +136,39 @@ func main() {
 		fmt.Printf("Game: %s\n", game.Name)
 	}
 
-	count, err := db.GetCountOfGames(ctx)
+	count, err := db.GetGamesCount(ctx, models.GameFilters{})
 	if err != nil {
 		log.Fatalf("Failed to get count of games: %v", err)
 	}
 	fmt.Printf("Total number of games in the database: %d\n", count)
-	count, err = db.GetCountOfGamesByGenre(ctx, "Action")
+	count, err = db.GetGamesCount(ctx, models.GameFilters{Genre: "Action"})
 	if err != nil {
 		log.Fatalf("Failed to get count of games by genre: %v", err)
 	}
 	fmt.Printf("Total number of Action games in the database: %d\n", count)
-	count, err = db.GetCountOfGamesByTag(ctx, "FPS")
+	count, err = db.GetGamesCount(ctx, models.GameFilters{Genres: []string{"action"}})
 	if err != nil {
-		log.Fatalf("Failed to get count of games by tag: %v", err)
+		log.Fatalf("Failed to get count of games by genres: %v", err)
 	}
-	fmt.Printf("Total number of FPS games in the database: %d\n", count)
-	count, err = db.GetCountOfGamesByDeveloper(ctx, "Facepunch Studios")
+	fmt.Printf("Total number of Action games using the genre list: %d\n", count)
+	count, err = db.GetGamesCount(ctx, models.GameFilters{Tags: []string{"multiplayer"}})
+	if err != nil {
+		log.Fatalf("Failed to get count of games by tags: %v", err)
+	}
+	fmt.Printf("Total number of Multiplayer games: %d\n", count)
+	count, err = db.GetGamesCount(ctx, models.GameFilters{Languages: []string{"english"}})
+	if err != nil {
+		log.Fatalf("Failed to get count of games by languages: %v", err)
+	}
+	fmt.Printf("Total number of games with English language support: %d\n", count)
+	count, err = db.GetGamesCount(ctx, models.GameFilters{Developer: "Facepunch Studios"})
 	if err != nil {
 		log.Fatalf("Failed to get count of games by developer: %v", err)
 	}
 	fmt.Printf("Total number of games by Facepunch Studios in the database: %d\n", count)
-	count, err = db.GetCountOfGamesByPublisher(ctx, "Valve")
+	count, err = db.GetGamesCount(ctx, models.GameFilters{Publisher: "Valve"})
 	if err != nil {
 		log.Fatalf("Failed to get count of games by publisher: %v", err)
 	}
 	fmt.Printf("Total number of games by Valve in the database: %d\n", count)
-	count, err = db.GetCountOfGamesByLanguage(ctx, "english")
-	if err != nil {
-		log.Fatalf("Failed to get count of games by language: %v", err)
-	}
-	fmt.Printf("Total number of games with English language support in the database: %d\n", count)
-
 }
-
