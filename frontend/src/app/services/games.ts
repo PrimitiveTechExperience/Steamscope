@@ -1,6 +1,25 @@
-import { Injectable } from '@angular/core';
+import { Injectable, inject } from '@angular/core';
+import { HttpClient, HttpParams } from '@angular/common/http';
+import { Observable } from 'rxjs';
+
+import { Game, GamesResponse } from '../models/game';
 
 @Injectable({
   providedIn: 'root',
 })
-export class Games {}
+export class GamesService {
+  private http = inject(HttpClient);
+  private apiUrl = 'http://localhost:8080/api';
+
+  getGames(search?: string): Observable<GamesResponse> {
+    let params = new HttpParams();
+    if (search) {
+      params = params.set('search', search);
+    }
+    return this.http.get<GamesResponse>(`${this.apiUrl}/games`, { params });
+  }
+
+  getGame(id: number): Observable<Game> {
+    return this.http.get<Game>(`${this.apiUrl}/games/${id}`);
+  }
+}

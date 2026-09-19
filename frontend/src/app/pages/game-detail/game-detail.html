@@ -1,0 +1,19 @@
+@if (game(); as game){
+    <div class="min-h-screen bg-gray-100 p-8">
+        <h1>
+        {{ game()?.name }}
+        </h1>
+        <h2>
+            Developer: {{ game()?.developer }}
+            Publisher: {{ game()?.publisher }}
+        </h2>
+        <p>
+            {{ game()?.description }}
+        </p>
+        <p>
+            Price: {{ game()?.price | currency:'USD':'symbol':'1.2-2' : 'Free'}}
+        </p>
+    </div>
+} @else {
+    <p>Loading...</p>
+}

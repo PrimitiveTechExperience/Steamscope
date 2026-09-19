@@ -18,3 +18,10 @@ export interface Game{
     tags: string[];
     languages: string[];
 }
+
+export interface GamesResponse{
+    games: Game[];
+    total: number;
+    limit: number;
+    offset: number;
+}

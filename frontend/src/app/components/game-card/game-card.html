@@ -1,0 +1,14 @@
+<a [routerLink] ="['/games', game().app_id]" class="block bg-gray-100 hover:bg-gray-200 p-4 rounded-lg shadow">
+    <h2 class="text-xl font-semibold">
+        {{game().name}}
+    </h2>
+    <p class="text-gray-600">
+        {{game().description}}
+    </p>
+    <p class="text-gray-600">
+        App ID: {{game().app_id}}
+    </p>
+    <p class="text-gray-600">
+        Price: {{game().price | currency:'USD':'symbol':'1.2-2' : 'Free'}}
+    </p>
+</a>
