@@ -8,7 +8,7 @@ export interface Game{
     price: number;
     original_price: number;
     discount_percentage: number;
-    review_score: number;
+    review_score: string;
     review_count: number;
     windows_compatible: boolean;
     mac_compatible: boolean;
@@ -17,7 +17,23 @@ export interface Game{
     publishers: string[];
     genres: string[];
     tags: string[];
-    languages: string[];
+    supported_languages: string[];
+    reviews: Review[];
+}
+
+export interface Review{
+    app_id: number;
+    recommendation_id: string;
+    steam_id: string;
+    language: string;
+    review: string;
+    voted_up: boolean;
+    timestamp_created: string;
+    timestamp_updated: string;
+    playtime_forever: number;
+    playtime_at_review: number;
+    helpful_votes: number;
+    funny_votes: number;
 }
 
 export interface GamesResponse{
@@ -32,4 +48,12 @@ export interface PricePoint{
     price: number;
     original_price: number;
     discount_percentage: number;
+}
+
+export interface FilterOptions{
+    genres: string[];
+    tags: string[];
+    developers: string[];
+    publishers: string[];
+    languages: string[];
 }

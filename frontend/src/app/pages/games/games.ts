@@ -22,7 +22,7 @@ export class GamesComponent{
   games = toSignal(
     this.searchTrigger.pipe(
       switchMap((search) =>
-        this.gamesService.getGames(search).pipe(
+        this.gamesService.getGames({ search }).pipe(
           map((response) => response.games),
           catchError((error) => {
             console.error('Error fetching games:', error);

@@ -90,9 +90,9 @@ func buildGameQuery(filters models.GameFilters, countOnly bool) (string, []any) 
 		placeholder := addArg(filters.Genre)
 		query = append(query, "AND EXISTS (SELECT 1 FROM game_genres gg JOIN genres ge ON ge.genre_id = gg.genre_id WHERE gg.app_id = g.app_id AND ge.genre ILIKE "+placeholder+")")
 	}
-	for _, genre := range filters.Genres {
-		placeholder := addArg(genre)
-		query = append(query, "AND EXISTS (SELECT 1 FROM game_genres gg JOIN genres ge ON ge.genre_id = gg.genre_id WHERE gg.app_id = g.app_id AND ge.genre ILIKE "+placeholder+")")
+	if len(filters.Genres) > 0 {
+		placeholder := addArg(filters.Genres)
+		query = append(query, "AND EXISTS (SELECT 1 FROM game_genres gg JOIN genres ge ON ge.genre_id = gg.genre_id WHERE gg.app_id = g.app_id AND ge.genre ILIKE ANY("+placeholder+"))")
 	}
 	if filters.Developer != "" {
 		placeholder := addArg(filters.Developer)
@@ -102,13 +102,21 @@ func buildGameQuery(filters models.GameFilters, countOnly bool) (string, []any) 
 		placeholder := addArg(filters.Publisher)
 		query = append(query, "AND EXISTS (SELECT 1 FROM game_publishers gp JOIN publishers p ON p.publisher_id = gp.publisher_id WHERE gp.app_id = g.app_id AND p.publisher ILIKE "+placeholder+")")
 	}
-	for _, tag := range filters.Tags {
-		placeholder := addArg(tag)
-		query = append(query, "AND EXISTS (SELECT 1 FROM game_tags gt JOIN tags t ON t.tag_id = gt.tag_id WHERE gt.app_id = g.app_id AND t.tag ILIKE "+placeholder+")")
+	if len(filters.Developers) > 0 {
+		placeholder := addArg(filters.Developers)
+		query = append(query, "AND EXISTS (SELECT 1 FROM game_developers gd JOIN developers d ON d.developer_id = gd.developer_id WHERE gd.app_id = g.app_id AND d.developer ILIKE ANY("+placeholder+"))")
 	}
-	for _, language := range filters.Languages {
-		placeholder := addArg(language)
-		query = append(query, "AND EXISTS (SELECT 1 FROM game_languages gl JOIN languages l ON l.language_id = gl.language_id WHERE gl.app_id = g.app_id AND l.language ILIKE "+placeholder+")")
+	if len(filters.Publishers) > 0 {
+		placeholder := addArg(filters.Publishers)
+		query = append(query, "AND EXISTS (SELECT 1 FROM game_publishers gp JOIN publishers p ON p.publisher_id = gp.publisher_id WHERE gp.app_id = g.app_id AND p.publisher ILIKE ANY("+placeholder+"))")
+	}
+	if len(filters.Tags) > 0 {
+		placeholder := addArg(filters.Tags)
+		query = append(query, "AND EXISTS (SELECT 1 FROM game_tags gt JOIN tags t ON t.tag_id = gt.tag_id WHERE gt.app_id = g.app_id AND t.tag ILIKE ANY("+placeholder+"))")
+	}
+	if len(filters.Languages) > 0 {
+		placeholder := addArg(filters.Languages)
+		query = append(query, "AND EXISTS (SELECT 1 FROM game_languages gl JOIN languages l ON l.language_id = gl.language_id WHERE gl.app_id = g.app_id AND l.language ILIKE ANY("+placeholder+"))")
 	}
 	if filters.MinPrice > 0 {
 		query = append(query, "AND g.price >= "+addArg(filters.MinPrice))
@@ -150,7 +158,7 @@ func (db *DB) loadGameRelations(ctx context.Context, game *models.Game) error {
 	if err != nil {
 		return fmt.Errorf("failed to get game languages: %w", err)
 	}
-	game.Reviews, err = db.GetReviews(ctx, game.AppID, 10, 1)
+	game.Reviews, err = db.GetReviews(ctx, game.AppID, 10, 0)
 	if err != nil {
 		return fmt.Errorf("failed to get reviews for game with app_id %d: %w", game.AppID, err)
 	}

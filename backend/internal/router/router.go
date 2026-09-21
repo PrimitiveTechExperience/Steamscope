@@ -12,6 +12,7 @@ func New(h *handlers.Handler) http.Handler {
 	mux.HandleFunc("GET /api/games/{appID}", h.GetGame)
 	mux.HandleFunc("GET /api/games/{appID}/reviews", h.GetReviews)
 	mux.HandleFunc("GET /api/games/{appID}/price-history", h.GetPriceHistory)
+	mux.HandleFunc("GET /api/filters", h.GetFilterOptions)
 	mux.HandleFunc("GET /api/health", getHealthHandler())
 	return withCORS(mux)
 }

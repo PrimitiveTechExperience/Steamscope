@@ -1,0 +1,100 @@
+<div class="mx-auto max-w-6xl px-6 py-10">
+    <h1 class="mb-6 text-3xl font-extrabold tracking-tight text-[var(--color-text)]">
+        Search
+    </h1>
+
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-[16rem_1fr]">
+        <aside class="space-y-6">
+            <div>
+                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Price</h3>
+                <div class="flex items-center gap-2">
+                    <input
+                        type="number"
+                        min="0"
+                        placeholder="Min"
+                        class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm"
+                        (input)="onMinPriceInput($event)"
+                    />
+                    <span class="text-[var(--color-text-muted)]">–</span>
+                    <input
+                        type="number"
+                        min="0"
+                        placeholder="Max"
+                        class="w-full rounded-md border border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm"
+                        (input)="onMaxPriceInput($event)"
+                    />
+                </div>
+            </div>
+
+            <div>
+                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Genres</h3>
+                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
+                    @for (genre of filterOptions().genres; track genre) {
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" [checked]="isSelected('genres', genre)" (change)="toggleFilter('genres', genre)" />
+                            {{ genre }}
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div>
+                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Tags</h3>
+                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
+                    @for (tag of filterOptions().tags; track tag) {
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" [checked]="isSelected('tags', tag)" (change)="toggleFilter('tags', tag)" />
+                            {{ tag }}
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div>
+                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Developers</h3>
+                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
+                    @for (developer of filterOptions().developers; track developer) {
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" [checked]="isSelected('developers', developer)" (change)="toggleFilter('developers', developer)" />
+                            {{ developer }}
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div>
+                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Publishers</h3>
+                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
+                    @for (publisher of filterOptions().publishers; track publisher) {
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" [checked]="isSelected('publishers', publisher)" (change)="toggleFilter('publishers', publisher)" />
+                            {{ publisher }}
+                        </label>
+                    }
+                </div>
+            </div>
+
+            <div>
+                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Languages</h3>
+                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
+                    @for (language of filterOptions().languages; track language) {
+                        <label class="flex items-center gap-2">
+                            <input type="checkbox" [checked]="isSelected('languages', language)" (change)="toggleFilter('languages', language)" />
+                            {{ language }}
+                        </label>
+                    }
+                </div>
+            </div>
+        </aside>
+
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3" style="align-content: start;">
+            @for (game of results().games; track game.app_id){
+                <app-game-card [game]="game" />
+            } @empty {
+                <p class="col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
+                    No games match these filters.
+                </p>
+            }
+        </div>
+    </div>
+</div>

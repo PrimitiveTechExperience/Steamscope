@@ -1,18 +1,16 @@
 @if (game(); as game){
-    <div class="mx-auto max-w-4xl px-6 py-10">
-        <div class="overflow-hidden rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] shadow-sm">
-            <img [src]="game.header_image" [alt]="game.name" class="aspect-video w-full object-cover" />
-            <div class="p-6">
-                <div class="flex flex-wrap items-start justify-between gap-4">
-                    <div>
-                        <h1 class="text-2xl font-extrabold tracking-tight text-[var(--color-text)]">
-                            {{ game.name }}
-                        </h1>
-                        <p class="mt-1 text-sm text-[var(--color-text-muted)]">
-                            {{ game.developers.join(', ') }} · {{ game.publishers.join(', ') }}
-                        </p>
-                    </div>
-                    <div class="flex items-center gap-2">
+    <div class="mx-auto max-w-6xl px-6 py-10">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex items-start gap-4">
+                <img [src]="game.header_image" [alt]="game.name" class="h-24 w-40 rounded-lg object-cover" />
+                <div>
+                    <h1 class="text-2xl font-extrabold tracking-tight text-[var(--color-text)]">
+                        {{ game.name }}
+                    </h1>
+                    <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+                        {{ game.developers.join(', ') }} · {{ game.publishers.join(', ') }}
+                    </p>
+                    <div class="mt-2 flex items-center gap-2">
                         @if (game.discount_percentage > 0) {
                             <span class="rounded-full bg-[var(--color-discount)] px-2 py-1 text-xs font-bold text-white">
                                 -{{ game.discount_percentage }}%
@@ -26,24 +24,187 @@
                         </span>
                     </div>
                 </div>
+            </div>
+            <div class="text-right text-sm text-[var(--color-text-muted)]">
+                Released
+                <div class="font-semibold text-[var(--color-text)]">
+                    {{ game.release_date | date:'mediumDate' }}
+                </div>
+            </div>
+        </div>
 
+        <div class="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+            <div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                <div class="flex flex-wrap gap-1">
+                    @for (key of rangeKeys; track key) {
+                        <button
+                            class="rounded-md px-3 py-1.5 text-xs font-semibold transition"
+                            [style.background]="activeRangeTab() === key ? 'var(--color-accent)' : 'transparent'"
+                            [style.color]="activeRangeTab() === key ? '#fff' : 'var(--color-text-muted)'"
+                            (click)="activeRangeTab.set(key)"
+                        >
+                            {{ rangeLabels[key] }}
+                        </button>
+                    }
+                </div>
                 @if (isBrowser && hasPriceHistory()) {
-                    <div class="mt-6 h-64 rounded-lg border border-[var(--color-border)] p-4">
-                        <canvas
-                            baseChart
-                            [data]="chartData()"
-                            [options]="chartOptions"
-                            type="line"
-                        ></canvas>
+                    <div class="mt-4 h-64">
+                        <canvas baseChart [data]="chartData()" [options]="chartOptions" type="line"></canvas>
+                    </div>
+                } @else {
+                    <div class="mt-4 flex h-64 items-center justify-center text-sm text-[var(--color-text-muted)]">
+                        Not enough price history for this range yet.
                     </div>
                 }
+            </div>
 
-                <p class="mt-6 whitespace-pre-line text-sm leading-relaxed text-[var(--color-text)]">
-                    {{ game.description }}
+            <div class="rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] p-4">
+                <div class="flex gap-1 border-b border-[var(--color-border)] pb-2">
+                    <button
+                        class="rounded-md px-3 py-1.5 text-xs font-semibold transition"
+                        [style.background]="activeDetailTab() === 'description' ? 'var(--color-accent-soft)' : 'transparent'"
+                        [style.color]="activeDetailTab() === 'description' ? 'var(--color-accent)' : 'var(--color-text-muted)'"
+                        (click)="activeDetailTab.set('description')"
+                    >
+                        Description
+                    </button>
+                    <button
+                        class="rounded-md px-3 py-1.5 text-xs font-semibold transition"
+                        [style.background]="activeDetailTab() === 'tags' ? 'var(--color-accent-soft)' : 'transparent'"
+                        [style.color]="activeDetailTab() === 'tags' ? 'var(--color-accent)' : 'var(--color-text-muted)'"
+                        (click)="activeDetailTab.set('tags')"
+                    >
+                        Tags &amp; Genres
+                    </button>
+                    <button
+                        class="rounded-md px-3 py-1.5 text-xs font-semibold transition"
+                        [style.background]="activeDetailTab() === 'misc' ? 'var(--color-accent-soft)' : 'transparent'"
+                        [style.color]="activeDetailTab() === 'misc' ? 'var(--color-accent)' : 'var(--color-text-muted)'"
+                        (click)="activeDetailTab.set('misc')"
+                    >
+                        Misc
+                    </button>
+                </div>
+
+                <div class="mt-4 max-h-64 overflow-y-auto text-sm text-[var(--color-text)]">
+                    @switch (activeDetailTab()) {
+                        @case ('description') {
+                            <p class="whitespace-pre-line leading-relaxed">{{ game.description }}</p>
+                        }
+                        @case ('tags') {
+                            <div>
+                                <h3 class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Genres</h3>
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    @for (genre of game.genres; track genre) {
+                                        <span class="rounded-full bg-[var(--color-accent-soft)] px-3 py-1 text-xs text-[var(--color-accent)]">{{ genre }}</span>
+                                    }
+                                </div>
+                                <h3 class="mt-4 text-xs font-bold uppercase text-[var(--color-text-muted)]">Tags</h3>
+                                <div class="mt-2 flex flex-wrap gap-2">
+                                    @for (tag of game.tags; track tag) {
+                                        <span class="rounded-full bg-[var(--color-surface-alt)] px-3 py-1 text-xs text-[var(--color-text)]">{{ tag }}</span>
+                                    }
+                                </div>
+                            </div>
+                        }
+                        @case ('misc') {
+                            <dl class="grid grid-cols-2 gap-y-2">
+                                <dt class="text-[var(--color-text-muted)]">Review score</dt>
+                                <dd>{{ game.review_score }} ({{ game.review_count }})</dd>
+                                <dt class="text-[var(--color-text-muted)]">Windows</dt>
+                                <dd>{{ game.windows_compatible ? 'Yes' : 'No' }}</dd>
+                                <dt class="text-[var(--color-text-muted)]">Mac</dt>
+                                <dd>{{ game.mac_compatible ? 'Yes' : 'No' }}</dd>
+                                <dt class="text-[var(--color-text-muted)]">Linux</dt>
+                                <dd>{{ game.linux_compatible ? 'Yes' : 'No' }}</dd>
+                                <dt class="text-[var(--color-text-muted)]">Languages</dt>
+                                <dd class="col-span-2">{{ game.supported_languages.join(', ') }}</dd>
+                                <dt class="text-[var(--color-text-muted)]">Store page</dt>
+                                <dd class="col-span-2 truncate">
+                                    <a [href]="game.url" target="_blank" class="text-[var(--color-accent)] hover:underline">{{ game.url }}</a>
+                                </dd>
+                            </dl>
+                        }
+                    }
+                </div>
+            </div>
+        </div>
+
+        @if (sameDeveloperGames().length > 0) {
+            <div class="mt-8">
+                <h2 class="mb-3 text-lg font-bold text-[var(--color-text)]">More from {{ game.developers[0] }}</h2>
+                <div class="flex gap-4 overflow-x-auto pb-2">
+                    @for (g of sameDeveloperGames(); track g.app_id) {
+                        <div class="w-64 shrink-0">
+                            <app-game-card [game]="g" />
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (samePublisherGames().length > 0) {
+            <div class="mt-8">
+                <h2 class="mb-3 text-lg font-bold text-[var(--color-text)]">Published by {{ game.publishers[0] }}</h2>
+                <div class="flex gap-4 overflow-x-auto pb-2">
+                    @for (g of samePublisherGames(); track g.app_id) {
+                        <div class="w-64 shrink-0">
+                            <app-game-card [game]="g" />
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (reviews().length > 0) {
+            <div class="mt-8">
+                <div class="mb-3 flex items-center justify-between">
+                    <h2 class="text-lg font-bold text-[var(--color-text)]">Reviews</h2>
+                    <a [href]="steamReviewsUrl()" target="_blank" class="text-sm font-medium text-[var(--color-accent)] hover:underline">
+                        See all reviews on Steam
+                    </a>
+                </div>
+                <div class="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    @for (review of reviews(); track review.recommendation_id) {
+                        <button
+                            (click)="selectedReview.set(review)"
+                            class="rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] p-4 text-left text-sm transition hover:shadow-md"
+                        >
+                            <div class="mb-1 flex items-center gap-2 text-xs font-semibold" [style.color]="review.voted_up ? 'var(--color-discount)' : 'var(--color-text-muted)'">
+                                {{ review.voted_up ? '👍 Recommended' : '👎 Not Recommended' }}
+                            </div>
+                            <p class="line-clamp-3 text-[var(--color-text)]">{{ review.review }}</p>
+                        </button>
+                    }
+                </div>
+            </div>
+        }
+    </div>
+
+    @if (selectedReview(); as review) {
+        <div
+            class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-6"
+            (click)="selectedReview.set(null)"
+        >
+            <div
+                class="max-h-[80vh] w-full max-w-lg overflow-y-auto rounded-xl bg-[var(--color-surface)] p-6"
+                (click)="$event.stopPropagation()"
+            >
+                <div class="mb-3 flex items-center justify-between">
+                    <span class="text-sm font-semibold" [style.color]="review.voted_up ? 'var(--color-discount)' : 'var(--color-text-muted)'">
+                        {{ review.voted_up ? '👍 Recommended' : '👎 Not Recommended' }}
+                    </span>
+                    <button (click)="selectedReview.set(null)" class="text-sm text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+                        Close
+                    </button>
+                </div>
+                <p class="whitespace-pre-line text-sm leading-relaxed text-[var(--color-text)]">{{ review.review }}</p>
+                <p class="mt-4 text-xs text-[var(--color-text-muted)]">
+                    Playtime at review: {{ review.playtime_at_review }} min
                 </p>
             </div>
         </div>
-    </div>
+    }
 } @else {
     <div class="mx-auto max-w-4xl px-6 py-16 text-center text-sm text-[var(--color-text-muted)]">
         Loading...

@@ -22,6 +22,8 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	filters.Genres = splitFilterValues(r.URL.Query().Get("genres"))
 	filters.Tags = splitFilterValues(r.URL.Query().Get("tags"))
 	filters.Languages = splitFilterValues(r.URL.Query().Get("languages"))
+	filters.Developers = splitFilterValues(r.URL.Query().Get("developers"))
+	filters.Publishers = splitFilterValues(r.URL.Query().Get("publishers"))
 
 	if value := r.URL.Query().Get("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)

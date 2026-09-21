@@ -12,7 +12,7 @@ import (
 	"github.com/joho/godotenv"
 )
 
-// backfill-history pulls up to 5 years of historical Steam price-change
+// backfill-history pulls up to 2 years of historical Steam price-change
 // events per tracked game from IsThereAnyDeal and writes a daily price_history
 // row for each day in that window. Run it once (or whenever you add a new
 // tracked game) - it's safe to re-run since price_history upserts on
@@ -37,7 +37,7 @@ func main() {
 	client := itad.New(cfg.ITADAPIKey)
 
 	endDate := time.Now()
-	startDate := endDate.AddDate(-5, 0, 0)
+	startDate := endDate.AddDate(-2, 0, 0)
 
 	for _, appID := range cfg.Steam.TrackedAppIDs {
 		itadID, err := client.LookupGameID(appID)

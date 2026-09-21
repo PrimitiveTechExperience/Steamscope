@@ -27,6 +27,14 @@ func (db *DB) UpsertPriceHistory(ctx context.Context, appID int, price, original
 	return nil
 }
 
+func (db *DB) DeleteOldPriceHistory(ctx context.Context, cutoff time.Time) (int64, error) {
+	tag, err := db.Pool.Exec(ctx, `DELETE FROM price_history WHERE recorded_date < $1`, cutoff.Format("2006-01-02"))
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete old price history: %w", err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 func (db *DB) GetPriceHistory(ctx context.Context, appID int) ([]models.PricePoint, error) {
 	rows, err := db.Pool.Query(
 		ctx,
