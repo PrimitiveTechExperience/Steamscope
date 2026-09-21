@@ -8,7 +8,7 @@ import (
 )
 
 func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
-	appIDStr := r.URL.Query().Get("appID")
+	appIDStr := r.PathValue("appID")
 	if appIDStr == "" {
 		http.Error(w, "Missing appID parameter", http.StatusBadRequest)
 		return

@@ -24,6 +24,7 @@ func TestInsertGame(t *testing.T) {
 		Name:               "Test Game",
 		URL:                "https://example.com/game/123",
 		Description:        "A test game",
+		HeaderImage:        "https://example.com/game/123/header.jpg",
 		ReleaseDate:        releaseDate,
 		Price:              19.99,
 		OriginalPrice:      29.99,
@@ -39,12 +40,13 @@ func TestInsertGame(t *testing.T) {
 	mockPool.ExpectExec(`SELECT app_id FROM games WHERE app_id = \$1 FOR UPDATE`).
 		WithArgs(game.AppID).
 		WillReturnResult(pgxmock.NewResult("SELECT", 1))
-	mockPool.ExpectExec(`INSERT INTO games \(\s*app_id, name, url, description, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, linux_compatible, mac_compatible\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12, \$13\)\s*ON CONFLICT \(app_id\) DO UPDATE SET`).
+	mockPool.ExpectExec(`INSERT INTO games \(\s*app_id, name, url, description, header_image, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, linux_compatible, mac_compatible\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12, \$13, \$14\)\s*ON CONFLICT \(app_id\) DO UPDATE SET`).
 		WithArgs(
 			game.AppID,
 			game.Name,
 			game.URL,
 			game.Description,
+			game.HeaderImage,
 			game.ReleaseDate,
 			game.Price,
 			game.OriginalPrice,
@@ -84,12 +86,13 @@ func TestInsertGame_Error(t *testing.T) {
 	mockPool.ExpectExec(`SELECT app_id FROM games WHERE app_id = \$1 FOR UPDATE`).
 		WithArgs(game.AppID).
 		WillReturnResult(pgxmock.NewResult("SELECT", 1))
-	mockPool.ExpectExec(`INSERT INTO games \(\s*app_id, name, url, description, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, linux_compatible, mac_compatible\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12, \$13\)\s*ON CONFLICT \(app_id\) DO UPDATE SET`).
+	mockPool.ExpectExec(`INSERT INTO games \(\s*app_id, name, url, description, header_image, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, linux_compatible, mac_compatible\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12, \$13, \$14\)\s*ON CONFLICT \(app_id\) DO UPDATE SET`).
 		WithArgs(
 			game.AppID,
 			game.Name,
 			game.URL,
 			game.Description,
+			game.HeaderImage,
 			game.ReleaseDate,
 			game.Price,
 			game.OriginalPrice,

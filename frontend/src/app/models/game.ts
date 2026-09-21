@@ -3,6 +3,7 @@ export interface Game{
     name: string;
     url: string;
     description: string;
+    header_image: string;
     release_date: string;
     price: number;
     original_price: number;
@@ -24,4 +25,11 @@ export interface GamesResponse{
     total: number;
     limit: number;
     offset: number;
+}
+
+export interface PricePoint{
+    date: string;
+    price: number;
+    original_price: number;
+    discount_percentage: number;
 }

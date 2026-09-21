@@ -1,27 +1,36 @@
-<div class="min-h-screen bg-gray-100 p-8">
-    <div class="mx-auto max-w-7x1">
-        <h1 class="mb-6 text-3x1 font-bold">
-            Games
-        </h1>
-        <div class="mb-6">
+<div class="mx-auto max-w-6xl px-6 py-10">
+    <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <h1 class="text-3xl font-extrabold tracking-tight text-[var(--color-text)]">
+                Games
+            </h1>
+            <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+                Track prices and discounts across the Steam store.
+            </p>
+        </div>
+        <div class="flex w-full max-w-md items-center gap-2">
             <input
                 type="text"
                 placeholder="Search games"
-                class="w-full rounded-lg border bg-white px-4 py-2"
+                class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm text-[var(--color-text)] shadow-sm outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
                 [(ngModel)]="searchTerm"
                 (keyup.enter)="search()"
             />
             <button
-                class="ml-2 rounded-lg bg-blue-500 px-4 py-2 text-white hover:bg-blue-600"
+                class="shrink-0 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
                 (click)="search()"
             >
                 Search
             </button>
         </div>
-        <div class="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3">
-            @for (game of games(); track game.app_id){
-                <app-game-card [game]="game" />
-            }
-        </div>
+    </div>
+    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+        @for (game of games(); track game.app_id){
+            <app-game-card [game]="game" />
+        } @empty {
+            <p class="col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
+                No games found.
+            </p>
+        }
     </div>
 </div>

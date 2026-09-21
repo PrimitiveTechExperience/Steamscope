@@ -2,7 +2,7 @@ import { Injectable, inject } from '@angular/core';
 import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
-import { Game, GamesResponse } from '../models/game';
+import { Game, GamesResponse, PricePoint } from '../models/game';
 
 @Injectable({
   providedIn: 'root',
@@ -21,5 +21,9 @@ export class GamesService {
 
   getGame(id: number): Observable<Game> {
     return this.http.get<Game>(`${this.apiUrl}/games/${id}`);
+  }
+
+  getPriceHistory(id: number): Observable<PricePoint[]> {
+    return this.http.get<PricePoint[]>(`${this.apiUrl}/games/${id}/price-history`);
   }
 }

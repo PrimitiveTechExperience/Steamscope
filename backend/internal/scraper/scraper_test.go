@@ -34,7 +34,7 @@ func TestScrapeGame_ParsesNameAndDeveloper(t *testing.T) {
 							</div>
 						</div>
 
-						<div class="game_area_description">
+						<div id="game_area_description">
 							This is a test game description.
 						</div>
 

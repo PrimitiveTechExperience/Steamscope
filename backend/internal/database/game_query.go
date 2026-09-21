@@ -12,11 +12,11 @@ func (db *DB) GetGame(ctx context.Context, appID int) (*models.Game, error) {
 	var game models.Game
 	var score int
 	err := db.Pool.QueryRow(ctx, `
-	SELECT app_id, name, url, description, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, mac_compatible, linux_compatible
+	SELECT app_id, name, url, description, header_image, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, mac_compatible, linux_compatible
 	FROM games
 	WHERE app_id = $1
 	`, appID).Scan(
-		&game.AppID, &game.Name, &game.URL, &game.Description, &game.ReleaseDate,
+		&game.AppID, &game.Name, &game.URL, &game.Description, &game.HeaderImage, &game.ReleaseDate,
 		&game.Price, &game.OriginalPrice, &game.DiscountPercentage, &score,
 		&game.ReviewCount, &game.WindowsCompatible, &game.MacCompatible, &game.LinuxCompatible,
 	)
@@ -43,7 +43,7 @@ func (db *DB) GetGames(ctx context.Context, filters models.GameFilters) ([]model
 		var game models.Game
 		var score int
 		if err := rows.Scan(
-			&game.AppID, &game.Name, &game.URL, &game.Description, &game.ReleaseDate,
+			&game.AppID, &game.Name, &game.URL, &game.Description, &game.HeaderImage, &game.ReleaseDate,
 			&game.Price, &game.OriginalPrice, &game.DiscountPercentage, &score,
 			&game.ReviewCount, &game.WindowsCompatible, &game.MacCompatible, &game.LinuxCompatible,
 		); err != nil {
@@ -71,7 +71,7 @@ func (db *DB) GetGamesCount(ctx context.Context, filters models.GameFilters) (in
 }
 
 func buildGameQuery(filters models.GameFilters, countOnly bool) (string, []any) {
-	selectClause := `SELECT g.app_id, g.name, g.url, g.description, g.release_date, g.price, g.original_price, g.discount_percentage, g.review_score, g.review_count, g.windows_compatible, g.mac_compatible, g.linux_compatible`
+	selectClause := `SELECT g.app_id, g.name, g.url, g.description, g.header_image, g.release_date, g.price, g.original_price, g.discount_percentage, g.review_score, g.review_count, g.windows_compatible, g.mac_compatible, g.linux_compatible`
 	if countOnly {
 		selectClause = "SELECT COUNT(*)"
 	}

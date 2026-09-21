@@ -1,6 +1,6 @@
 import { Component, inject} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of } from 'rxjs';
+import { BehaviorSubject, catchError, map, of, switchMap } from 'rxjs';
 
 import {GamesService} from '../../services/games';
 import {Game} from '../../models/game';
@@ -17,14 +17,24 @@ export class GamesComponent{
   searchTerm = '';
   constructor() { }
   private gamesService = inject(GamesService);
+  private searchTrigger = new BehaviorSubject<string>('');
+
   games = toSignal(
-    this.gamesService.getGames().pipe(
-      map((response) => response.games),
-      catchError((error) => {
-        console.error('Error fetching games:', error);
-        return of([] as Game[]);
-      })
+    this.searchTrigger.pipe(
+      switchMap((search) =>
+        this.gamesService.getGames(search).pipe(
+          map((response) => response.games),
+          catchError((error) => {
+            console.error('Error fetching games:', error);
+            return of([] as Game[]);
+          })
+        )
+      )
     ),
     { initialValue: [] }
   );
+
+  search() {
+    this.searchTrigger.next(this.searchTerm);
+  }
 }

@@ -1,3 +1,22 @@
 /* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-alt: #f6f7f9;
+  --color-border: #e6e7eb;
+  --color-text: #16171a;
+  --color-text-muted: #6b7280;
+  --color-accent: #2563eb;
+  --color-accent-soft: #eff4ff;
+  --color-discount: #16a34a;
+  --color-free: #0ea5e9;
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+}
+
+body {
+  background-color: var(--color-surface-alt);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}

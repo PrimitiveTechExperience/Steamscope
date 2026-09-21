@@ -8,6 +8,7 @@ type Game struct {
 	Name               string `json:"name"`
 	URL                string `json:"url"`
 	Description        string `json:"description"`
+	HeaderImage        string `json:"header_image"`
 	ReleaseDate        time.Time `json:"release_date"`
 	// Supported languages are stored as a slice of strings, as a game can support multiple languages.
 	SupportedLanguages  []string `json:"supported_languages"`
@@ -29,4 +30,12 @@ type Game struct {
 	WindowsCompatible  bool`json:"windows_compatible"`
 	LinuxCompatible    bool`json:"linux_compatible"`
 	MacCompatible      bool`json:"mac_compatible"`
+}
+
+// PricePoint represents a single day's recorded price for a game.
+type PricePoint struct {
+	Date               time.Time `json:"date"`
+	Price              float64   `json:"price"`
+	OriginalPrice      float64   `json:"original_price"`
+	DiscountPercentage int       `json:"discount_percentage"`
 }

@@ -5,12 +5,14 @@ import (
 	"log"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/joho/godotenv"
 )
 
 type Config struct {
 	Steam SteamConfig
+	ITADAPIKey string
 }
 
 type SteamConfig struct {
@@ -19,6 +21,7 @@ type SteamConfig struct {
 	ReviewMaxReviews int
 	ReviewLanguage string
 	BaseURL string
+	TrackedAppIDs []int
 }
 
 type Cookie struct{
@@ -46,8 +49,28 @@ func LoadConfig() *Config {
 			}(),
 			ReviewLanguage: getEnv("REVIEW_LANGUAGE", "english"),
 			BaseURL: getEnv("STEAM_BASE_URL", "https://store.steampowered.com"),
+			TrackedAppIDs: parseAppIDs(getEnv("TRACKED_APP_IDS", "730,570,440,578080,4000,550,252490")),
 		},
+		ITADAPIKey: getEnv("ITAD_API_KEY", ""),
 	}
+}
+
+func parseAppIDs(csv string) []int {
+	parts := strings.Split(csv, ",")
+	appIDs := make([]int, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		appID, err := strconv.Atoi(part)
+		if err != nil {
+			log.Printf("Invalid app ID %q in TRACKED_APP_IDS, skipping", part)
+			continue
+		}
+		appIDs = append(appIDs, appID)
+	}
+	return appIDs
 }
 
 
