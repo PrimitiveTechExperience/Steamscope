@@ -7,6 +7,7 @@ import { GamesService } from '../../services/games';
 import { GameCardComponent } from '../../components/game-card/game-card';
 import { RevealOnScrollDirective } from '../../directives/reveal-on-scroll';
 import { Game } from '../../models/game';
+import { withLoading } from '../../utils/with-loading';
 
 @Component({
   selector: 'app-landing',
@@ -17,13 +18,19 @@ import { Game } from '../../models/game';
 export class LandingComponent {
   private gamesService = inject(GamesService);
 
-  private games = toSignal(
-    this.gamesService.getGames().pipe(
-      map((response) => response.games),
-      catchError(() => of([] as Game[]))
+  private gamesState = toSignal(
+    withLoading(
+      this.gamesService.getGames().pipe(
+        map((response) => response.games),
+        catchError(() => of([] as Game[]))
+      ),
+      [] as Game[]
     ),
-    { initialValue: [] as Game[] }
+    { initialValue: { data: [] as Game[], loading: true } }
   );
+
+  private games = computed(() => this.gamesState().data);
+  protected trendingLoading = computed(() => this.gamesState().loading);
 
   protected trending = computed(() => {
     const discounted = this.games().filter((g) => g.discount_percentage > 0);

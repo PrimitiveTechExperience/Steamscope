@@ -15,6 +15,7 @@ export interface GamesQueryOptions {
   publishers?: string[];
   minPrice?: number;
   maxPrice?: number;
+  limit?: number;
 }
 
 @Injectable({
@@ -36,6 +37,7 @@ export class GamesService {
     if (opts?.publishers?.length) params = params.set('publishers', opts.publishers.join(','));
     if (opts?.minPrice != null) params = params.set('minPrice', opts.minPrice);
     if (opts?.maxPrice != null) params = params.set('maxPrice', opts.maxPrice);
+    if (opts?.limit != null) params = params.set('limit', opts.limit);
     return this.http.get<GamesResponse>(`${this.apiUrl}/games`, { params });
   }
 

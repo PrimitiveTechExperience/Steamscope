@@ -25,12 +25,18 @@
         </div>
     </div>
     <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-        @for (game of games(); track game.app_id){
-            <app-game-card [game]="game" />
-        } @empty {
-            <p class="col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
-                No games found.
-            </p>
+        @if (gamesLoading()) {
+            @for (i of [1,2,3,4,5,6]; track i) {
+                <div class="skeleton aspect-[4/5]"></div>
+            }
+        } @else {
+            @for (game of games(); track game.app_id){
+                <app-game-card [game]="game" />
+            } @empty {
+                <p class="col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
+                    No games found.
+                </p>
+            }
         }
     </div>
 </div>

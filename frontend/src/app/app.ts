@@ -2,8 +2,6 @@ import { Component, inject, PLATFORM_ID, signal } from '@angular/core';
 import { isPlatformBrowser } from '@angular/common';
 import { RouterOutlet, RouterLink } from '@angular/router';
 
-import { ScrollPositionService } from './services/scroll-position';
-
 @Component({
   selector: 'app-root',
   imports: [RouterOutlet, RouterLink],
@@ -12,15 +10,14 @@ import { ScrollPositionService } from './services/scroll-position';
 })
 export class App {
   private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
-  private scrollPosition = inject(ScrollPositionService);
-  protected theme = signal<'light' | 'dark'>('light');
+  protected theme = signal<'light' | 'dark'>('dark');
 
   constructor() {
     if (this.isBrowser) {
-      const initial = localStorage.getItem('theme') === 'dark' ? 'dark' : 'light';
+      const stored = localStorage.getItem('theme');
+      const initial = stored === 'light' ? 'light' : 'dark';
       this.theme.set(initial);
       document.documentElement.setAttribute('data-theme', initial);
-      this.scrollPosition.start();
     }
   }
 

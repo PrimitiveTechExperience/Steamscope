@@ -1,6 +1,6 @@
 import { Component, afterNextRender, computed, inject, PLATFORM_ID, signal } from '@angular/core';
 import { isPlatformBrowser, CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
-import { ActivatedRoute } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { switchMap, catchError, map, of } from 'rxjs';
 import { ChartConfiguration } from 'chart.js';
@@ -12,6 +12,7 @@ import { RevealOnScrollDirective } from '../../directives/reveal-on-scroll';
 import { TiltDirective } from '../../directives/tilt';
 import { GrowOnScrollDirective } from '../../directives/grow-on-scroll';
 import { Game, PricePoint, Review } from '../../models/game';
+import { withLoading } from '../../utils/with-loading';
 
 type RangeKey = '1w' | '1m' | '3m' | '6m' | '1y' | '2y';
 type DetailTab = 'description' | 'tags' | 'misc';
@@ -34,9 +35,21 @@ const RANGE_LABELS: Record<RangeKey, string> = {
   '2y': '2 Years',
 };
 
+// Chart labels are user-facing text, not data - normalize the raw ISO
+// timestamps from the API into something nobody has to mentally parse.
+function formatChartDate(iso: string, range: RangeKey): string {
+  const date = new Date(iso);
+  const showYear = range === '2y' || range === '1y';
+  return date.toLocaleDateString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    year: showYear ? 'numeric' : undefined,
+  });
+}
+
 @Component({
   selector: 'app-game-detail',
-  imports: [CurrencyPipe, DatePipe, DecimalPipe, BaseChartDirective, GameCardComponent, RevealOnScrollDirective, TiltDirective, GrowOnScrollDirective],
+  imports: [CurrencyPipe, DatePipe, DecimalPipe, BaseChartDirective, GameCardComponent, RevealOnScrollDirective, TiltDirective, GrowOnScrollDirective, RouterLink],
   templateUrl: './game-detail.html',
   styleUrl: './game-detail.css',
 })
@@ -67,41 +80,53 @@ export class GameDetailComponent {
     });
   }
 
-  game = toSignal(
+  private gameState = toSignal(
     this.route.paramMap.pipe(
       switchMap((params) => {
         const appId = params.get('app_id');
         if (!appId) {
-          return of(null as Game | null);
+          return of({ data: null as Game | null, loading: false });
         }
-        return this.gamesService.getGame(Number(appId)).pipe(
-          catchError((error) => {
-            console.error('Error fetching game details:', error);
-            return of(null as Game | null);
-          })
+        return withLoading(
+          this.gamesService.getGame(Number(appId)).pipe(
+            catchError((error) => {
+              console.error('Error fetching game details:', error);
+              return of(null as Game | null);
+            })
+          ),
+          null as Game | null
         );
       })
     ),
-    { initialValue: null }
+    { initialValue: { data: null as Game | null, loading: true } }
   );
 
-  private priceHistory = toSignal(
+  game = computed(() => this.gameState().data);
+  protected gameLoading = computed(() => this.gameState().loading);
+
+  private priceHistoryState = toSignal(
     this.route.paramMap.pipe(
       switchMap((params) => {
         const appId = params.get('app_id');
         if (!appId) {
-          return of([] as PricePoint[]);
+          return of({ data: [] as PricePoint[], loading: false });
         }
-        return this.gamesService.getPriceHistory(Number(appId)).pipe(
-          catchError((error) => {
-            console.error('Error fetching price history:', error);
-            return of([] as PricePoint[]);
-          })
+        return withLoading(
+          this.gamesService.getPriceHistory(Number(appId)).pipe(
+            catchError((error) => {
+              console.error('Error fetching price history:', error);
+              return of([] as PricePoint[]);
+            })
+          ),
+          [] as PricePoint[]
         );
       })
     ),
-    { initialValue: [] as PricePoint[] }
+    { initialValue: { data: [] as PricePoint[], loading: true } }
   );
+
+  private priceHistory = computed(() => this.priceHistoryState().data);
+  protected priceHistoryLoading = computed(() => this.priceHistoryState().loading);
 
   protected filteredPriceHistory = computed(() => {
     const days = RANGE_DAYS[this.activeRangeTab()];
@@ -122,7 +147,7 @@ export class GameDetailComponent {
   chartData = computed<ChartConfiguration<'line'>['data']>(() => {
     const palette = this.chartPalette();
     return {
-      labels: this.filteredPriceHistory().map((point) => point.date),
+      labels: this.filteredPriceHistory().map((point) => formatChartDate(point.date, this.activeRangeTab())),
       datasets: [
         {
           label: 'Price (USD)',
@@ -174,35 +199,47 @@ export class GameDetailComponent {
     };
   });
 
-  protected sameDeveloperGames = toSignal(
+  private sameDeveloperState = toSignal(
     toObservable(this.game).pipe(
       switchMap((game) => {
         if (!game || !game.developers.length) {
-          return of([] as Game[]);
+          return of({ data: [] as Game[], loading: false });
         }
-        return this.gamesService.getGames({ developer: game.developers[0] }).pipe(
-          map((response) => response.games.filter((g) => g.app_id !== game.app_id).slice(0, 10)),
-          catchError(() => of([] as Game[]))
+        return withLoading(
+          this.gamesService.getGames({ developer: game.developers[0] }).pipe(
+            map((response) => response.games.filter((g) => g.app_id !== game.app_id).slice(0, 10)),
+            catchError(() => of([] as Game[]))
+          ),
+          [] as Game[]
         );
       })
     ),
-    { initialValue: [] as Game[] }
+    { initialValue: { data: [] as Game[], loading: false } }
   );
 
-  protected samePublisherGames = toSignal(
+  protected sameDeveloperGames = computed(() => this.sameDeveloperState().data);
+  protected sameDeveloperLoading = computed(() => this.sameDeveloperState().loading);
+
+  private samePublisherState = toSignal(
     toObservable(this.game).pipe(
       switchMap((game) => {
         if (!game || !game.publishers.length) {
-          return of([] as Game[]);
+          return of({ data: [] as Game[], loading: false });
         }
-        return this.gamesService.getGames({ publisher: game.publishers[0] }).pipe(
-          map((response) => response.games.filter((g) => g.app_id !== game.app_id).slice(0, 10)),
-          catchError(() => of([] as Game[]))
+        return withLoading(
+          this.gamesService.getGames({ publisher: game.publishers[0] }).pipe(
+            map((response) => response.games.filter((g) => g.app_id !== game.app_id).slice(0, 10)),
+            catchError(() => of([] as Game[]))
+          ),
+          [] as Game[]
         );
       })
     ),
-    { initialValue: [] as Game[] }
+    { initialValue: { data: [] as Game[], loading: false } }
   );
+
+  protected samePublisherGames = computed(() => this.samePublisherState().data);
+  protected samePublisherLoading = computed(() => this.samePublisherState().loading);
 
   protected reviews = computed(() => this.game()?.reviews ?? []);
 

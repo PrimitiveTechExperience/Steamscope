@@ -8,6 +8,7 @@
             [alt]="game().name"
             class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
             loading="lazy"
+            decoding="async"
         />
         @if (game().discount_percentage > 0) {
             <span class="edge-btn absolute right-2 top-2 -rotate-2 bg-[var(--color-discount)] px-2 py-1 text-xs text-white">

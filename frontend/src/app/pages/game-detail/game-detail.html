@@ -2,7 +2,7 @@
     <div class="mx-auto max-w-6xl px-6 py-10">
         <div class="flex flex-wrap items-start justify-between gap-4">
             <div class="flex items-start gap-4">
-                <img [src]="game.header_image" [alt]="game.name" class="h-24 w-40 -rotate-1 border-2 border-[var(--color-border)] object-cover" />
+                <img [src]="game.header_image" [alt]="game.name" class="h-24 w-40 -rotate-1 border-2 border-[var(--color-border)] object-cover" decoding="async" />
                 <div>
                     <h1 class="text-2xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
                         <a [href]="game.url" target="_blank" class="hover:text-[var(--color-accent)] hover:underline">{{ game.name }}</a>
@@ -50,7 +50,9 @@
                         }
                     </div>
                 </div>
-                @if (isBrowser && hasPriceHistory()) {
+                @if (priceHistoryLoading()) {
+                    <div class="skeleton mt-4 h-80"></div>
+                } @else if (isBrowser && hasPriceHistory()) {
                     <div class="mt-4 h-80">
                         <canvas baseChart [data]="chartData()" [options]="chartOptions()" type="line"></canvas>
                     </div>
@@ -133,9 +135,23 @@
             </div>
         </div>
 
-        @if (sameDeveloperGames().length > 0) {
+        @if (sameDeveloperLoading()) {
             <div class="mt-10">
-                <h2 class="mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">More from {{ game.developers[0] }}</h2>
+                <div class="skeleton mb-3 h-6 w-64"></div>
+                <div class="flex gap-4 overflow-hidden py-2">
+                    @for (i of [1,2,3,4]; track i) {
+                        <div class="skeleton h-40 w-64 shrink-0"></div>
+                    }
+                </div>
+            </div>
+        } @else if (sameDeveloperGames().length > 0) {
+            <div class="mt-10">
+                <div class="mb-3 flex items-center justify-between">
+                    <h2 class="text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">More from {{ game.developers[0] }}</h2>
+                    <a [routerLink]="['/search']" [queryParams]="{ developers: game.developers[0] }" class="edge-btn px-3 py-1.5 text-xs">
+                        View All
+                    </a>
+                </div>
                 <div class="carousel-fade hairline-scroll flex gap-4 overflow-x-auto py-2">
                     @for (g of sameDeveloperGames(); track g.app_id) {
                         <div class="w-64 shrink-0" appRevealOnScroll>
@@ -146,9 +162,23 @@
             </div>
         }
 
-        @if (samePublisherGames().length > 0) {
+        @if (samePublisherLoading()) {
             <div class="mt-10">
-                <h2 class="mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Published by {{ game.publishers[0] }}</h2>
+                <div class="skeleton mb-3 h-6 w-64"></div>
+                <div class="flex gap-4 overflow-hidden py-2">
+                    @for (i of [1,2,3,4]; track i) {
+                        <div class="skeleton h-40 w-64 shrink-0"></div>
+                    }
+                </div>
+            </div>
+        } @else if (samePublisherGames().length > 0) {
+            <div class="mt-10">
+                <div class="mb-3 flex items-center justify-between">
+                    <h2 class="text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Published by {{ game.publishers[0] }}</h2>
+                    <a [routerLink]="['/search']" [queryParams]="{ publishers: game.publishers[0] }" class="edge-btn px-3 py-1.5 text-xs">
+                        View All
+                    </a>
+                </div>
                 <div class="carousel-fade hairline-scroll flex gap-4 overflow-x-auto py-2">
                     @for (g of samePublisherGames(); track g.app_id) {
                         <div class="w-64 shrink-0" appRevealOnScroll>
@@ -175,7 +205,7 @@
                         >
                             <div class="flex items-center gap-3">
                                 @if (review.author_avatar) {
-                                    <img [src]="review.author_avatar" [alt]="review.author_name" class="h-10 w-10 border-2 border-[var(--color-border)] object-cover" />
+                                    <img [src]="review.author_avatar" [alt]="review.author_name" class="h-10 w-10 border-2 border-[var(--color-border)] object-cover" loading="lazy" decoding="async" />
                                 } @else {
                                     <div class="flex h-10 w-10 items-center justify-center border-2 border-[var(--color-border)] bg-[var(--color-surface-alt)] text-xs font-bold">
                                         {{ (review.author_name || review.steam_id).slice(0, 2).toUpperCase() }}
@@ -231,7 +261,7 @@
             >
                 <div class="mb-3 flex items-center gap-3">
                     @if (review.author_avatar) {
-                        <img [src]="review.author_avatar" [alt]="review.author_name" class="h-12 w-12 border-2 border-[var(--color-border)] object-cover" />
+                        <img [src]="review.author_avatar" [alt]="review.author_name" class="h-12 w-12 border-2 border-[var(--color-border)] object-cover" decoding="async" />
                     }
                     <div class="min-w-0 flex-1">
                         <div class="truncate text-base font-bold text-[var(--color-text)]" style="font-family: var(--font-display);">
@@ -256,8 +286,24 @@
             </div>
         </div>
     }
+} @else if (gameLoading()) {
+    <div class="mx-auto max-w-6xl px-6 py-10">
+        <div class="flex flex-wrap items-start justify-between gap-4">
+            <div class="flex items-start gap-4">
+                <div class="skeleton h-24 w-40"></div>
+                <div class="flex flex-col gap-2">
+                    <div class="skeleton h-6 w-48"></div>
+                    <div class="skeleton h-4 w-32"></div>
+                </div>
+            </div>
+        </div>
+        <div class="mt-8 flex flex-col gap-6">
+            <div class="skeleton h-80"></div>
+            <div class="skeleton h-48"></div>
+        </div>
+    </div>
 } @else {
     <div class="mx-auto max-w-4xl px-6 py-16 text-center text-sm text-[var(--color-text-muted)]">
-        Loading...
+        Game not found.
     </div>
 }

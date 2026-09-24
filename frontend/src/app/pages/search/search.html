@@ -26,74 +26,55 @@
                 </div>
             </div>
 
-            <div>
-                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Genres</h3>
-                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
-                    @for (genre of filterOptions().genres; track genre) {
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" [checked]="isSelected('genres', genre)" (change)="toggleFilter('genres', genre)" />
-                            {{ genre }}
-                        </label>
-                    }
-                </div>
-            </div>
+            <app-filter-autocomplete
+                label="Genres"
+                [options]="filterOptions().genres"
+                [selected]="selectedGenresArray()"
+                (toggle)="toggleFilter('genres', $event)"
+            />
 
-            <div>
-                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Tags</h3>
-                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
-                    @for (tag of filterOptions().tags; track tag) {
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" [checked]="isSelected('tags', tag)" (change)="toggleFilter('tags', tag)" />
-                            {{ tag }}
-                        </label>
-                    }
-                </div>
-            </div>
+            <app-filter-autocomplete
+                label="Tags"
+                [options]="filterOptions().tags"
+                [selected]="selectedTagsArray()"
+                (toggle)="toggleFilter('tags', $event)"
+            />
 
-            <div>
-                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Developers</h3>
-                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
-                    @for (developer of filterOptions().developers; track developer) {
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" [checked]="isSelected('developers', developer)" (change)="toggleFilter('developers', developer)" />
-                            {{ developer }}
-                        </label>
-                    }
-                </div>
-            </div>
+            <app-filter-autocomplete
+                label="Developers"
+                [options]="filterOptions().developers"
+                [selected]="selectedDevelopersArray()"
+                (toggle)="toggleFilter('developers', $event)"
+            />
 
-            <div>
-                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Publishers</h3>
-                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
-                    @for (publisher of filterOptions().publishers; track publisher) {
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" [checked]="isSelected('publishers', publisher)" (change)="toggleFilter('publishers', publisher)" />
-                            {{ publisher }}
-                        </label>
-                    }
-                </div>
-            </div>
+            <app-filter-autocomplete
+                label="Publishers"
+                [options]="filterOptions().publishers"
+                [selected]="selectedPublishersArray()"
+                (toggle)="toggleFilter('publishers', $event)"
+            />
 
-            <div>
-                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Languages</h3>
-                <div class="max-h-40 space-y-1 overflow-y-auto pr-1 text-sm">
-                    @for (language of filterOptions().languages; track language) {
-                        <label class="flex items-center gap-2">
-                            <input type="checkbox" [checked]="isSelected('languages', language)" (change)="toggleFilter('languages', language)" />
-                            {{ language }}
-                        </label>
-                    }
-                </div>
-            </div>
+            <app-filter-autocomplete
+                label="Languages"
+                [options]="filterOptions().languages"
+                [selected]="selectedLanguagesArray()"
+                (toggle)="toggleFilter('languages', $event)"
+            />
         </aside>
 
         <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3" style="align-content: start;">
-            @for (game of results().games; track game.app_id){
-                <app-game-card [game]="game" />
-            } @empty {
-                <p class="col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
-                    No games match these filters.
-                </p>
+            @if (resultsLoading()) {
+                @for (i of [1,2,3,4,5,6]; track i) {
+                    <div class="skeleton aspect-[4/5]"></div>
+                }
+            } @else {
+                @for (game of results().games; track game.app_id){
+                    <app-game-card [game]="game" />
+                } @empty {
+                    <p class="col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
+                        No games match these filters.
+                    </p>
+                }
             }
         </div>
     </div>
