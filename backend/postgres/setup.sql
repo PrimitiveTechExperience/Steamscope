@@ -28,6 +28,10 @@ create table reviews (
     app_id integer not null references games(app_id) on delete cascade,
 
     steam_id text not null,
+    author_name text not null default '',
+    author_avatar text not null default '',
+    num_games_owned integer not null default 0,
+    num_reviews integer not null default 0,
     language text,
     review text,
     voted_up boolean not null,

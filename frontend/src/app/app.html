@@ -1,20 +1,25 @@
+<div class="scroll-blobs" aria-hidden="true">
+  <span class="scroll-blob scroll-blob-1"></span>
+  <span class="scroll-blob scroll-blob-2"></span>
+  <span class="scroll-blob scroll-blob-3"></span>
+</div>
 <div class="min-h-screen bg-[var(--color-surface-alt)]">
-  <header class="sticky top-0 z-10 border-b border-[var(--color-border)] bg-[var(--color-surface)]/90 backdrop-blur">
+  <header class="sticky top-0 z-10 border-b-2 border-[var(--color-border)] bg-[var(--color-surface)]">
     <nav class="mx-auto flex max-w-6xl items-center justify-between px-6 py-4">
-      <a routerLink="/games" class="flex items-center gap-2 text-lg font-bold tracking-tight text-[var(--color-text)]">
-        <span class="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--color-accent)] text-sm font-bold text-white">S</span>
-        Steamscope
+      <a routerLink="/" class="flex items-center gap-3 text-xl font-bold tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+        <span class="edge-btn flex h-9 w-9 -rotate-3 items-center justify-center bg-[var(--color-accent)] text-sm font-black text-white">S</span>
+        STEAMSCOPE
       </a>
-      <div class="flex items-center gap-6">
-        <a routerLink="/games" class="text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
-          Browse games
+      <div class="flex items-center gap-5">
+        <a routerLink="/games" class="text-sm font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+          Browse
         </a>
-        <a routerLink="/search" class="text-sm font-medium text-[var(--color-text-muted)] hover:text-[var(--color-text)]">
+        <a routerLink="/search" class="text-sm font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
           Search
         </a>
         <button
           (click)="toggleTheme()"
-          class="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--color-border)] text-sm hover:bg-[var(--color-surface-alt)]"
+          class="edge-btn flex h-9 w-9 items-center justify-center bg-[var(--color-surface)] text-sm"
           [attr.aria-label]="'Switch to ' + (theme() === 'dark' ? 'light' : 'dark') + ' mode'"
         >
           {{ theme() === 'dark' ? '☀️' : '🌙' }}

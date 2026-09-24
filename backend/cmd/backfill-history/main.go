@@ -55,11 +55,11 @@ func main() {
 		series := itad.BuildDailySeries(events, startDate, endDate)
 		log.Printf("Backfilling %d days of price history for appID %d", len(series), appID)
 
-		for _, point := range series {
-			if err := db.UpsertPriceHistory(ctx, appID, point.Price, point.OriginalPrice, point.DiscountPercentage, point.Date); err != nil {
-				log.Printf("Failed to upsert price history for appID %d on %s: %v", appID, point.Date.Format("2006-01-02"), err)
-			}
+		if err := db.UpsertPriceHistoryBatch(ctx, appID, series); err != nil {
+			log.Printf("Failed to backfill price history for appID %d: %v", appID, err)
+			continue
 		}
+		log.Printf("Backfilled appID %d successfully", appID)
 
 		time.Sleep(1 * time.Second) // stay well under ITAD's rate limit
 	}

@@ -1,7 +1,7 @@
 <div class="mx-auto max-w-6xl px-6 py-10">
     <div class="mb-8 flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-            <h1 class="text-3xl font-extrabold tracking-tight text-[var(--color-text)]">
+            <h1 class="text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
                 Games
             </h1>
             <p class="mt-1 text-sm text-[var(--color-text-muted)]">
@@ -12,12 +12,12 @@
             <input
                 type="text"
                 placeholder="Search games"
-                class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-4 py-2 text-sm text-[var(--color-text)] shadow-sm outline-none placeholder:text-[var(--color-text-muted)] focus:border-[var(--color-accent)]"
+                class="edge-panel-sm w-full px-4 py-2 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
                 [(ngModel)]="searchTerm"
                 (keyup.enter)="search()"
             />
             <button
-                class="shrink-0 rounded-lg bg-[var(--color-accent)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                class="edge-btn shrink-0 bg-[var(--color-accent)] px-4 py-2 text-sm text-white"
                 (click)="search()"
             >
                 Search

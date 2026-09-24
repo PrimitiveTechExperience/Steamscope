@@ -17,12 +17,16 @@ func (db *DB) InsertReview(ctx context.Context, tx pgx.Tx, review models.Review)
 		ctx,
 		`
 		INSERT INTO REVIEWS(
-			recommendation_id, app_id, steam_id, language, review, voted_up, timestamp_created, timestamp_updated, playtime_forever, playtime_at_review, helpful_votes, funny_votes
+			recommendation_id, app_id, steam_id, author_name, author_avatar, num_games_owned, num_reviews, language, review, voted_up, timestamp_created, timestamp_updated, playtime_forever, playtime_at_review, helpful_votes, funny_votes
 		)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
 		ON CONFLICT (recommendation_id) DO UPDATE SET
 			app_id = EXCLUDED.app_id,
 			steam_id = EXCLUDED.steam_id,
+			author_name = EXCLUDED.author_name,
+			author_avatar = EXCLUDED.author_avatar,
+			num_games_owned = EXCLUDED.num_games_owned,
+			num_reviews = EXCLUDED.num_reviews,
 			language = EXCLUDED.language,
 			review = EXCLUDED.review,
 			voted_up = EXCLUDED.voted_up,
@@ -32,7 +36,7 @@ func (db *DB) InsertReview(ctx context.Context, tx pgx.Tx, review models.Review)
 			helpful_votes = EXCLUDED.helpful_votes,
 			funny_votes = EXCLUDED.funny_votes
 		`,
-		review.RecommendationID, review.AppID, review.SteamID, review.Language, review.Review, review.VotedUp, createdTime, updatedTime, review.PlaytimeForever, review.PlaytimeAtReview, review.HelpfulVotes, review.FunnyVotes,
+		review.RecommendationID, review.AppID, review.SteamID, review.AuthorName, review.AuthorAvatar, review.NumGamesOwned, review.NumReviews, review.Language, review.Review, review.VotedUp, createdTime, updatedTime, review.PlaytimeForever, review.PlaytimeAtReview, review.HelpfulVotes, review.FunnyVotes,
 	)
 	if err != nil {
 		log.Printf("Failed to insert review into database: %v", err)

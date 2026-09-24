@@ -25,6 +25,10 @@ export interface Review{
     app_id: number;
     recommendation_id: string;
     steam_id: string;
+    author_name: string;
+    author_avatar: string;
+    num_games_owned: number;
+    num_reviews: number;
     language: string;
     review: string;
     voted_up: boolean;
