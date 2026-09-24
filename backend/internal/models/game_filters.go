@@ -1,15 +1,15 @@
 package models
 
 type GameFilters struct {
-	Search    string
-	Genre     string
-	Developer string
-	Publisher string
-	Languages []string
-	Tags      []string
-	Genres	  []string
-	MinPrice  float64
-	MaxPrice  float64
-	Limit     int
-	Offset    int
+	Search    string   `json:"search"`
+	Genre     string   `json:"genre"`
+	Developer string   `json:"developer"`
+	Publisher string   `json:"publisher"`
+	Languages []string `json:"languages"`
+	Tags      []string `json:"tags"`
+	Genres    []string `json:"genres"`
+	MinPrice  float64  `json:"min_price"`
+	MaxPrice  float64  `json:"max_price"`
+	Limit     int      `json:"limit"`
+	Offset    int      `json:"offset"`
 }

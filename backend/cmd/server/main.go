@@ -9,9 +9,13 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/handlers"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/router"
+	"github.com/joho/godotenv"
 )
 
 func main() {
+	if err := godotenv.Load(); err != nil {
+		log.Println("Error loading .env file")
+	}
 	ctx := context.Background()
 
 	db, err := database.New(ctx, os.Getenv("DATABASE_URL"))
