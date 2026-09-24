@@ -1,0 +1,61 @@
+<div class="mx-auto max-w-6xl px-6 py-16">
+    <section class="flex flex-col items-start gap-6">
+        <span class="edge-btn -rotate-2 bg-[var(--color-accent)] px-3 py-1 text-xs text-white">
+            TRACKING STEAM PRICES SINCE 2024
+        </span>
+        <h1 class="max-w-3xl text-5xl font-black uppercase leading-[0.95] tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+            Know exactly<br />when to <span class="text-[var(--color-accent)]">buy.</span>
+        </h1>
+        <p class="max-w-xl text-base text-[var(--color-text-muted)]">
+            Steamscope tracks daily prices, discounts, and reviews across the Steam store, so you can see
+            a game's full price history before you spend a cent.
+        </p>
+        <div class="flex flex-wrap gap-3">
+            <a routerLink="/games" class="edge-btn bg-[var(--color-accent)] px-5 py-3 text-sm text-white">
+                Browse Games
+            </a>
+            <a routerLink="/search" class="edge-btn bg-[var(--color-surface)] px-5 py-3 text-sm text-[var(--color-text)]">
+                Search &amp; Filter
+            </a>
+        </div>
+    </section>
+
+    <section class="mt-10 grid grid-cols-1 gap-4 sm:grid-cols-3">
+        <div class="edge-panel-sm -rotate-1 p-4">
+            <div class="text-2xl font-black text-[var(--color-accent)]" style="font-family: var(--font-display);">2 Years</div>
+            <div class="text-xs uppercase tracking-wide text-[var(--color-text-muted)]">of daily price history</div>
+        </div>
+        <div class="edge-panel-sm rotate-1 p-4">
+            <div class="text-2xl font-black text-[var(--color-accent)]" style="font-family: var(--font-display);">Daily</div>
+            <div class="text-xs uppercase tracking-wide text-[var(--color-text-muted)]">automatic rescraping</div>
+        </div>
+        <div class="edge-panel-sm -rotate-1 p-4">
+            <div class="text-2xl font-black text-[var(--color-accent)]" style="font-family: var(--font-display);">Real</div>
+            <div class="text-xs uppercase tracking-wide text-[var(--color-text-muted)]">Steam reviews, not fluff</div>
+        </div>
+    </section>
+
+    @if (trendingLoading()) {
+        <section class="mt-16">
+            <div class="skeleton mb-4 h-6 w-56"></div>
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                @for (i of [1,2,3,4,5,6]; track i) {
+                    <div class="skeleton aspect-[4/5]"></div>
+                }
+            </div>
+        </section>
+    } @else if (trending().length > 0) {
+        <section class="mt-16">
+            <h2 class="mb-4 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+                Trending Discounts
+            </h2>
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                @for (game of trending(); track game.app_id) {
+                    <div appRevealOnScroll>
+                        <app-game-card [game]="game" />
+                    </div>
+                }
+            </div>
+        </section>
+    }
+</div>

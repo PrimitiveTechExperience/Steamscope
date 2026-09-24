@@ -1,0 +1,81 @@
+<div class="mx-auto max-w-6xl px-6 py-10">
+    <h1 class="mb-6 text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Search
+    </h1>
+
+    <div class="grid grid-cols-1 gap-8 lg:grid-cols-[16rem_1fr]">
+        <aside class="edge-panel space-y-6 p-4">
+            <div>
+                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Price</h3>
+                <div class="flex items-center gap-2">
+                    <input
+                        type="number"
+                        min="0"
+                        placeholder="Min"
+                        class="w-full border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm"
+                        (input)="onMinPriceInput($event)"
+                    />
+                    <span class="text-[var(--color-text-muted)]">–</span>
+                    <input
+                        type="number"
+                        min="0"
+                        placeholder="Max"
+                        class="w-full border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm"
+                        (input)="onMaxPriceInput($event)"
+                    />
+                </div>
+            </div>
+
+            <app-filter-autocomplete
+                label="Genres"
+                [options]="filterOptions().genres"
+                [selected]="selectedGenresArray()"
+                (toggle)="toggleFilter('genres', $event)"
+            />
+
+            <app-filter-autocomplete
+                label="Tags"
+                [options]="filterOptions().tags"
+                [selected]="selectedTagsArray()"
+                (toggle)="toggleFilter('tags', $event)"
+            />
+
+            <app-filter-autocomplete
+                label="Developers"
+                [options]="filterOptions().developers"
+                [selected]="selectedDevelopersArray()"
+                (toggle)="toggleFilter('developers', $event)"
+            />
+
+            <app-filter-autocomplete
+                label="Publishers"
+                [options]="filterOptions().publishers"
+                [selected]="selectedPublishersArray()"
+                (toggle)="toggleFilter('publishers', $event)"
+            />
+
+            <app-filter-autocomplete
+                label="Languages"
+                [options]="filterOptions().languages"
+                [selected]="selectedLanguagesArray()"
+                (toggle)="toggleFilter('languages', $event)"
+            />
+        </aside>
+
+        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3" style="align-content: start;">
+            @if (resultsLoading()) {
+                @for (i of [1,2,3,4,5,6]; track i) {
+                    <div class="skeleton aspect-[4/5]"></div>
+                }
+            } @else {
+                @for (game of results().games; track game.app_id){
+                    <app-game-card [game]="game" />
+                } @empty {
+                    <p class="col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
+                        No games match these filters.
+                    </p>
+                }
+            }
+        </div>
+    </div>
+</div>

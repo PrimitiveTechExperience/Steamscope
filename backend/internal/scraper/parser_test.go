@@ -102,7 +102,7 @@ func TestParseGamePage(t *testing.T) {
 					<head><title>Test Game</title></head>
 					<body>
 						<div class="apphub_AppName">Test Game Name</div>
-						<div class="game_area_description">Test Game Description</div>
+						<div id="game_area_description">Test Game Description</div>
 						<div class="date">19 Sep, 2023</div>
 					</body>
 				</html>

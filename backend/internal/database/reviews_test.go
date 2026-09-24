@@ -24,6 +24,10 @@ func TestInsertReview(t *testing.T) {
 		RecommendationID: "recommendation-123",
 		AppID:            123,
 		SteamID:          "steam-456",
+		AuthorName:       "TestUser",
+		AuthorAvatar:     "https://avatars.steamstatic.com/abc123_full.jpg",
+		NumGamesOwned:    42,
+		NumReviews:       3,
 		Language:         "english",
 		Review:           "A helpful review",
 		VotedUp:          true,
@@ -36,11 +40,15 @@ func TestInsertReview(t *testing.T) {
 	}
 
 	mockPool.ExpectBegin()
-	mockPool.ExpectExec(`INSERT INTO REVIEWS\(\s*recommendation_id, app_id, steam_id, language, review, voted_up, timestamp_created, timestamp_updated, playtime_forever, playtime_at_review, helpful_votes, funny_votes\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12\)\s*ON CONFLICT \(recommendation_id\) DO UPDATE SET`).
+	mockPool.ExpectExec(`INSERT INTO REVIEWS\(\s*recommendation_id, app_id, steam_id, author_name, author_avatar, num_games_owned, num_reviews, language, review, voted_up, timestamp_created, timestamp_updated, playtime_forever, playtime_at_review, helpful_votes, funny_votes\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12, \$13, \$14, \$15, \$16\)\s*ON CONFLICT \(recommendation_id\) DO UPDATE SET`).
 		WithArgs(
 			review.RecommendationID,
 			review.AppID,
 			review.SteamID,
+			review.AuthorName,
+			review.AuthorAvatar,
+			review.NumGamesOwned,
+			review.NumReviews,
 			review.Language,
 			review.Review,
 			review.VotedUp,
@@ -121,6 +129,10 @@ func TestStoreReviews(t *testing.T) {
 			RecommendationID: "recommendation-1",
 			AppID:            appID,
 			SteamID:          "steam-1",
+			AuthorName:       "TestUser",
+			AuthorAvatar:     "https://avatars.steamstatic.com/abc123_full.jpg",
+			NumGamesOwned:    42,
+			NumReviews:       3,
 			Language:         "english",
 			Review:           "A helpful review",
 			VotedUp:          true,
@@ -138,11 +150,15 @@ func TestStoreReviews(t *testing.T) {
 		WithArgs(appID).
 		WillReturnResult(pgxmock.NewResult("SELECT", 1))
 	for _, review := range reviews {
-		mockPool.ExpectExec(`INSERT INTO REVIEWS\(\s*recommendation_id, app_id, steam_id, language, review, voted_up, timestamp_created, timestamp_updated, playtime_forever, playtime_at_review, helpful_votes, funny_votes\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12\)\s*ON CONFLICT \(recommendation_id\) DO UPDATE SET`).
+		mockPool.ExpectExec(`INSERT INTO REVIEWS\(\s*recommendation_id, app_id, steam_id, author_name, author_avatar, num_games_owned, num_reviews, language, review, voted_up, timestamp_created, timestamp_updated, playtime_forever, playtime_at_review, helpful_votes, funny_votes\s*\)\s*VALUES \(\$1, \$2, \$3, \$4, \$5, \$6, \$7, \$8, \$9, \$10, \$11, \$12, \$13, \$14, \$15, \$16\)\s*ON CONFLICT \(recommendation_id\) DO UPDATE SET`).
 			WithArgs(
 				review.RecommendationID,
 				review.AppID,
 				review.SteamID,
+				review.AuthorName,
+				review.AuthorAvatar,
+				review.NumGamesOwned,
+				review.NumReviews,
 				review.Language,
 				review.Review,
 				review.VotedUp,

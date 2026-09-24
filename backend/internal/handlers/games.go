@@ -22,6 +22,8 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	filters.Genres = splitFilterValues(r.URL.Query().Get("genres"))
 	filters.Tags = splitFilterValues(r.URL.Query().Get("tags"))
 	filters.Languages = splitFilterValues(r.URL.Query().Get("languages"))
+	filters.Developers = splitFilterValues(r.URL.Query().Get("developers"))
+	filters.Publishers = splitFilterValues(r.URL.Query().Get("publishers"))
 
 	if value := r.URL.Query().Get("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)
@@ -96,7 +98,7 @@ func splitFilterValues(value string) []string {
 }
 
 func (h *Handler) GetGame(w http.ResponseWriter, r *http.Request) {
-	appIDStr := r.URL.Query().Get("appID")
+	appIDStr := r.PathValue("appID")
 
 	appID, err := strconv.Atoi(appIDStr)
 	if err != nil {
@@ -113,6 +115,28 @@ func (h *Handler) GetGame(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(game); err != nil {
 		http.Error(w, "Failed to encode game", http.StatusInternalServerError)
+		return
+	}
+}
+
+func (h *Handler) GetPriceHistory(w http.ResponseWriter, r *http.Request) {
+	appIDStr := r.PathValue("appID")
+
+	appID, err := strconv.Atoi(appIDStr)
+	if err != nil {
+		http.Error(w, "Invalid appID parameter", http.StatusBadRequest)
+		return
+	}
+
+	history, err := h.DB.GetPriceHistory(r.Context(), appID)
+	if err != nil {
+		http.Error(w, "Failed to retrieve price history", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	if err := json.NewEncoder(w).Encode(history); err != nil {
+		http.Error(w, "Failed to encode price history", http.StatusInternalServerError)
 		return
 	}
 }

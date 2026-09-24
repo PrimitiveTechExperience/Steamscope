@@ -7,6 +7,10 @@ type Review struct {
 	AppID            int `json:"app_id"`
 	RecommendationID string `json:"recommendation_id"`
 	SteamID          string `json:"steam_id"`
+	AuthorName       string `json:"author_name"`
+	AuthorAvatar     string `json:"author_avatar"`
+	NumGamesOwned    int `json:"num_games_owned"`
+	NumReviews       int `json:"num_reviews"`
 	Language         string `json:"language"`
 	Review           string `json:"review"`
 	VotedUp          bool `json:"voted_up"`

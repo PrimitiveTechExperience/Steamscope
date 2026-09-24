@@ -60,6 +60,15 @@ import (
 //   "cursor": "AoJ485fhw6ADeJH2/wY="
 // }
 
+// buildAvatarURL turns the bare hash Steam's appreviews endpoint returns
+// into a full avatar image URL.
+func buildAvatarURL(hash string) string {
+	if hash == "" {
+		return ""
+	}
+	return fmt.Sprintf("https://avatars.steamstatic.com/%s_full.jpg", hash)
+}
+
 type ReviewOption struct {
 	Filter string
 	MaxReviews int
@@ -90,6 +99,8 @@ type steamReview struct {
 	RecommendationID string `json:"recommendationid"`
 	Author struct {
 		SteamID string `json:"steamid"`
+		PersonaName string `json:"personaname"`
+		Avatar string `json:"avatar"`
 		NumGamesOwned int `json:"num_games_owned"`
 		NumReviews int `json:"num_reviews"`
 		PlaytimeForever int `json:"playtime_forever"`
@@ -181,6 +192,10 @@ func (s *Scraper) FetchReviewsForGames(games []models.Game, options ReviewOption
 				AppID: appID,
 				RecommendationID: rev.RecommendationID,
 				SteamID: rev.Author.SteamID,
+				AuthorName: rev.Author.PersonaName,
+				AuthorAvatar: buildAvatarURL(rev.Author.Avatar),
+				NumGamesOwned: rev.Author.NumGamesOwned,
+				NumReviews: rev.Author.NumReviews,
 				Language: rev.Language,
 				Review: rev.Review,
 				VotedUp: rev.VotedUp,

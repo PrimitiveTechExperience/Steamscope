@@ -1,11 +1,12 @@
-import { Component, inject} from '@angular/core';
+import { Component, computed, inject} from '@angular/core';
 import { toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of } from 'rxjs';
+import { BehaviorSubject, catchError, map, of, switchMap } from 'rxjs';
 
 import {GamesService} from '../../services/games';
 import {Game} from '../../models/game';
 import { GameCardComponent } from '../../components/game-card/game-card';
 import { FormsModule } from '@angular/forms';
+import { withLoading } from '../../utils/with-loading';
 
 @Component({
   selector: 'app-games',
@@ -17,14 +18,30 @@ export class GamesComponent{
   searchTerm = '';
   constructor() { }
   private gamesService = inject(GamesService);
-  games = toSignal(
-    this.gamesService.getGames().pipe(
-      map((response) => response.games),
-      catchError((error) => {
-        console.error('Error fetching games:', error);
-        return of([] as Game[]);
-      })
+  private searchTrigger = new BehaviorSubject<string>('');
+
+  private gamesState = toSignal(
+    this.searchTrigger.pipe(
+      switchMap((search) =>
+        withLoading(
+          this.gamesService.getGames({ search }).pipe(
+            map((response) => response.games),
+            catchError((error) => {
+              console.error('Error fetching games:', error);
+              return of([] as Game[]);
+            })
+          ),
+          [] as Game[]
+        )
+      )
     ),
-    { initialValue: [] }
+    { initialValue: { data: [] as Game[], loading: true } }
   );
+
+  protected games = computed(() => this.gamesState().data);
+  protected gamesLoading = computed(() => this.gamesState().loading);
+
+  search() {
+    this.searchTrigger.next(this.searchTerm);
+  }
 }

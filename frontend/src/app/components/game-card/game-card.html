@@ -1,14 +1,40 @@
-<a [routerLink] ="['/games', game().app_id]" class="block bg-gray-100 hover:bg-gray-200 p-4 rounded-lg shadow">
-    <h2 class="text-xl font-semibold">
-        {{game().name}}
-    </h2>
-    <p class="text-gray-600">
-        {{game().description}}
-    </p>
-    <p class="text-gray-600">
-        App ID: {{game().app_id}}
-    </p>
-    <p class="text-gray-600">
-        Price: {{game().price | currency:'USD':'symbol':'1.2-2' : 'Free'}}
-    </p>
+<a
+    [routerLink]="['/games', game().app_id]"
+    class="edge-panel-sm group flex flex-col overflow-hidden transition hover:-translate-x-1 hover:-translate-y-1 hover:shadow-[6px_6px_0_0_var(--color-border)]"
+>
+    <div class="relative aspect-video w-full overflow-hidden border-b-2 border-[var(--color-border)] bg-[var(--color-surface-alt)]">
+        <img
+            [src]="game().header_image"
+            [alt]="game().name"
+            class="h-full w-full object-cover transition duration-300 group-hover:scale-105"
+            loading="lazy"
+            decoding="async"
+        />
+        @if (game().discount_percentage > 0) {
+            <span class="edge-btn absolute right-2 top-2 -rotate-2 bg-[var(--color-discount)] px-2 py-1 text-xs text-white">
+                -{{ game().discount_percentage }}%
+            </span>
+        }
+    </div>
+    <div class="flex flex-1 flex-col gap-2 p-4">
+        <h2 class="line-clamp-1 text-base font-bold text-[var(--color-text)]" style="font-family: var(--font-display);">
+            {{ game().name }}
+        </h2>
+        <p class="line-clamp-2 text-sm text-[var(--color-text-muted)]">
+            {{ game().description }}
+        </p>
+        <div class="mt-auto flex items-center justify-between pt-2">
+            @if (game().discount_percentage > 0) {
+                <span class="text-xs text-[var(--color-text-muted)] line-through">
+                    {{ game().original_price | currency:'USD':'symbol':'1.2-2' }}
+                </span>
+            }
+            <span
+                class="text-sm font-bold"
+                [style.color]="game().price === 0 ? 'var(--color-free)' : 'var(--color-text)'"
+            >
+                {{ game().price === 0 ? 'Free' : (game().price | currency:'USD':'symbol':'1.2-2') }}
+            </span>
+        </div>
+    </div>
 </a>

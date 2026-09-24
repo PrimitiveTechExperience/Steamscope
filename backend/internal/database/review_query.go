@@ -7,15 +7,15 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 )
 
-func (db *DB) GetReviews(ctx context.Context, appID int, limit int, page int) ([]models.Review, error) {
+func (db *DB) GetReviews(ctx context.Context, appID int, limit int, offset int) ([]models.Review, error) {
 	query := `
-	SELECT recommendation_id, app_id, steam_id, language, review, voted_up, timestamp_created, timestamp_updated, helpful_votes, funny_votes
+	SELECT recommendation_id, app_id, steam_id, author_name, author_avatar, num_games_owned, num_reviews, language, review, voted_up, timestamp_created, timestamp_updated, playtime_forever, playtime_at_review, helpful_votes, funny_votes
 	FROM reviews
 	WHERE app_id = $1
 	ORDER BY timestamp_created DESC
 	LIMIT $2 OFFSET $3
 	`
-	rows, err := db.Pool.Query(ctx, query, appID, limit, (page-1)*limit)
+	rows, err := db.Pool.Query(ctx, query, appID, limit, offset)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get reviews: %w", err)
 	}
@@ -28,11 +28,17 @@ func (db *DB) GetReviews(ctx context.Context, appID int, limit int, page int) ([
 			&review.RecommendationID,
 			&review.AppID,
 			&review.SteamID,
+			&review.AuthorName,
+			&review.AuthorAvatar,
+			&review.NumGamesOwned,
+			&review.NumReviews,
 			&review.Language,
 			&review.Review,
 			&review.VotedUp,
 			&review.TimestampCreated,
 			&review.TimestampUpdated,
+			&review.PlaytimeForever,
+			&review.PlaytimeAtReview,
 			&review.HelpfulVotes,
 			&review.FunnyVotes,
 		)

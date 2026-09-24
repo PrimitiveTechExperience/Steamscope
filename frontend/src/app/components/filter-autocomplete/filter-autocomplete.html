@@ -1,0 +1,37 @@
+<div>
+    <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">{{ label() }}</h3>
+
+    @if (selected().length > 0) {
+        <div class="mb-2 flex flex-wrap gap-1.5">
+            @for (value of selected(); track value) {
+                <span class="edge-btn flex items-center gap-1.5 bg-[var(--color-accent-soft)] px-2 py-1 text-[10px] normal-case text-[var(--color-accent)]">
+                    {{ value }}
+                    <button type="button" (click)="toggle.emit(value)" class="font-black leading-none">×</button>
+                </span>
+            }
+        </div>
+    }
+
+    <div class="relative">
+        <input
+            type="text"
+            [placeholder]="'Search ' + label().toLowerCase() + '...'"
+            class="w-full border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm"
+            [value]="query()"
+            (input)="onInput($event)"
+        />
+        @if (suggestions().length > 0) {
+            <div class="edge-panel-sm absolute z-10 mt-1 w-full bg-[var(--color-surface)]">
+                @for (suggestion of suggestions(); track suggestion) {
+                    <button
+                        type="button"
+                        (click)="select(suggestion)"
+                        class="block w-full px-2 py-1.5 text-left text-sm hover:bg-[var(--color-accent-soft)]"
+                    >
+                        {{ suggestion }}
+                    </button>
+                }
+            </div>
+        }
+    </div>
+</div>

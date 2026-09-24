@@ -8,7 +8,7 @@ import (
 )
 
 func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
-	appIDStr := r.URL.Query().Get("appID")
+	appIDStr := r.PathValue("appID")
 	if appIDStr == "" {
 		http.Error(w, "Missing appID parameter", http.StatusBadRequest)
 		return
@@ -41,9 +41,14 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to retrieve reviews", http.StatusInternalServerError)
 		return
 	}
+	total, err := h.DB.GetCountOfReviews(context.Background(), appID)
+	if err != nil {
+		http.Error(w, "Failed to count reviews", http.StatusInternalServerError)
+		return
+	}
 	response := ReviewResponse{
 		Reviews: reviews,
-		Total:   len(reviews),
+		Total:   total,
 		Limit:   limit,
 		Offset:  offset,
 	}

@@ -4,6 +4,7 @@ create table games (
     name text not null,
     url text not null,
     description text not null,
+    header_image text not null default '',
 
     release_date date not null,
 
@@ -27,6 +28,10 @@ create table reviews (
     app_id integer not null references games(app_id) on delete cascade,
 
     steam_id text not null,
+    author_name text not null default '',
+    author_avatar text not null default '',
+    num_games_owned integer not null default 0,
+    num_reviews integer not null default 0,
     language text,
     review text,
     voted_up boolean not null,
@@ -104,3 +109,20 @@ create table game_languages (
 create index idx_review_app_id on reviews(app_id);
 create index idx_review_steam_id on reviews(steam_id);
 create index idx_review_timestamp_created on reviews(timestamp_created);
+
+create table price_history (
+    id bigint generated always as identity primary key,
+    app_id integer not null references games(app_id) on delete cascade,
+    recorded_date date not null,
+
+    price numeric(10, 2) not null,
+    original_price numeric(10, 2) not null,
+    discount_percentage decimal(5, 2) not null,
+
+    created_at timestamptz not null default now(),
+
+    unique (app_id, recorded_date)
+);
+
+create index idx_price_history_app_id on price_history(app_id);
+create index idx_price_history_recorded_date on price_history(recorded_date);

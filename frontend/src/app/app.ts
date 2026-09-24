@@ -1,12 +1,31 @@
-import { Component, signal } from '@angular/core';
-import { RouterOutlet } from '@angular/router';
+import { Component, inject, PLATFORM_ID, signal } from '@angular/core';
+import { isPlatformBrowser } from '@angular/common';
+import { RouterOutlet, RouterLink } from '@angular/router';
 
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, RouterLink],
   templateUrl: './app.html',
   styleUrl: './app.css'
 })
 export class App {
-  protected readonly title = signal('frontend');
+  private isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
+  protected theme = signal<'light' | 'dark'>('dark');
+
+  constructor() {
+    if (this.isBrowser) {
+      const stored = localStorage.getItem('theme');
+      const initial = stored === 'light' ? 'light' : 'dark';
+      this.theme.set(initial);
+      document.documentElement.setAttribute('data-theme', initial);
+    }
+  }
+
+  toggleTheme() {
+    if (!this.isBrowser) return;
+    const next = this.theme() === 'dark' ? 'light' : 'dark';
+    this.theme.set(next);
+    document.documentElement.setAttribute('data-theme', next);
+    localStorage.setItem('theme', next);
+  }
 }

@@ -1,3 +1,225 @@
 /* You can add global styles to this file, and also import other style files */
-
 @import 'tailwindcss';
+
+@theme {
+  --color-surface: #ffffff;
+  --color-surface-alt: #f1f0eb;
+  --color-border: #16171a;
+  --color-text: #16171a;
+  --color-text-muted: #5b5d63;
+  --color-accent: #ff3d1f;
+  --color-accent-soft: #ffe4dc;
+  --color-discount: #0a8f3c;
+  --color-free: #0b7fa8;
+  --color-star: rgba(30, 32, 40, 0.3);
+
+  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-display: 'Space Grotesk', 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+:root[data-theme='dark'] {
+  --color-surface: #19181c;
+  --color-surface-alt: #0a0a10;
+  --color-border: #f4f5f7;
+  --color-text: #f4f5f7;
+  --color-text-muted: #9c9ba1;
+  --color-accent: #ff5b3d;
+  --color-accent-soft: #3a211b;
+  --color-discount: #35d16a;
+  --color-free: #3bc2f2;
+  --color-star: rgba(255, 255, 255, 0.85);
+}
+
+body {
+  background-color: var(--color-surface-alt);
+  color: var(--color-text);
+  font-family: var(--font-sans);
+}
+
+/* Starfield: a handful of hand-placed dots tiled at different scales per
+   layer so the pattern doesn't look like an obvious repeating grid. Lives on
+   its own `position: fixed` layer (see .starfield below) rather than as a
+   `background-attachment: fixed` on <body> - the latter forces a full
+   repaint on every scroll frame in most browsers and was a major source of
+   scroll jank; a fixed-position element composites on the GPU instead. */
+.starfield {
+  position: fixed;
+  inset: 0;
+  z-index: -11;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1.5px 1.5px at 10% 20%, var(--color-star), transparent),
+    radial-gradient(1px 1px at 30% 70%, var(--color-star), transparent),
+    radial-gradient(2px 2px at 50% 40%, var(--color-star), transparent),
+    radial-gradient(1px 1px at 70% 15%, var(--color-star), transparent),
+    radial-gradient(1.5px 1.5px at 85% 55%, var(--color-star), transparent),
+    radial-gradient(1px 1px at 15% 85%, var(--color-star), transparent);
+  background-size:
+    320px 320px, 320px 320px, 320px 320px,
+    480px 480px, 480px 480px,
+    220px 220px;
+}
+
+/* Shared "edgy/rough" primitives: hard corners, thick borders, offset
+   sticker-style shadows instead of soft ambient ones. */
+.edge-panel {
+  border: 2px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-surface);
+  box-shadow: 5px 5px 0 0 var(--color-border);
+}
+
+.edge-panel-sm {
+  border: 2px solid var(--color-border);
+  border-radius: 2px;
+  background: var(--color-surface);
+  box-shadow: 3px 3px 0 0 var(--color-border);
+}
+
+.edge-btn {
+  border: 2px solid var(--color-border);
+  border-radius: 2px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  transition: transform 0.12s ease, box-shadow 0.12s ease;
+  box-shadow: 3px 3px 0 0 var(--color-border);
+}
+
+.edge-btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 5px 5px 0 0 var(--color-border);
+}
+
+.edge-btn:active {
+  transform: translate(0, 0);
+  box-shadow: 1px 1px 0 0 var(--color-border);
+}
+
+.hairline-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.hairline-scroll::-webkit-scrollbar {
+  height: 5px;
+}
+
+.hairline-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.hairline-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-border);
+  border-radius: 999px;
+}
+
+/* Scroll-reveal: directive toggles .is-visible once an element enters the
+   viewport; starts rough/offset and eases into place. */
+.reveal-on-scroll {
+  opacity: 0;
+  transform: translateY(28px) rotate(-1.5deg);
+  transition: opacity 0.6s cubic-bezier(0.22, 1, 0.36, 1), transform 0.6s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.reveal-on-scroll.is-visible {
+  opacity: 1;
+  transform: translateY(0) rotate(0deg);
+}
+
+/* Grow-on-scroll: continuously scales/fades with --intersect (set by
+   GrowOnScrollDirective) as the element crosses the viewport. */
+.grow-on-scroll {
+  --intersect: 0;
+  transform: scale(calc(0.82 + var(--intersect) * 0.18));
+  opacity: calc(0.35 + var(--intersect) * 0.65);
+  transition: transform 0.15s linear, opacity 0.15s linear;
+}
+
+/* Section-scoped loading shimmer, shown only where data is actually being
+   fetched (a games grid, a chart panel, a carousel) instead of one bar for
+   the whole page. */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--color-surface-alt);
+  border: 2px solid var(--color-border);
+}
+
+.skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--color-text) 12%, transparent), transparent);
+  animation: skeleton-sweep 1.3s ease-in-out infinite;
+}
+
+@keyframes skeleton-sweep {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+
+/* Carousels: fade/obscure the leftmost and rightmost items instead of
+   cutting them off cleanly. */
+.carousel-fade {
+  -webkit-mask-image: linear-gradient(to right, transparent, black 64px, black calc(100% - 64px), transparent);
+  mask-image: linear-gradient(to right, transparent, black 64px, black calc(100% - 64px), transparent);
+}
+
+/* Static space background: large soft nebula blobs, fixed in place.
+   No `filter: blur()` here on purpose - blurring a huge (30-40vw) fixed
+   element is one of the most expensive things a browser can rasterize, and
+   on many GPUs/browsers a large blurred fixed layer gets repainted on every
+   scroll frame even when nothing about it is actually changing. A
+   multi-stop radial-gradient gives the same soft glow for near-zero cost. */
+.scroll-blobs {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scroll-blob {
+  position: absolute;
+  border-radius: 9999px;
+  opacity: 0.3;
+  background: radial-gradient(circle, #7c3aed 0%, rgba(124, 58, 237, 0.4) 35%, transparent 70%);
+}
+
+.scroll-blob-1 {
+  top: -10%;
+  left: -8%;
+  width: 42vw;
+  height: 42vw;
+}
+
+.scroll-blob-2 {
+  top: 35%;
+  right: -12%;
+  width: 34vw;
+  height: 34vw;
+  opacity: 0.22;
+  background: radial-gradient(circle, #0ea5e9 0%, rgba(14, 165, 233, 0.4) 35%, transparent 70%);
+}
+
+.scroll-blob-3 {
+  bottom: -15%;
+  left: 20%;
+  width: 30vw;
+  height: 30vw;
+  opacity: 0.18;
+  background: radial-gradient(circle, #ec4899 0%, rgba(236, 72, 153, 0.4) 35%, transparent 70%);
+}
+
+:root[data-theme='dark'] .scroll-blob {
+  opacity: 0.5;
+}
+
+:root[data-theme='dark'] .scroll-blob-2 {
+  opacity: 0.38;
+}
+
+:root[data-theme='dark'] .scroll-blob-3 {
+  opacity: 0.32;
+}
