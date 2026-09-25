@@ -1,0 +1,55 @@
+/* Mirrors the structure Steam's own store page produces inside
+   #game_area_description (h2 section titles, p.bb_paragraph body text,
+   bb_img screenshots, bb_ul lists) so the scraped HTML reads the same way
+   it does on Steam instead of as an unstyled text dump.
+   ::ng-deep is required because this markup is injected via [innerHTML],
+   so it never receives Angular's emulated-encapsulation attribute and a
+   plain scoped selector would never match it. */
+.steam-description ::ng-deep h2 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-accent);
+}
+
+.steam-description ::ng-deep h2:first-child {
+  margin-top: 0;
+}
+
+.steam-description ::ng-deep p {
+  margin: 0 0 0.75rem;
+  line-height: 1.6;
+}
+
+.steam-description ::ng-deep p:empty {
+  display: none;
+}
+
+.steam-description ::ng-deep strong {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.steam-description ::ng-deep a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.steam-description ::ng-deep ul {
+  margin: 0 0 0.75rem 1.25rem;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.steam-description ::ng-deep .bb_img_ctn,
+.steam-description ::ng-deep img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border: 2px solid var(--color-border);
+}

@@ -140,7 +140,7 @@ func (db *DB) InsertGameDetails(ctx context.Context, tx pgx.Tx, game models.Game
 			name = EXCLUDED.name,
 			url = EXCLUDED.url,
 			description = EXCLUDED.description,
-			header_image = EXCLUDED.header_image,
+			header_image = COALESCE(NULLIF(EXCLUDED.header_image, ''), games.header_image),
 			release_date = EXCLUDED.release_date,
 			price = EXCLUDED.price,
 			original_price = EXCLUDED.original_price,

@@ -33,24 +33,37 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	if releaseDate, err := time.Parse("2 Jan, 2006", releaseDateStr); err == nil {
 		game.ReleaseDate = releaseDate
 	}
+	// The purchase area can contain multiple ".game_area_purchase_game" blocks:
+	// the game's own purchase/play section, plus promotional "buy as a bundle"
+	// sections (e.g. class "game_area_purchase_game_dropdown_subscription", or
+	// a "Buy The Orange Box"-style upsell) that advertise the game packaged
+	// with other titles at a different price. The game's own section is always
+	// the first ".game_area_purchase_game" block on the page, with any bundle
+	// upsells appearing after it, so price selectors must be scoped to it to
+	// avoid picking up a bundle's price.
+	purchaseSection := doc.Find(".game_area_purchase_game").Not(".game_area_purchase_game_dropdown_subscription").First()
+	if purchaseSection.Length() == 0 {
+		// No recognizable purchase container (e.g. in tests, or a page layout
+		// change) - fall back to searching the whole document like before.
+		purchaseSection = doc
+	}
 	// Check if game is on discount by basing off the existance of .game_purchas_price or .discount_final_price
-	if doc.Find(".discount_final_price").Length() > 0 {
+	if purchaseSection.Find(".discount_final_price").Length() > 0 {
 		// Remove currency symbols and convert to float64
-		priceStr := strings.TrimSpace(doc.Find(".discount_final_price").First().Text())
-		originalPriceStr := strings.TrimSpace(doc.Find(".discount_original_price").First().Text())
+		priceStr := strings.TrimSpace(purchaseSection.Find(".discount_final_price").First().Text())
+		originalPriceStr := strings.TrimSpace(purchaseSection.Find(".discount_original_price").First().Text())
 		discountPrice, _ := parsePrice(priceStr)
 		originalPrice, _ := parsePrice(originalPriceStr)
 		game.Price = discountPrice
 		game.OriginalPrice = originalPrice
-		game.DiscountPercentage = parseDiscountPercentage(doc.Find(".discount_pct").First().Text())
+		game.DiscountPercentage = parseDiscountPercentage(purchaseSection.Find(".discount_pct").First().Text())
 	}else{
-		priceStr := strings.TrimSpace(doc.Find(".game_purchase_price").First().Text())
+		priceStr := strings.TrimSpace(purchaseSection.Find(".game_purchase_price").First().Text())
 		price, _ := parsePrice(priceStr)
 		game.Price = price
 		game.OriginalPrice = price
 		game.DiscountPercentage = 0
 	}
-	game.DiscountPercentage = parseDiscountPercentage(doc.Find(".discount_pct").First().Text())
 	game.Genres = []string{}
 	doc.Find(".details_block a[href*='/genre/']").Each(func(i int, s *goquery.Selection) {
 		game.Genres = append(game.Genres, strings.TrimSpace(s.Text()))
@@ -69,8 +82,19 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	game.ReviewCount, _ = strconv.Atoi(reviewCountText)
 	// Need to fetch from second or third instance of .user_reviews_summary_row as html layout is odd.
 	game.ReviewScore = strings.TrimSpace(doc.Find(".user_reviews_summary_row").Eq(1).Find(".game_review_summary").First().Text())
-	game.Description = strings.TrimSpace(doc.Find("#game_area_description").First().Text())
+	// Keep the description as HTML (headings, paragraphs, bold text, images,
+	// lists) rather than flattening it to plain text, so the frontend can
+	// render it the way Steam's own store page does.
+	descriptionHTML, _ := doc.Find("#game_area_description").First().Html()
+	game.Description = strings.TrimSpace(descriptionHTML)
 	game.HeaderImage, _ = doc.Find(".game_header_image_full").First().Attr("src")
+	if game.HeaderImage == "" {
+		// Some page variants (layout experiments, interstitial banners, etc.)
+		// omit .game_header_image_full. Steam's header image otherwise lives
+		// at a stable, predictable CDN path, so fall back to it rather than
+		// leaving the game with no image at all.
+		game.HeaderImage = fmt.Sprintf("https://cdn.cloudflare.steamstatic.com/steam/apps/%d/header.jpg", appID)
+	}
 	game.WindowsCompatible = doc.Find(".sysreq_tabs [data-os='win']").Length() > 0
 	game.LinuxCompatible = doc.Find(".sysreq_tabs [data-os='linux']").Length() > 0
 	game.MacCompatible = doc.Find(".sysreq_tabs [data-os='mac']").Length() > 0
