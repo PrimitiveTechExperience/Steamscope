@@ -1,0 +1,108 @@
+/* Mirrors the structure Steam's own store page produces inside
+   #game_area_description (h2 section titles, p.bb_paragraph body text,
+   bb_img screenshots, bb_ul lists) so the scraped HTML reads the same way
+   it does on Steam instead of as an unstyled text dump.
+   ::ng-deep is required because this markup is injected via [innerHTML],
+   so it never receives Angular's emulated-encapsulation attribute and a
+   plain scoped selector would never match it. */
+.steam-description ::ng-deep h2 {
+  margin: 1.25rem 0 0.5rem;
+  font-size: 1rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-accent);
+}
+
+.steam-description ::ng-deep h2:first-child {
+  margin-top: 0;
+}
+
+.steam-description ::ng-deep p {
+  margin: 0 0 0.75rem;
+  line-height: 1.6;
+}
+
+.steam-description ::ng-deep p:empty {
+  display: none;
+}
+
+.steam-description ::ng-deep strong {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.steam-description ::ng-deep a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.steam-description ::ng-deep ul {
+  margin: 0 0 0.75rem 1.25rem;
+  list-style: disc;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.steam-description ::ng-deep .bb_img_ctn,
+.steam-description ::ng-deep img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  margin: 0.75rem 0;
+  border: 2px solid var(--color-border);
+}
+
+/* Elements the scraper's sanitizer (backend/internal/scraper/description.go)
+   can emit beyond what Steam's own pages commonly use. */
+.steam-description ::ng-deep h3,
+.steam-description ::ng-deep h4 {
+  margin: 1rem 0 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--color-text);
+}
+
+.steam-description ::ng-deep ol {
+  margin: 0 0 0.75rem 1.25rem;
+  list-style: decimal;
+}
+
+.steam-description ::ng-deep li::marker {
+  color: var(--color-accent);
+}
+
+.steam-description ::ng-deep blockquote {
+  margin: 0 0 0.75rem;
+  padding-left: 0.75rem;
+  border-left: 3px solid var(--color-accent);
+  color: var(--color-text-muted);
+}
+
+.steam-description ::ng-deep hr {
+  margin: 1rem 0;
+  border: 0;
+  border-top: 2px solid var(--color-border);
+}
+
+.steam-description ::ng-deep table {
+  width: 100%;
+  margin-bottom: 0.75rem;
+  border-collapse: collapse;
+}
+
+.steam-description ::ng-deep th,
+.steam-description ::ng-deep td {
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.steam-description ::ng-deep pre {
+  margin-bottom: 0.75rem;
+  padding: 0.5rem;
+  overflow-x: auto;
+  background: var(--color-surface-alt);
+}

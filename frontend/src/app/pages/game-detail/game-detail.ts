@@ -18,6 +18,7 @@ import { TiltDirective } from '../../directives/tilt';
 import { GrowOnScrollDirective } from '../../directives/grow-on-scroll';
 import { Game, PricePoint, Review } from '../../models/game';
 import { withLoading } from '../../utils/with-loading';
+import { onHeaderImageError } from '../../utils/steam-image';
 
 type RangeKey = '1w' | '1m' | '3m' | '6m' | '1y' | '2y';
 type DetailTab = 'description' | 'tags' | 'misc';
@@ -71,6 +72,7 @@ export class GameDetailComponent {
   protected activeRangeTab = signal<RangeKey>('1y');
   protected activeDetailTab = signal<DetailTab>('description');
   protected selectedReview = signal<Review | null>(null);
+  protected onImageError = onHeaderImageError;
 
   /** null until known (or when logged out). */
   protected watchState = signal<{ watched: boolean; pinned: boolean } | null>(null);

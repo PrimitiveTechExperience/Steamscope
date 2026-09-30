@@ -167,6 +167,36 @@ func TestParseGamePage(t *testing.T) {
 			},
 		},
 		{
+			name: "Game Page ignores a bundle upsell's discounted price",
+			html: `
+				<html>
+					<head><title>Test Game</title></head>
+					<body>
+						<div class="apphub_AppName">Test Game Name</div>
+						<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_218">
+							<div class="game_purchase_price price">CDN$ 10.99</div>
+						</div>
+						<div class="game_area_purchase_game_dropdown_subscription game_area_purchase_game">
+							<div class="discount_block game_purchase_discount">
+								<div class="discount_pct">-38%</div>
+								<div class="discount_original_price">CDN$ 124.77</div>
+								<div class="discount_final_price">CDN$ 77.75</div>
+							</div>
+						</div>
+					</body>
+				</html>
+			`,
+			expected: models.Game{
+				AppID:              12345,
+				Name:               "Test Game Name",
+				Developers:         []string{},
+				URL:                "https://store.steampowered.com/app/12345/",
+				Price:              10.99,
+				OriginalPrice:      10.99,
+				DiscountPercentage: 0,
+			},
+		},
+		{
 			name: "Game Page with a price and no discount",
 			html: `
 				<html>
