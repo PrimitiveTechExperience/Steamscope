@@ -1,0 +1,121 @@
+<div class="mx-auto max-w-3xl px-6 py-10">
+    <h1 class="text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Account
+    </h1>
+
+    @if (auth.user(); as user) {
+        <section class="edge-panel mt-6 p-5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Profile</h2>
+            <dl class="mt-3 grid grid-cols-[8rem_1fr] gap-y-2 text-sm">
+                <dt class="text-[var(--color-text-muted)]">Username</dt>
+                <dd class="font-bold text-[var(--color-text)]">{{ user.username }}</dd>
+                <dt class="text-[var(--color-text-muted)]">Email</dt>
+                <dd class="text-[var(--color-text)]">{{ user.email }}</dd>
+                <dt class="text-[var(--color-text-muted)]">Member since</dt>
+                <dd class="text-[var(--color-text)]">{{ user.created_at | date:'mediumDate' }}</dd>
+            </dl>
+        </section>
+
+        <section class="edge-panel mt-6 p-5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Steam</h2>
+            @if (steamMessage(); as m) {
+                <p
+                    class="mt-3 border-2 px-3 py-2 text-sm"
+                    [style.borderColor]="m.kind === 'ok' ? 'var(--color-discount)' : 'var(--color-accent)'"
+                    [style.color]="m.kind === 'ok' ? 'var(--color-discount)' : 'var(--color-accent)'"
+                >
+                    {{ m.text }}
+                </p>
+            }
+            @if (user.steam_id) {
+                <p class="mt-3 text-sm text-[var(--color-text)]">
+                    Linked to Steam ID <span class="font-bold">{{ user.steam_id }}</span>.
+                    You can now sign in through Steam, and your profile shows on your feed.
+                </p>
+                <button (click)="unlinkSteam()" class="edge-btn mt-4 bg-[var(--color-surface)] px-4 py-2 text-xs">
+                    Unlink Steam
+                </button>
+            } @else {
+                <p class="mt-3 text-sm text-[var(--color-text-muted)]">
+                    Link your Steam account to sign in with Steam and show your Steam profile on your feed.
+                    You'll be sent to Steam's own login page - we never see your Steam password.
+                </p>
+                <a [href]="auth.steamLinkUrl" class="edge-btn mt-4 inline-block bg-[#171a21] px-4 py-2 text-xs text-white">
+                    Link Steam account
+                </a>
+            }
+        </section>
+
+        <section class="edge-panel mt-6 p-5">
+            <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Preferences</h2>
+            @if (prefs(); as p) {
+                <div class="mt-4 flex flex-col gap-5 text-sm">
+                    <label class="flex items-center justify-between gap-4">
+                        <span class="text-[var(--color-text)]">Theme</span>
+                        <select
+                            [ngModel]="p.theme"
+                            (ngModelChange)="updatePrefs({ theme: $event })"
+                            class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[var(--color-text)]"
+                        >
+                            <option value="dark">Dark</option>
+                            <option value="light">Light</option>
+                        </select>
+                    </label>
+
+                    <label class="flex items-center justify-between gap-4">
+                        <span class="text-[var(--color-text)]">Notify me when watched games drop in price</span>
+                        <input
+                            type="checkbox"
+                            [ngModel]="p.notify_price_drops"
+                            (ngModelChange)="updatePrefs({ notify_price_drops: $event })"
+                            class="h-5 w-5"
+                        />
+                    </label>
+
+                    <label class="flex items-center justify-between gap-4" [class.opacity-50]="!p.notify_price_drops">
+                        <span class="text-[var(--color-text)]">Only notify for drops of at least</span>
+                        <span class="flex items-center gap-1">
+                            <input
+                                type="number"
+                                min="1"
+                                max="100"
+                                [disabled]="!p.notify_price_drops"
+                                [ngModel]="p.price_drop_threshold_percent"
+                                (ngModelChange)="updatePrefs({ price_drop_threshold_percent: +$event })"
+                                class="w-20 border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[var(--color-text)]"
+                            />
+                            %
+                        </span>
+                    </label>
+
+                    <div>
+                        <app-filter-autocomplete
+                            label="Favourite genres (used for suggestions)"
+                            [options]="genreOptions()"
+                            [selected]="p.preferred_genres"
+                            (toggle)="toggleGenre($event)"
+                        />
+                    </div>
+
+                    @if (prefsMessage(); as m) {
+                        <p class="text-sm" [style.color]="m.kind === 'ok' ? 'var(--color-discount)' : 'var(--color-accent)'">{{ m.text }}</p>
+                    }
+
+                    <button (click)="savePrefs()" [disabled]="saving()" class="edge-btn self-start bg-[var(--color-accent)] px-4 py-2 text-xs text-white disabled:opacity-60">
+                        {{ saving() ? 'Saving...' : 'Save preferences' }}
+                    </button>
+                </div>
+            } @else {
+                <div class="skeleton mt-4 h-40"></div>
+            }
+        </section>
+
+        <section class="edge-panel mt-6 flex items-center justify-between gap-4 p-5">
+            <div>
+                <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Submissions</h2>
+                <p class="mt-1 text-sm text-[var(--color-text-muted)]">Suggest Steam games for us to track.</p>
+            </div>
+            <a routerLink="/submit" class="edge-btn shrink-0 bg-[var(--color-surface)] px-4 py-2 text-xs">Submit a game</a>
+        </section>
+    }
+</div>

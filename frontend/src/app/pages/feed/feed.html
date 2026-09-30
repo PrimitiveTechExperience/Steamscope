@@ -1,0 +1,125 @@
+<div class="mx-auto max-w-6xl px-6 py-10">
+    <section class="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+        <div class="max-w-2xl">
+            <h1 class="text-3xl font-black uppercase leading-tight tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+                {{ greeting }}, <span class="text-[var(--color-accent)]">{{ auth.user()?.username }}</span>.
+            </h1>
+            @if (feedLoading()) {
+                <div class="skeleton mt-3 h-5 w-96 max-w-full"></div>
+            } @else {
+                <p class="mt-2 text-base text-[var(--color-text-muted)]">{{ intro() }}</p>
+            }
+        </div>
+
+        <aside class="w-full shrink-0 lg:w-80">
+            @if (profileLoading()) {
+                <div class="skeleton h-40"></div>
+            } @else if (steamProfile(); as p) {
+                            <div class="edge-panel p-4">
+                                <div class="flex items-center gap-3">
+                                    <img [src]="p.avatar_url" [alt]="p.persona_name" class="h-14 w-14 border-2 border-[var(--color-border)]" decoding="async" />
+                                    <div class="min-w-0">
+                                        <a [href]="p.profile_url" target="_blank" class="block truncate font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]" style="font-family: var(--font-display);">
+                                            {{ p.persona_name }}
+                                        </a>
+                                        <div class="text-xs" [style.color]="p.status === 'Offline' ? 'var(--color-text-muted)' : 'var(--color-free)'">
+                                            {{ p.currently_playing ? 'Playing ' + p.currently_playing : p.status }}
+                                        </div>
+                                    </div>
+                                </div>
+                                @if (p.recently_played.length > 0) {
+                                    <h3 class="mt-4 text-xs font-bold uppercase text-[var(--color-text-muted)]">Recently played</h3>
+                                    <ul class="mt-2 flex flex-col gap-2">
+                                        @for (g of p.recently_played; track g.app_id) {
+                                            <li class="flex items-center gap-2 text-sm">
+                                                @if (g.icon_url) {
+                                                    <img [src]="g.icon_url" alt="" class="h-6 w-6" loading="lazy" decoding="async" />
+                                                }
+                                                <span class="min-w-0 flex-1 truncate text-[var(--color-text)]">{{ g.name }}</span>
+                                                <span class="shrink-0 text-xs text-[var(--color-text-muted)]">{{ g.playtime_2weeks / 60 | number:'1.0-1' }}h / 2wk</span>
+                                            </li>
+                                        }
+                                    </ul>
+                                } @else {
+                                    <p class="mt-3 text-xs text-[var(--color-text-muted)]">No recent games (or their game details are private).</p>
+                                }
+                            </div>
+            } @else if (profileUnavailable(); as reason) {
+                <div class="edge-panel p-4 text-sm text-[var(--color-text-muted)]">{{ reason }}</div>
+            } @else {
+                <div class="edge-panel p-4 text-sm">
+                    <p class="text-[var(--color-text)]">Link your Steam account to see your profile and recently played games here.</p>
+                    <a routerLink="/account" class="edge-btn mt-3 inline-block bg-[#171a21] px-3 py-1.5 text-xs text-white">Link Steam</a>
+                </div>
+            }
+        </aside>
+    </section>
+
+    @if (feedLoading()) {
+        <div class="mt-12">
+            <div class="skeleton mb-4 h-6 w-48"></div>
+            <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                @for (i of [1,2,3,4]; track i) {
+                    <div class="skeleton aspect-[4/5]"></div>
+                }
+            </div>
+        </div>
+    } @else {
+        @if (pinned().length > 0) {
+            <section class="mt-12">
+                <h2 class="mb-4 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">📌 Pinned</h2>
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                    @for (w of pinned(); track w.game.app_id) {
+                        <div appRevealOnScroll><app-game-card [game]="w.game" /></div>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (feed().deals.length > 0) {
+            <section class="mt-12">
+                <h2 class="text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Below their usual price</h2>
+                <p class="mb-4 text-sm text-[var(--color-text-muted)]">Compared to each game's average price over the last 90 days.</p>
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                    @for (d of feed().deals; track d.game.app_id) {
+                        <div appRevealOnScroll class="flex flex-col gap-2">
+                            <div class="flex items-center justify-between text-xs">
+                                <span class="edge-btn -rotate-1 bg-[var(--color-discount)] px-2 py-1 text-white">{{ d.percent_below_usual }}% below usual</span>
+                                <span class="text-[var(--color-text-muted)]">usually {{ d.average_price | currency:'USD':'symbol':'1.2-2' }}</span>
+                            </div>
+                            <app-game-card [game]="d.game" />
+                            @if (d.watched) {
+                                <span class="text-xs font-bold uppercase text-[var(--color-accent)]">On your watchlist</span>
+                            }
+                        </div>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (watching().length > 0) {
+            <section class="mt-12">
+                <h2 class="mb-4 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Watching</h2>
+                <div class="carousel-fade hairline-scroll flex gap-4 overflow-x-auto py-2">
+                    @for (w of watching(); track w.game.app_id) {
+                        <div class="w-64 shrink-0"><app-game-card [game]="w.game" /></div>
+                    }
+                </div>
+            </section>
+        }
+
+        @if (feed().suggestions.length > 0) {
+            <section class="mt-12">
+                <h2 class="text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Suggested for you</h2>
+                <p class="mb-4 text-sm text-[var(--color-text-muted)]">
+                    {{ feed().watchlist.length > 0 ? 'Based on the genres and tags of games you watch.' : 'Popular and discounted right now.' }}
+                </p>
+                <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+                    @for (g of feed().suggestions; track g.app_id) {
+                        <div appRevealOnScroll><app-game-card [game]="g" /></div>
+                    }
+                </div>
+            </section>
+        }
+    }
+</div>

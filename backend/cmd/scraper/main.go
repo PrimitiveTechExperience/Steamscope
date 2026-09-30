@@ -47,7 +47,14 @@ func main() {
 	}
 
 	// Scrape and persist all tracked games (details, reviews, price history).
-	if err := scraper.RunScrape(ctx, db, cfg, s, cfg.Steam.TrackedAppIDs); err != nil {
+	if err := db.SeedTrackedGames(ctx, cfg.Steam.TrackedAppIDs); err != nil {
+		log.Fatalf("Failed to seed tracked games: %v", err)
+	}
+	appIDs, err := db.GetTrackedAppIDs(ctx)
+	if err != nil {
+		log.Fatalf("Failed to load tracked games: %v", err)
+	}
+	if err := scraper.RunScrape(ctx, db, cfg, s, appIDs); err != nil {
 		log.Printf("Scrape run finished with errors: %v", err)
 	}
 }

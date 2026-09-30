@@ -3,6 +3,17 @@
         Search
     </h1>
 
+    @if (recentSearches().length > 0) {
+        <div class="mb-6 flex flex-wrap items-center gap-2">
+            <span class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Recent:</span>
+            @for (s of recentSearches(); track $index) {
+                <button (click)="applyRecent(s)" class="edge-btn bg-[var(--color-surface)] px-2 py-1 text-xs normal-case">
+                    {{ searchLabel(s) }}
+                </button>
+            }
+        </div>
+    }
+
     <div class="grid grid-cols-1 gap-8 lg:grid-cols-[16rem_1fr]">
         <aside class="edge-panel space-y-6 p-4">
             <div>
@@ -13,6 +24,7 @@
                         min="0"
                         placeholder="Min"
                         class="w-full border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm"
+                        [value]="minPrice() ?? ''"
                         (input)="onMinPriceInput($event)"
                     />
                     <span class="text-[var(--color-text-muted)]">–</span>
@@ -21,6 +33,7 @@
                         min="0"
                         placeholder="Max"
                         class="w-full border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-sm"
+                        [value]="maxPrice() ?? ''"
                         (input)="onMaxPriceInput($event)"
                     />
                 </div>

@@ -1,0 +1,91 @@
+import { Injectable, computed, inject, signal } from '@angular/core';
+import { HttpClient } from '@angular/common/http';
+import { Observable, catchError, of, tap } from 'rxjs';
+
+import { API_URL } from '../api';
+import {
+  AppNotification,
+  Feed,
+  Preferences,
+  RecentSearch,
+  SteamProfile,
+  Submission,
+  WatchedGame,
+} from '../models/user';
+
+@Injectable({ providedIn: 'root' })
+export class AccountService {
+  private http = inject(HttpClient);
+  private base = `${API_URL}/me`;
+
+  readonly notifications = signal<AppNotification[]>([]);
+  readonly unreadCount = computed(() => this.notifications().filter((n) => !n.read_at).length);
+
+  getPreferences(): Observable<Preferences> {
+    return this.http.get<Preferences>(`${this.base}/preferences`);
+  }
+
+  updatePreferences(prefs: Preferences): Observable<Preferences> {
+    return this.http.put<Preferences>(`${this.base}/preferences`, prefs);
+  }
+
+  getWatchlist(): Observable<WatchedGame[]> {
+    return this.http.get<WatchedGame[]>(`${this.base}/watchlist`);
+  }
+
+  watch(appId: number, pinned: boolean, targetPrice: number | null): Observable<void> {
+    return this.http.put<void>(`${this.base}/watchlist/${appId}`, { pinned, target_price: targetPrice });
+  }
+
+  unwatch(appId: number): Observable<void> {
+    return this.http.delete<void>(`${this.base}/watchlist/${appId}`);
+  }
+
+  loadNotifications(): void {
+    this.http
+      .get<AppNotification[]>(`${this.base}/notifications`)
+      .pipe(catchError(() => of([] as AppNotification[])))
+      .subscribe((list) => this.notifications.set(list));
+  }
+
+  markAllRead(): Observable<void> {
+    return this.http.post<void>(`${this.base}/notifications/read`, {}).pipe(
+      tap(() => {
+        const now = new Date().toISOString();
+        this.notifications.update((list) => list.map((n) => (n.read_at ? n : { ...n, read_at: now })));
+      })
+    );
+  }
+
+  clearNotifications(): void {
+    this.notifications.set([]);
+  }
+
+  getFeed(): Observable<Feed> {
+    return this.http.get<Feed>(`${this.base}/feed`);
+  }
+
+  getSteamProfile(): Observable<{ profile: SteamProfile | null }> {
+    return this.http.get<{ profile: SteamProfile | null }>(`${this.base}/steam-profile`);
+  }
+
+  unlinkSteam(): Observable<void> {
+    return this.http.delete<void>(`${this.base}/steam`);
+  }
+
+  getRecentSearches(): Observable<RecentSearch[]> {
+    return this.http.get<RecentSearch[]>(`${this.base}/recent-searches`);
+  }
+
+  addRecentSearch(search: RecentSearch): Observable<void> {
+    return this.http.post<void>(`${this.base}/recent-searches`, search);
+  }
+
+  getSubmissions(): Observable<Submission[]> {
+    return this.http.get<Submission[]>(`${this.base}/submissions`);
+  }
+
+  submitGame(url: string): Observable<{ app_id: number; status: Submission['status'] }> {
+    return this.http.post<{ app_id: number; status: Submission['status'] }>(`${API_URL}/submissions`, { url });
+  }
+}

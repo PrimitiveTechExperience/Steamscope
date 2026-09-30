@@ -133,13 +133,14 @@ func (db *DB) InsertGameDetails(ctx context.Context, tx pgx.Tx, game models.Game
 		ctx, 
 		`
 		INSERT INTO games (
-			app_id, name, url, description, header_image, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, linux_compatible, mac_compatible
+			app_id, name, url, description, description_html, header_image, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, linux_compatible, mac_compatible
 		)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 		ON CONFLICT (app_id) DO UPDATE SET
 			name = EXCLUDED.name,
 			url = EXCLUDED.url,
 			description = EXCLUDED.description,
+			description_html = EXCLUDED.description_html,
 			header_image = EXCLUDED.header_image,
 			release_date = EXCLUDED.release_date,
 			price = EXCLUDED.price,
@@ -151,7 +152,7 @@ func (db *DB) InsertGameDetails(ctx context.Context, tx pgx.Tx, game models.Game
 			linux_compatible = EXCLUDED.linux_compatible,
 			mac_compatible = EXCLUDED.mac_compatible
 		`,
-		game.AppID, game.Name, game.URL, game.Description, game.HeaderImage, game.ReleaseDate, game.Price, game.OriginalPrice, game.DiscountPercentage, reviewScore, game.ReviewCount, game.WindowsCompatible, game.LinuxCompatible, game.MacCompatible,
+		game.AppID, game.Name, game.URL, game.Description, game.DescriptionHTML, game.HeaderImage, game.ReleaseDate, game.Price, game.OriginalPrice, game.DiscountPercentage, reviewScore, game.ReviewCount, game.WindowsCompatible, game.LinuxCompatible, game.MacCompatible,
 	)
 	if err != nil {
 		log.Printf("Failed to insert game into database: %v", err)

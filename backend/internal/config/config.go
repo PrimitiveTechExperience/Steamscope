@@ -13,6 +13,17 @@ import (
 type Config struct {
 	Steam SteamConfig
 	ITADAPIKey string
+	Auth AuthConfig
+	RedisURL string
+	FrontendURL string
+	BackendURL string
+}
+
+type AuthConfig struct {
+	SessionHashKey  string
+	SessionBlockKey string
+	CookieSecure    bool
+	SteamWebAPIKey  string
 }
 
 type SteamConfig struct {
@@ -52,6 +63,15 @@ func LoadConfig() *Config {
 			TrackedAppIDs: parseAppIDs(getEnv("TRACKED_APP_IDS", "730,570,440,578080,4000,550,252490")),
 		},
 		ITADAPIKey: getEnv("ITAD_API_KEY", ""),
+		Auth: AuthConfig{
+			SessionHashKey:  os.Getenv("SESSION_HASH_KEY"),
+			SessionBlockKey: os.Getenv("SESSION_BLOCK_KEY"),
+			CookieSecure:    getEnv("COOKIE_SECURE", "false") == "true",
+			SteamWebAPIKey:  os.Getenv("STEAM_WEB_API_KEY"),
+		},
+		RedisURL:    os.Getenv("REDIS_URL"),
+		FrontendURL: strings.TrimRight(getEnv("FRONTEND_URL", "http://localhost:4200"), "/"),
+		BackendURL:  strings.TrimRight(getEnv("BACKEND_URL", "http://localhost:8080"), "/"),
 	}
 }
 

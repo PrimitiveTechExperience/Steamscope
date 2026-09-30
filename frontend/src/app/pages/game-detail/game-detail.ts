@@ -1,12 +1,17 @@
-import { Component, afterNextRender, computed, inject, PLATFORM_ID, signal } from '@angular/core';
+import { Component, computed, effect, inject, PLATFORM_ID, signal, untracked } from '@angular/core';
 import { isPlatformBrowser, CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { ActivatedRoute, RouterLink } from '@angular/router';
+import { FormsModule } from '@angular/forms';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { switchMap, catchError, map, of } from 'rxjs';
 import { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
 
 import { GamesService } from '../../services/games';
+import { AuthService } from '../../services/auth';
+import { AccountService } from '../../services/account';
+import { ThemeService } from '../../services/theme';
+import { apiErrorMessage } from '../../api';
 import { GameCardComponent } from '../../components/game-card/game-card';
 import { RevealOnScrollDirective } from '../../directives/reveal-on-scroll';
 import { TiltDirective } from '../../directives/tilt';
@@ -49,13 +54,16 @@ function formatChartDate(iso: string, range: RangeKey): string {
 
 @Component({
   selector: 'app-game-detail',
-  imports: [CurrencyPipe, DatePipe, DecimalPipe, BaseChartDirective, GameCardComponent, RevealOnScrollDirective, TiltDirective, GrowOnScrollDirective, RouterLink],
+  imports: [CurrencyPipe, DatePipe, DecimalPipe, BaseChartDirective, GameCardComponent, RevealOnScrollDirective, TiltDirective, GrowOnScrollDirective, RouterLink, FormsModule],
   templateUrl: './game-detail.html',
   styleUrl: './game-detail.css',
 })
 export class GameDetailComponent {
   private route = inject(ActivatedRoute);
   private gamesService = inject(GamesService);
+  protected auth = inject(AuthService);
+  private account = inject(AccountService);
+  private themeService = inject(ThemeService);
   protected isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   protected rangeKeys = Object.keys(RANGE_DAYS) as RangeKey[];
@@ -64,19 +72,74 @@ export class GameDetailComponent {
   protected activeDetailTab = signal<DetailTab>('description');
   protected selectedReview = signal<Review | null>(null);
 
-  // Chart.js needs literal color strings, not CSS custom properties, so the
-  // chart can't just read var(--color-accent) - it has to track the
-  // data-theme attribute itself to stay in sync with the header's toggle.
-  private themeAttr = signal<'light' | 'dark'>('light');
+  /** null until known (or when logged out). */
+  protected watchState = signal<{ watched: boolean; pinned: boolean } | null>(null);
+  protected targetPriceInput: number | null = null;
+  protected watchError = signal<string | null>(null);
 
   constructor() {
-    afterNextRender(() => {
-      if (!this.isBrowser) return;
-      const root = document.documentElement;
-      const readTheme = () => (root.getAttribute('data-theme') === 'dark' ? 'dark' : 'light');
-      this.themeAttr.set(readTheme());
-      const observer = new MutationObserver(() => this.themeAttr.set(readTheme()));
-      observer.observe(root, { attributes: true, attributeFilter: ['data-theme'] });
+    // Once both the game and the logged-in user are known, look up whether
+    // this game is on the user's watchlist.
+    effect(() => {
+      const game = this.game();
+      const user = this.auth.user();
+      if (!this.isBrowser || !game || !user) {
+        this.watchState.set(null);
+        return;
+      }
+      untracked(() =>
+        this.account.getWatchlist().subscribe({
+          next: (list) => {
+            const entry = list.find((w) => w.game.app_id === game.app_id);
+            this.watchState.set({ watched: !!entry, pinned: entry?.pinned ?? false });
+            this.targetPriceInput = entry?.target_price ?? null;
+          },
+          error: () => this.watchState.set(null),
+        })
+      );
+    });
+  }
+
+  protected toggleWatch() {
+    const game = this.game();
+    const state = this.watchState();
+    if (!game || !state) return;
+    const request = state.watched
+      ? this.account.unwatch(game.app_id)
+      : this.account.watch(game.app_id, false, null);
+    request.subscribe({
+      next: () => {
+        this.watchState.set({ watched: !state.watched, pinned: false });
+        if (state.watched) this.targetPriceInput = null;
+        this.watchError.set(null);
+      },
+      error: (err) => this.watchError.set(apiErrorMessage(err, "Couldn't update your watchlist.")),
+    });
+  }
+
+  protected togglePin() {
+    const game = this.game();
+    const state = this.watchState();
+    if (!game || !state) return;
+    this.account.watch(game.app_id, !state.pinned, this.targetPriceInput).subscribe({
+      next: () => {
+        this.watchState.set({ watched: true, pinned: !state.pinned });
+        this.watchError.set(null);
+      },
+      error: (err) => this.watchError.set(apiErrorMessage(err, "Couldn't update your watchlist.")),
+    });
+  }
+
+  protected saveTargetPrice() {
+    const game = this.game();
+    const state = this.watchState();
+    if (!game || !state) return;
+    this.account.watch(game.app_id, state.pinned, this.targetPriceInput).subscribe({
+      next: () => {
+        this.watchState.set({ watched: true, pinned: state.pinned });
+        this.watchError.set(null);
+      },
+      error: (err) => this.watchError.set(apiErrorMessage(err, "Couldn't save your target price.")),
     });
   }
 
@@ -139,7 +202,7 @@ export class GameDetailComponent {
   // Same hex values as --color-accent / --color-border / --color-text-muted
   // in styles.css for each theme - Chart.js can't consume CSS vars directly.
   private chartPalette = computed(() =>
-    this.themeAttr() === 'dark'
+    this.themeService.theme() === 'dark'
       ? { accent: '#ff5b3d', fill: 'rgba(255, 91, 61, 0.15)', grid: '#2c2d31', tick: '#9c9ba1', surface: '#19181c' }
       : { accent: '#ff3d1f', fill: 'rgba(255, 61, 31, 0.12)', grid: '#e2e0d8', tick: '#5b5d63', surface: '#ffffff' }
   );

@@ -9,6 +9,8 @@ type Game struct {
 	URL                string `json:"url"`
 	Description        string `json:"description"`
 	HeaderImage        string `json:"header_image"`
+	// Sanitized HTML of the store description; only populated on the single-game endpoint.
+	DescriptionHTML    string `json:"description_html,omitempty"`
 	ReleaseDate        time.Time `json:"release_date"`
 	// Supported languages are stored as a slice of strings, as a game can support multiple languages.
 	SupportedLanguages  []string `json:"supported_languages"`

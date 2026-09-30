@@ -3,6 +3,8 @@ export interface Game{
     name: string;
     url: string;
     description: string;
+    /** Sanitized HTML of the store description (single-game endpoint only). */
+    description_html?: string;
     header_image: string;
     release_date: string;
     price: number;

@@ -1,12 +1,18 @@
 package handlers
 
 import (
+	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"net/http"
+	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
+	"github.com/redis/go-redis/v9"
 )
 
 type GameFilters = models.GameFilters
@@ -61,8 +67,16 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "minPrice cannot exceed maxPrice", http.StatusBadRequest)
 		return
 	}
-	filters.Limit = limit
+	filters.Limit = min(limit, maxGamesLimit)
 	filters.Offset = offset
+
+	cacheKey := h.searchCacheKey(r.Context(), filters)
+	if cached, err := h.Redis.Get(r.Context(), cacheKey).Bytes(); err == nil {
+		w.Header().Set("Content-Type", "application/json")
+		w.Header().Set("X-Cache", "HIT")
+		w.Write(cached)
+		return
+	}
 
 	games, err := h.DB.GetGames(r.Context(), filters)
 	if err != nil {
@@ -72,14 +86,50 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	response := GameResponse{
 		Games:  games,
 		Total:  len(games),
-		Limit:  limit,
+		Limit:  filters.Limit,
 		Offset: offset,
 	}
-	w.Header().Set("Content-Type", "application/json")
-	if err := json.NewEncoder(w).Encode(response); err != nil {
+	encoded, err := json.Marshal(response)
+	if err != nil {
 		http.Error(w, "Failed to encode games", http.StatusInternalServerError)
 		return
 	}
+	if len(encoded) <= maxCachedSearchBytes {
+		h.Redis.Set(r.Context(), cacheKey, encoded, searchCacheTTL)
+	}
+	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("X-Cache", "MISS")
+	w.Write(encoded)
+}
+
+const (
+	maxGamesLimit        = 100
+	searchCacheTTL       = 10 * time.Minute
+	maxCachedSearchBytes = 64 << 10
+	searchVersionKey     = "search:version"
+)
+
+// searchCacheKey namespaces cached results under a version counter that's
+// bumped whenever game data changes (see BumpSearchVersion), so a scrape
+// invalidates every cached search at once without scanning keys - the old
+// entries are just never read again and expire on their TTL.
+func (h *Handler) searchCacheKey(ctx context.Context, filters models.GameFilters) string {
+	version, err := h.Redis.Get(ctx, searchVersionKey).Result()
+	if err != nil {
+		version = "0"
+	}
+	// Filter order doesn't change results, so normalise it out of the key.
+	for _, values := range [][]string{filters.Genres, filters.Tags, filters.Languages, filters.Developers, filters.Publishers} {
+		slices.Sort(values)
+	}
+	encoded, _ := json.Marshal(filters)
+	sum := sha256.Sum256(encoded)
+	return "search:v" + version + ":" + hex.EncodeToString(sum[:])
+}
+
+// BumpSearchVersion invalidates all cached search results.
+func BumpSearchVersion(ctx context.Context, rdb *redis.Client) {
+	rdb.Incr(ctx, searchVersionKey)
 }
 
 func splitFilterValues(value string) []string {

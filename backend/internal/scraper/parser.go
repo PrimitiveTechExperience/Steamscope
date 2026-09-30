@@ -69,7 +69,9 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	game.ReviewCount, _ = strconv.Atoi(reviewCountText)
 	// Need to fetch from second or third instance of .user_reviews_summary_row as html layout is odd.
 	game.ReviewScore = strings.TrimSpace(doc.Find(".user_reviews_summary_row").Eq(1).Find(".game_review_summary").First().Text())
-	game.Description = strings.TrimSpace(doc.Find("#game_area_description").First().Text())
+	descriptionBlock := doc.Find("#game_area_description").First()
+	game.Description = strings.TrimSpace(descriptionBlock.Text())
+	game.DescriptionHTML = sanitizeDescriptionHTML(descriptionBlock)
 	game.HeaderImage, _ = doc.Find(".game_header_image_full").First().Attr("src")
 	game.WindowsCompatible = doc.Find(".sysreq_tabs [data-os='win']").Length() > 0
 	game.LinuxCompatible = doc.Find(".sysreq_tabs [data-os='linux']").Length() > 0

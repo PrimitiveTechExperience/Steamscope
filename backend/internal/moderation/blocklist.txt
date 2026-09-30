@@ -1,0 +1,57 @@
+# Username blocklist: slurs and hate slogans targeting protected groups
+# (race, ethnicity, religion, sexuality, gender identity, disability).
+# General insults ("stupid", "idiot", "dumb", ...) are intentionally NOT
+# listed - users may call themselves those.
+#
+# One term per line, letters only. Matching is done against a normalised
+# username (lowercased, leetspeak mapped, separators removed) and tolerates
+# stretched letters ("niiigger"), so don't list those variants here.
+#
+# Prefix a term with "=" to match only when it is the entire username.
+# Use this for short terms that are also substrings of innocent words
+# (e.g. "spic" in "spicy", "coon" in "raccoon", "paki" in "pakistan").
+
+# Race / ethnicity
+nigger
+nigga
+kike
+wetback
+beaner
+gook
+raghead
+towelhead
+darkie
+jigaboo
+porchmonkey
+junglebunny
+zipperhead
+redskin
+injun
+halfbreed
+=nig
+=coon
+=spic
+=chink
+=jap
+=paki
+=heeb
+=hymie
+
+# Sexuality / gender identity
+faggot
+tranny
+trannie
+shemale
+=fag
+=dyke
+
+# Disability
+retard
+mongoloid
+=spaz
+
+# Hate slogans
+heilhitler
+siegheil
+whitepower
+kkk

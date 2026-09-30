@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { FilterOptions, Game, GamesResponse, PricePoint } from '../models/game';
+import { API_URL } from '../api';
 
 export interface GamesQueryOptions {
   search?: string;
@@ -23,7 +24,7 @@ export interface GamesQueryOptions {
 })
 export class GamesService {
   private http = inject(HttpClient);
-  private apiUrl = 'http://localhost:8080/api';
+  private apiUrl = API_URL;
 
   getGames(opts?: GamesQueryOptions): Observable<GamesResponse> {
     let params = new HttpParams();

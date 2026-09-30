@@ -1,0 +1,65 @@
+<div class="mx-auto max-w-md px-6 py-16">
+    <div class="edge-panel p-6">
+        <h1 class="text-2xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+            Sign up
+        </h1>
+        <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+            Watch games, get price-drop alerts, and submit games to track.
+            Already have an account? <a routerLink="/login" class="font-bold text-[var(--color-accent)] hover:underline">Log in</a>
+        </p>
+
+        @if (error()) {
+            <p class="mt-4 border-2 border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-3 py-2 text-sm text-[var(--color-accent)]">
+                {{ error() }}
+            </p>
+        }
+
+        <form class="mt-6 flex flex-col gap-4" (ngSubmit)="submit()">
+            <label class="flex flex-col gap-1 text-xs font-bold uppercase text-[var(--color-text-muted)]">
+                Username
+                <input
+                    name="username"
+                    [(ngModel)]="username"
+                    autocomplete="username"
+                    maxlength="20"
+                    class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
+                />
+                <span class="font-normal normal-case">3-20 characters: letters, numbers, _ or -</span>
+            </label>
+            <label class="flex flex-col gap-1 text-xs font-bold uppercase text-[var(--color-text-muted)]">
+                Email
+                <input
+                    name="email"
+                    type="email"
+                    [(ngModel)]="email"
+                    autocomplete="email"
+                    class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
+                />
+            </label>
+            <label class="flex flex-col gap-1 text-xs font-bold uppercase text-[var(--color-text-muted)]">
+                Password
+                <input
+                    name="password"
+                    type="password"
+                    [(ngModel)]="password"
+                    autocomplete="new-password"
+                    class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
+                />
+                <span class="font-normal normal-case">At least 8 characters</span>
+            </label>
+            <label class="flex flex-col gap-1 text-xs font-bold uppercase text-[var(--color-text-muted)]">
+                Confirm password
+                <input
+                    name="confirmPassword"
+                    type="password"
+                    [(ngModel)]="confirmPassword"
+                    autocomplete="new-password"
+                    class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
+                />
+            </label>
+            <button type="submit" [disabled]="submitting()" class="edge-btn bg-[var(--color-accent)] px-4 py-2.5 text-sm text-white disabled:opacity-60">
+                {{ submitting() ? 'Creating account...' : 'Create account' }}
+            </button>
+        </form>
+    </div>
+</div>

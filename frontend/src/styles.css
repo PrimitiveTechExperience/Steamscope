@@ -223,3 +223,71 @@ body {
 :root[data-theme='dark'] .scroll-blob-3 {
   opacity: 0.32;
 }
+
+/* Steam store descriptions arrive as sanitized HTML (see the scraper's
+   description.go) and are injected with [innerHTML], so they carry no
+   Angular scoping attribute - these rules must be global. */
+.steam-desc {
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+}
+
+.steam-desc > * + * {
+  margin-top: 0.75rem;
+}
+
+.steam-desc h2,
+.steam-desc h3,
+.steam-desc h4 {
+  margin-top: 1.25rem;
+  font-family: var(--font-display);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--color-text);
+}
+
+.steam-desc h2 { font-size: 1.05rem; }
+.steam-desc h3 { font-size: 0.95rem; }
+.steam-desc h4 { font-size: 0.85rem; }
+
+.steam-desc strong { font-weight: 700; color: var(--color-text); }
+.steam-desc em { font-style: italic; }
+
+.steam-desc ul,
+.steam-desc ol {
+  padding-left: 1.25rem;
+}
+
+.steam-desc ul { list-style: square; }
+.steam-desc ol { list-style: decimal; }
+.steam-desc li + li { margin-top: 0.25rem; }
+.steam-desc li::marker { color: var(--color-accent); }
+
+.steam-desc blockquote {
+  border-left: 3px solid var(--color-accent);
+  padding-left: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.steam-desc a {
+  color: var(--color-accent);
+  text-decoration: underline;
+}
+
+.steam-desc img {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  border: 2px solid var(--color-border);
+}
+
+.steam-desc hr {
+  border: 0;
+  border-top: 2px solid var(--color-border);
+}
+
+.steam-desc table { width: 100%; border-collapse: collapse; }
+.steam-desc th,
+.steam-desc td { border: 1px solid var(--color-border); padding: 0.25rem 0.5rem; text-align: left; }
+.steam-desc pre { overflow-x: auto; padding: 0.5rem; background: var(--color-surface-alt); }

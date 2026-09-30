@@ -152,6 +152,11 @@ func (s *Scraper) FetchReviews(
 	params.Set("json", "1")
 	params.Set("filter", options.Filter)
 	params.Set("language", options.Language)
+	// Steam's default (purchase_type=steam) drops reviews from key
+	// activations and free-to-play players, which for many games leaves
+	// "recent" reviews weeks or months stale (Dota 2's newest was 11 days
+	// old; with "all" it's from yesterday).
+	params.Set("purchase_type", "all")
 	params.Set("num_per_page", fmt.Sprintf("%d", options.MaxReviews))
 	params.Set("cursor", "*")
 

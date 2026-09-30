@@ -23,6 +23,48 @@
                             {{ game.price === 0 ? 'Free' : (game.price | currency:'USD':'symbol':'1.2-2') }}
                         </span>
                     </div>
+
+                    @if (watchState(); as ws) {
+                        <div class="mt-3 flex flex-wrap items-center gap-2">
+                            <button
+                                (click)="toggleWatch()"
+                                class="edge-btn px-3 py-1.5 text-xs"
+                                [style.background]="ws.watched ? 'var(--color-accent)' : 'var(--color-surface)'"
+                                [style.color]="ws.watched ? '#fff' : 'var(--color-text)'"
+                            >
+                                {{ ws.watched ? '★ Watching' : '☆ Watch' }}
+                            </button>
+                            <button
+                                (click)="togglePin()"
+                                class="edge-btn px-3 py-1.5 text-xs"
+                                [style.background]="ws.pinned ? 'var(--color-accent)' : 'var(--color-surface)'"
+                                [style.color]="ws.pinned ? '#fff' : 'var(--color-text)'"
+                            >
+                                📌 {{ ws.pinned ? 'Pinned' : 'Pin to feed' }}
+                            </button>
+                            @if (ws.watched) {
+                                <label class="flex items-center gap-1 text-xs text-[var(--color-text-muted)]">
+                                    Alert me at $
+                                    <input
+                                        type="number"
+                                        min="0"
+                                        step="0.01"
+                                        placeholder="target"
+                                        [(ngModel)]="targetPriceInput"
+                                        class="w-20 border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[var(--color-text)]"
+                                    />
+                                </label>
+                                <button (click)="saveTargetPrice()" class="edge-btn bg-[var(--color-surface)] px-2 py-1 text-xs">Save</button>
+                            }
+                        </div>
+                        @if (watchError()) {
+                            <p class="mt-1 text-xs text-[var(--color-accent)]">{{ watchError() }}</p>
+                        }
+                    } @else if (auth.user() === null) {
+                        <a [routerLink]="['/login']" [queryParams]="{ returnUrl: '/games/' + game.app_id }" class="mt-3 inline-block text-xs font-bold text-[var(--color-accent)] hover:underline">
+                            Log in to watch this game and get price-drop alerts
+                        </a>
+                    }
                 </div>
             </div>
             <div class="edge-panel-sm px-3 py-2 text-right text-sm text-[var(--color-text-muted)]">
@@ -94,20 +136,24 @@
                 <div class="mt-4 max-h-64 overflow-y-auto text-sm text-[var(--color-text)]">
                     @switch (activeDetailTab()) {
                         @case ('description') {
-                            <p class="whitespace-pre-line leading-relaxed">{{ game.description }}</p>
+                            @if (game.description_html) {
+                                <div class="steam-desc" [innerHTML]="game.description_html"></div>
+                            } @else {
+                                <p class="whitespace-pre-line leading-relaxed">{{ game.description }}</p>
+                            }
                         }
                         @case ('tags') {
                             <div>
                                 <h3 class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Genres</h3>
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     @for (genre of game.genres; track genre) {
-                                        <span class="edge-btn bg-[var(--color-accent-soft)] px-3 py-1 text-xs text-[var(--color-accent)]">{{ genre }}</span>
+                                        <a [routerLink]="['/search']" [queryParams]="{ genres: genre }" class="edge-btn bg-[var(--color-accent-soft)] px-3 py-1 text-xs text-[var(--color-accent)]">{{ genre }}</a>
                                     }
                                 </div>
                                 <h3 class="mt-4 text-xs font-bold uppercase text-[var(--color-text-muted)]">Tags</h3>
                                 <div class="mt-2 flex flex-wrap gap-2">
                                     @for (tag of game.tags; track tag) {
-                                        <span class="edge-btn bg-[var(--color-surface-alt)] px-3 py-1 text-xs text-[var(--color-text)]">{{ tag }}</span>
+                                        <a [routerLink]="['/search']" [queryParams]="{ tags: tag }" class="edge-btn bg-[var(--color-surface-alt)] px-3 py-1 text-xs text-[var(--color-text)]">{{ tag }}</a>
                                     }
                                 </div>
                             </div>

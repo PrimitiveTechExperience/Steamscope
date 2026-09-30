@@ -4,6 +4,7 @@ create table games (
     name text not null,
     url text not null,
     description text not null,
+    description_html text not null default '',
     header_image text not null default '',
 
     release_date date not null,
@@ -126,3 +127,58 @@ create table price_history (
 
 create index idx_price_history_app_id on price_history(app_id);
 create index idx_price_history_recorded_date on price_history(recorded_date);
+
+create table users (
+    user_id bigint generated always as identity primary key,
+    username text not null,
+    email text not null,
+    password_hash text not null,
+    steam_id text unique,
+
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create unique index idx_users_username_lower on users (lower(username));
+create unique index idx_users_email_lower on users (lower(email));
+
+create table user_preferences (
+    user_id bigint primary key references users(user_id) on delete cascade,
+    theme text not null default 'dark' check (theme in ('light', 'dark')),
+    notify_price_drops boolean not null default true,
+    price_drop_threshold_percent integer not null default 10 check (price_drop_threshold_percent between 1 and 100),
+    preferred_genres text[] not null default '{}'
+);
+
+create table watched_games (
+    user_id bigint not null references users(user_id) on delete cascade,
+    app_id integer not null references games(app_id) on delete cascade,
+    pinned boolean not null default false,
+    target_price numeric(10, 2),
+    created_at timestamptz not null default now(),
+
+    primary key (user_id, app_id)
+);
+
+create index idx_watched_games_app_id on watched_games(app_id);
+
+create table notifications (
+    notification_id bigint generated always as identity primary key,
+    user_id bigint not null references users(user_id) on delete cascade,
+    app_id integer references games(app_id) on delete cascade,
+    kind text not null check (kind in ('price_drop', 'target_price', 'submission_tracked', 'submission_failed')),
+    message text not null,
+    read_at timestamptz,
+    created_at timestamptz not null default now()
+);
+
+create index idx_notifications_user_created on notifications(user_id, created_at desc);
+
+-- Source of truth for what the scheduler scrapes. No FK to games: a row
+-- exists before the game's first successful scrape.
+create table tracked_games (
+    app_id integer primary key,
+    submitted_by bigint references users(user_id) on delete set null,
+    status text not null default 'pending' check (status in ('pending', 'tracked', 'failed')),
+    created_at timestamptz not null default now()
+);

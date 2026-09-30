@@ -35,6 +35,12 @@ func RunScrape(ctx context.Context, db *database.DB, cfg *config.Config, s *Scra
 		go func() {
 			defer wg.Done()
 			for game := range jobs {
+				// Steam redirects unknown app IDs to the store front page,
+				// which parses as a "game" with no name.
+				if game.Name == "" {
+					log.Printf("Skipping AppID %d: page had no game name (not a valid store page?)", game.AppID)
+					continue
+				}
 				log.Printf("START inserting game: %s (AppID: %d)", game.Name, game.AppID)
 				if err := db.InsertGame(ctx, game); err != nil {
 					log.Printf("Failed to insert game into database: %v", err)
@@ -42,6 +48,8 @@ func RunScrape(ctx context.Context, db *database.DB, cfg *config.Config, s *Scra
 				}
 				if err := db.UpsertPriceHistory(ctx, game.AppID, game.Price, game.OriginalPrice, game.DiscountPercentage, today); err != nil {
 					log.Printf("Failed to upsert price history for game %s (AppID: %d): %v", game.Name, game.AppID, err)
+				} else if err := db.CreatePriceDropNotifications(ctx, game.AppID, game.Price, today); err != nil {
+					log.Printf("Failed to create price drop notifications for game %s (AppID: %d): %v", game.Name, game.AppID, err)
 				}
 				if err := db.StoreReviews(ctx, game.AppID, game.Reviews, cfg.Steam.ReviewMaxReviews); err != nil {
 					log.Printf("Failed to insert reviews into database for game %s (AppID: %d): %v", game.Name, game.AppID, err)

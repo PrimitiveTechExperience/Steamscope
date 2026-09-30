@@ -12,6 +12,11 @@
         STEAMSCOPE
       </a>
       <div class="flex items-center gap-5">
+        @if (auth.isLoggedIn()) {
+          <a routerLink="/feed" class="text-sm font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+            Feed
+          </a>
+        }
         <a routerLink="/games" class="text-sm font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
           Browse
         </a>
@@ -21,10 +26,76 @@
         <button
           (click)="toggleTheme()"
           class="edge-btn flex h-9 w-9 items-center justify-center bg-[var(--color-surface)] text-sm"
-          [attr.aria-label]="'Switch to ' + (theme() === 'dark' ? 'light' : 'dark') + ' mode'"
+          [attr.aria-label]="'Switch to ' + (themeService.theme() === 'dark' ? 'light' : 'dark') + ' mode'"
         >
-          {{ theme() === 'dark' ? '☀️' : '🌙' }}
+          {{ themeService.theme() === 'dark' ? '☀️' : '🌙' }}
         </button>
+
+        @if (auth.user(); as user) {
+          <div class="relative">
+            <button
+              (click)="toggleBell()"
+              class="edge-btn relative flex h-9 w-9 items-center justify-center bg-[var(--color-surface)] text-sm"
+              [attr.aria-label]="'Notifications (' + account.unreadCount() + ' unread)'"
+            >
+              🔔
+              @if (account.unreadCount() > 0) {
+                <span class="absolute -right-2 -top-2 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--color-accent)] px-1 text-[10px] font-black text-white">
+                  {{ account.unreadCount() > 9 ? '9+' : account.unreadCount() }}
+                </span>
+              }
+            </button>
+            @if (bellOpen()) {
+              <div class="edge-panel absolute right-0 top-12 w-80 bg-[var(--color-surface)]">
+                <div class="flex items-center justify-between border-b-2 border-[var(--color-border)] px-3 py-2">
+                  <span class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Notifications</span>
+                  @if (account.unreadCount() > 0) {
+                    <button (click)="markAllRead()" class="text-xs font-bold text-[var(--color-accent)] hover:underline">Mark all read</button>
+                  }
+                </div>
+                <ul class="max-h-96 overflow-y-auto">
+                  @for (n of account.notifications(); track n.notification_id) {
+                    <li>
+                      <button
+                        (click)="openNotification(n)"
+                        class="block w-full border-b border-[var(--color-border)]/20 px-3 py-2 text-left text-sm hover:bg-[var(--color-surface-alt)]"
+                        [style.fontWeight]="n.read_at ? 'normal' : 'bold'"
+                      >
+                        <span class="text-[var(--color-text)]">{{ n.message }}</span>
+                        <span class="mt-0.5 block text-xs font-normal text-[var(--color-text-muted)]">{{ n.created_at | date:'short' }}</span>
+                      </button>
+                    </li>
+                  } @empty {
+                    <li class="px-3 py-6 text-center text-sm text-[var(--color-text-muted)]">
+                      No notifications yet. Watch a game to get price-drop alerts.
+                    </li>
+                  }
+                </ul>
+              </div>
+            }
+          </div>
+
+          <div class="relative">
+            <button (click)="toggleMenu()" class="edge-btn bg-[var(--color-surface)] px-3 py-1.5 text-xs normal-case">
+              {{ user.username }} ▾
+            </button>
+            @if (menuOpen()) {
+              <div class="edge-panel absolute right-0 top-11 flex w-48 flex-col bg-[var(--color-surface)] py-1 text-sm">
+                <a routerLink="/feed" class="px-3 py-2 text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]">My feed</a>
+                <a routerLink="/account" class="px-3 py-2 text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]">Account</a>
+                <a routerLink="/submit" class="px-3 py-2 text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]">Submit a game</a>
+                <button (click)="logout()" class="px-3 py-2 text-left text-[var(--color-accent)] hover:bg-[var(--color-surface-alt)]">Log out</button>
+              </div>
+            }
+          </div>
+        } @else if (auth.user() === null) {
+          <a routerLink="/login" class="text-sm font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+            Log in
+          </a>
+          <a routerLink="/register" class="edge-btn bg-[var(--color-accent)] px-3 py-1.5 text-xs text-white">
+            Sign up
+          </a>
+        }
       </div>
     </nav>
   </header>

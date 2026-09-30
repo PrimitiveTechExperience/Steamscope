@@ -8,6 +8,8 @@ import (
 	"os"
 	"time"
 
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/cache"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/handlers"
@@ -22,6 +24,7 @@ func main() {
 		log.Println("Error loading .env file")
 	}
 	ctx := context.Background()
+	cfg := config.LoadConfig()
 
 	db, err := database.New(ctx, os.Getenv("DATABASE_URL"))
 	if err != nil {
@@ -29,10 +32,21 @@ func main() {
 	}
 	defer db.Close()
 
-	h := handlers.New(db)
-	mux := router.New(h)
+	rdb, err := cache.New(ctx, cfg.RedisURL)
+	if err != nil {
+		log.Fatalf("Failed to connect to Redis: %v", err)
+	}
+	defer rdb.Close()
 
-	cfg := config.LoadConfig()
+	sessions, err := auth.NewSessionManager(rdb, cfg.Auth.SessionHashKey, cfg.Auth.SessionBlockKey, cfg.Auth.CookieSecure)
+	if err != nil {
+		log.Fatalf("Invalid session configuration: %v", err)
+	}
+
+	if err := db.SeedTrackedGames(ctx, cfg.Steam.TrackedAppIDs); err != nil {
+		log.Fatalf("Failed to seed tracked games: %v", err)
+	}
+
 	s := scraper.New(cfg.Steam.BaseURL)
 	cookies, err := config.LoadCookies(cfg.Steam.CookieFilePath)
 	if err != nil {
@@ -45,14 +59,32 @@ func main() {
 	for _, c := range s.JarCookies(u) {
 		log.Printf("Loaded cookie: %s", c.Name)
 	}
-	go scheduler.Start(ctx, db, cfg, s, cfg.Steam.TrackedAppIDs, 24*time.Hour)
 
+	invalidateSearchCache := func() { handlers.BumpSearchVersion(ctx, rdb) }
+
+	submissions := handlers.NewSubmissionQueue(100)
+	go submissions.Run(ctx, db, cfg, s, invalidateSearchCache)
+	go scheduler.Start(ctx, db, cfg, s, 24*time.Hour, invalidateSearchCache)
+
+	h := handlers.New(handlers.Deps{
+		DB:          db,
+		Redis:       rdb,
+		Sessions:    sessions,
+		Config:      cfg,
+		Submissions: submissions,
+	})
+
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 	server := &http.Server{
-		Addr:    ":8080",
-		Handler: mux,
+		Addr:              ":" + port,
+		Handler:           router.New(h, cfg.FrontendURL),
+		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	log.Println("API listening on :8080")
+	log.Printf("API listening on :%s", port)
 
 	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("Failed to start server: %v", err)

@@ -39,7 +39,15 @@ func main() {
 	endDate := time.Now()
 	startDate := endDate.AddDate(-2, 0, 0)
 
-	for _, appID := range cfg.Steam.TrackedAppIDs {
+	if err := db.SeedTrackedGames(ctx, cfg.Steam.TrackedAppIDs); err != nil {
+		log.Fatalf("Failed to seed tracked games: %v", err)
+	}
+	appIDs, err := db.GetTrackedAppIDs(ctx)
+	if err != nil {
+		log.Fatalf("Failed to load tracked games: %v", err)
+	}
+
+	for _, appID := range appIDs {
 		itadID, err := client.LookupGameID(appID)
 		if err != nil {
 			log.Printf("Skipping appID %d: %v", appID, err)

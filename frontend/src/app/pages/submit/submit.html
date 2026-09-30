@@ -1,0 +1,64 @@
+<div class="mx-auto max-w-3xl px-6 py-10">
+    <h1 class="text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Submit a game
+    </h1>
+    <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+        Missing a game? Paste its Steam store link and we'll start tracking its price. Up to 5 submissions an hour.
+    </p>
+
+    <form class="edge-panel mt-6 flex flex-col gap-3 p-5 sm:flex-row sm:items-end" (ngSubmit)="submit()">
+        <label class="flex flex-1 flex-col gap-1 text-xs font-bold uppercase text-[var(--color-text-muted)]">
+            Steam store link
+            <input
+                name="url"
+                [(ngModel)]="url"
+                placeholder="https://store.steampowered.com/app/730/Counter-Strike_2/"
+                class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
+            />
+        </label>
+        <button type="submit" [disabled]="submitting()" class="edge-btn shrink-0 bg-[var(--color-accent)] px-5 py-2.5 text-sm text-white disabled:opacity-60">
+            {{ submitting() ? 'Submitting...' : 'Submit' }}
+        </button>
+    </form>
+
+    @if (message(); as m) {
+        <p
+            class="mt-4 border-2 px-3 py-2 text-sm"
+            [style.borderColor]="m.kind === 'ok' ? 'var(--color-discount)' : 'var(--color-accent)'"
+            [style.color]="m.kind === 'ok' ? 'var(--color-discount)' : 'var(--color-accent)'"
+        >
+            {{ m.text }}
+        </p>
+    }
+
+    <h2 class="mt-10 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Your submissions
+    </h2>
+    @if (submissions() === null) {
+        <div class="skeleton h-24"></div>
+    } @else if (submissions()!.length === 0) {
+        <p class="text-sm text-[var(--color-text-muted)]">You haven't submitted any games yet.</p>
+    } @else {
+        <ul class="flex flex-col gap-2">
+            @for (s of submissions(); track s.app_id) {
+                <li class="edge-panel-sm flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                    <div class="min-w-0">
+                        @if (s.status === 'tracked' && s.name) {
+                            <a [routerLink]="['/games', s.app_id]" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ s.name }}</a>
+                        } @else {
+                            <span class="font-bold text-[var(--color-text)]">App {{ s.app_id }}</span>
+                        }
+                        <div class="text-xs text-[var(--color-text-muted)]">{{ s.created_at | date:'medium' }}</div>
+                    </div>
+                    <span
+                        class="edge-btn shrink-0 px-2 py-1 text-xs"
+                        [style.background]="s.status === 'tracked' ? 'var(--color-discount)' : s.status === 'failed' ? 'var(--color-accent)' : 'var(--color-surface-alt)'"
+                        [style.color]="s.status === 'pending' ? 'var(--color-text)' : '#fff'"
+                    >
+                        {{ s.status === 'pending' ? 'Fetching...' : s.status }}
+                    </span>
+                </li>
+            }
+        </ul>
+    }
+</div>

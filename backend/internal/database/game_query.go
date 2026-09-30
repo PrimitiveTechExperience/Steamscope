@@ -12,11 +12,11 @@ func (db *DB) GetGame(ctx context.Context, appID int) (*models.Game, error) {
 	var game models.Game
 	var score int
 	err := db.Pool.QueryRow(ctx, `
-	SELECT app_id, name, url, description, header_image, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, mac_compatible, linux_compatible
+	SELECT app_id, name, url, description, description_html, header_image, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, mac_compatible, linux_compatible
 	FROM games
 	WHERE app_id = $1
 	`, appID).Scan(
-		&game.AppID, &game.Name, &game.URL, &game.Description, &game.HeaderImage, &game.ReleaseDate,
+		&game.AppID, &game.Name, &game.URL, &game.Description, &game.DescriptionHTML, &game.HeaderImage, &game.ReleaseDate,
 		&game.Price, &game.OriginalPrice, &game.DiscountPercentage, &score,
 		&game.ReviewCount, &game.WindowsCompatible, &game.MacCompatible, &game.LinuxCompatible,
 	)
