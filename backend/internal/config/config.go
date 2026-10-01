@@ -11,12 +11,12 @@ import (
 )
 
 type Config struct {
-	Steam SteamConfig
-	ITADAPIKey string
-	Auth AuthConfig
-	RedisURL string
+	Steam       SteamConfig
+	ITADAPIKey  string
+	Auth        AuthConfig
+	RedisURL    string
 	FrontendURL string
-	BackendURL string
+	BackendURL  string
 }
 
 type AuthConfig struct {
@@ -27,17 +27,17 @@ type AuthConfig struct {
 }
 
 type SteamConfig struct {
-	CookieFilePath string
-	ReviewFilter string
+	CookieFilePath   string
+	ReviewFilter     string
 	ReviewMaxReviews int
-	ReviewLanguage string
-	BaseURL string
-	TrackedAppIDs []int
+	ReviewLanguage   string
+	BaseURL          string
+	TrackedAppIDs    []int
 }
 
-type Cookie struct{
-	Name  string `json:"name"`
-	Value string `json:"value"`
+type Cookie struct {
+	Name   string `json:"name"`
+	Value  string `json:"value"`
 	Domain string `json:"domain"`
 }
 
@@ -49,7 +49,7 @@ func LoadConfig() *Config {
 	return &Config{
 		Steam: SteamConfig{
 			CookieFilePath: getEnv("STEAM_COOKIE_FILE_PATH", "./internal/config/config.json"),
-			ReviewFilter: getEnv("REVIEW_FILTER", "recent"),
+			ReviewFilter:   getEnv("REVIEW_FILTER", "recent"),
 			ReviewMaxReviews: func() int {
 				value, err := strconv.Atoi(getEnv("REVIEW_MAX_REVIEWS", "25"))
 				if err != nil {
@@ -59,8 +59,8 @@ func LoadConfig() *Config {
 				return value
 			}(),
 			ReviewLanguage: getEnv("REVIEW_LANGUAGE", "english"),
-			BaseURL: getEnv("STEAM_BASE_URL", "https://store.steampowered.com"),
-			TrackedAppIDs: parseAppIDs(getEnv("TRACKED_APP_IDS", "730,570,440,578080,4000,550,252490")),
+			BaseURL:        getEnv("STEAM_BASE_URL", "https://store.steampowered.com"),
+			TrackedAppIDs:  parseAppIDs(getEnv("TRACKED_APP_IDS", "730,570,440,578080,4000,550,252490")),
 		},
 		ITADAPIKey: getEnv("ITAD_API_KEY", ""),
 		Auth: AuthConfig{
@@ -92,7 +92,6 @@ func parseAppIDs(csv string) []int {
 	}
 	return appIDs
 }
-
 
 func getEnv(key, defaultValue string) string {
 	value := os.Getenv(key)

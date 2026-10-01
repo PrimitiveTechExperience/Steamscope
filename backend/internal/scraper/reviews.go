@@ -70,50 +70,50 @@ func buildAvatarURL(hash string) string {
 }
 
 type ReviewOption struct {
-	Filter string
+	Filter     string
 	MaxReviews int
-	Language string
+	Language   string
 }
 
 type reviewResult struct {
-	AppID int
+	AppID   int
 	Reviews []models.Review
-	Error error
+	Error   error
 }
 
 type steamReviewResponse struct {
-	Success int `json:"success"`
+	Success      int `json:"success"`
 	QuerySummary struct {
-		NumReviews int `json:"num_reviews"`
-		ReviewScore int `json:"review_score"`
+		NumReviews      int    `json:"num_reviews"`
+		ReviewScore     int    `json:"review_score"`
 		ReviewScoreDesc string `json:"review_score_desc"`
-		TotalPositive int `json:"total_positive"`
-		TotalNegative int `json:"total_negative"`
-		TotalReviews int `json:"total_reviews"`
+		TotalPositive   int    `json:"total_positive"`
+		TotalNegative   int    `json:"total_negative"`
+		TotalReviews    int    `json:"total_reviews"`
 	} `json:"query_summary"`
 	Reviews []steamReview `json:"reviews"`
-	Cursor string `json:"cursor"`
+	Cursor  string        `json:"cursor"`
 }
 
 type steamReview struct {
 	RecommendationID string `json:"recommendationid"`
-	Author struct {
-		SteamID string `json:"steamid"`
-		PersonaName string `json:"personaname"`
-		Avatar string `json:"avatar"`
-		NumGamesOwned int `json:"num_games_owned"`
-		NumReviews int `json:"num_reviews"`
-		PlaytimeForever int `json:"playtime_forever"`
-		PlaytimeAtReview int `json:"playtime_at_review"`
+	Author           struct {
+		SteamID          string `json:"steamid"`
+		PersonaName      string `json:"personaname"`
+		Avatar           string `json:"avatar"`
+		NumGamesOwned    int    `json:"num_games_owned"`
+		NumReviews       int    `json:"num_reviews"`
+		PlaytimeForever  int    `json:"playtime_forever"`
+		PlaytimeAtReview int    `json:"playtime_at_review"`
 	} `json:"author"`
 
-	Language string `json:"language"`
-	Review string `json:"review"`
-	VotedUp bool `json:"voted_up"`
-	TimestampCreated int64 `json:"timestamp_created"`
-	TimestampUpdated int64 `json:"timestamp_updated"`
-	VotesUp int `json:"votes_up"`
-	VotesFunny int `json:"votes_funny"`
+	Language         string `json:"language"`
+	Review           string `json:"review"`
+	VotedUp          bool   `json:"voted_up"`
+	TimestampCreated int64  `json:"timestamp_created"`
+	TimestampUpdated int64  `json:"timestamp_updated"`
+	VotesUp          int    `json:"votes_up"`
+	VotesFunny       int    `json:"votes_funny"`
 }
 
 // We use colly approach here as well
@@ -128,20 +128,19 @@ func (s *Scraper) newReviewCollector() *colly.Collector {
 	c.Async = true
 	c.SetCookieJar(s.Jar)
 	c.Limit(&colly.LimitRule{
-		DomainGlob: fmt.Sprintf("*%s*", baseURL.Hostname()),
+		DomainGlob:  fmt.Sprintf("*%s*", baseURL.Hostname()),
 		Parallelism: 4,
-		Delay: 250*time.Millisecond,
-		RandomDelay: 250*time.Millisecond,
+		Delay:       250 * time.Millisecond,
+		RandomDelay: 250 * time.Millisecond,
 	})
-	c.OnRequest(func(r *colly.Request){
+	c.OnRequest(func(r *colly.Request) {
 		log.Printf("Visiting: %s", r.URL.String())
 	})
 	c.OnResponse(func(r *colly.Response) {
 		log.Printf("Received %d bytes\n", len(r.Body))
-	})	
+	})
 	return c
 }
-
 
 func (s *Scraper) FetchReviews(
 	appID int,
@@ -176,7 +175,7 @@ func (s *Scraper) FetchReviewsForGames(games []models.Game, options ReviewOption
 	c := s.newReviewCollector()
 	results := make(chan reviewResult, len(games))
 	// Since the collection of reviews is done via JSON, we use onResponse:
-	c.OnResponse(func (r *colly.Response)  {
+	c.OnResponse(func(r *colly.Response) {
 		appIDStr := r.Ctx.Get("appID")
 
 		appID, err := strconv.Atoi(appIDStr)
@@ -194,22 +193,22 @@ func (s *Scraper) FetchReviewsForGames(games []models.Game, options ReviewOption
 		reviews := make([]models.Review, len(data.Reviews))
 		for i, rev := range data.Reviews {
 			reviews[i] = models.Review{
-				AppID: appID,
+				AppID:            appID,
 				RecommendationID: rev.RecommendationID,
-				SteamID: rev.Author.SteamID,
-				AuthorName: rev.Author.PersonaName,
-				AuthorAvatar: buildAvatarURL(rev.Author.Avatar),
-				NumGamesOwned: rev.Author.NumGamesOwned,
-				NumReviews: rev.Author.NumReviews,
-				Language: rev.Language,
-				Review: rev.Review,
-				VotedUp: rev.VotedUp,
+				SteamID:          rev.Author.SteamID,
+				AuthorName:       rev.Author.PersonaName,
+				AuthorAvatar:     buildAvatarURL(rev.Author.Avatar),
+				NumGamesOwned:    rev.Author.NumGamesOwned,
+				NumReviews:       rev.Author.NumReviews,
+				Language:         rev.Language,
+				Review:           rev.Review,
+				VotedUp:          rev.VotedUp,
 				TimestampCreated: time.Unix(rev.TimestampCreated, 0),
 				TimestampUpdated: time.Unix(rev.TimestampUpdated, 0),
-				PlaytimeForever: rev.Author.PlaytimeForever,
+				PlaytimeForever:  rev.Author.PlaytimeForever,
 				PlaytimeAtReview: rev.Author.PlaytimeAtReview,
-				HelpfulVotes: rev.VotesUp,
-				FunnyVotes: rev.VotesFunny,
+				HelpfulVotes:     rev.VotesUp,
+				FunnyVotes:       rev.VotesFunny,
 			}
 		}
 		results <- reviewResult{AppID: appID, Reviews: reviews, Error: nil}

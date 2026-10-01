@@ -64,7 +64,7 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 		game.Price = discountPrice
 		game.OriginalPrice = originalPrice
 		game.DiscountPercentage = parseDiscountPercentage(purchaseSection.Find(".discount_pct").First().Text())
-	}else{
+	} else {
 		priceStr := strings.TrimSpace(purchaseSection.Find(".game_purchase_price").First().Text())
 		price, _ := parsePrice(priceStr)
 		game.Price = price
@@ -143,19 +143,19 @@ func parseDiscountPercentage(discountText string) int {
 }
 
 func parsePrice(priceText string) (float64, string) {
-    priceText = strings.TrimSpace(priceText)
+	priceText = strings.TrimSpace(priceText)
 
-    re := regexp.MustCompile(`^\s*([^\d]*?)\s*(\d+(?:\.\d+)?)\s*([^\d]*)\s*$`)
-    matches := re.FindStringSubmatch(priceText)
-    if len(matches) != 4 {
-        return 0, ""
-    }
+	re := regexp.MustCompile(`^\s*([^\d]*?)\s*(\d+(?:\.\d+)?)\s*([^\d]*)\s*$`)
+	matches := re.FindStringSubmatch(priceText)
+	if len(matches) != 4 {
+		return 0, ""
+	}
 
-    price, err := strconv.ParseFloat(matches[2], 64)
-    if err != nil {
-        return 0, ""
-    }
+	price, err := strconv.ParseFloat(matches[2], 64)
+	if err != nil {
+		return 0, ""
+	}
 
-    currency := strings.TrimSpace(matches[1] + matches[3])
-    return price, currency
+	currency := strings.TrimSpace(matches[1] + matches[3])
+	return price, currency
 }

@@ -143,7 +143,7 @@ func TestReviewScraper_FetchReviews_TestRequestDataCorrectness(t *testing.T) {
 		}),
 	)
 	defer server.Close()
-	
+
 	s := New(server.URL)
 	c := s.newReviewCollector()
 	err := s.FetchReviews(12345, ReviewOption{"recent", 1, "english"}, c)
@@ -155,8 +155,8 @@ func TestReviewScraper_FetchReviews_TestRequestDataCorrectness(t *testing.T) {
 func TestReviewScraper_FetchReviewsForGames_BasicCorrectness(t *testing.T) {
 	// create a gummy game model
 	game := models.Game{
-		AppID: 12345,
-		Name: "Test Game",
+		AppID:   12345,
+		Name:    "Test Game",
 		Reviews: []models.Review{},
 	}
 	games := []models.Game{game}

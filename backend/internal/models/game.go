@@ -3,37 +3,37 @@ package models
 import "time"
 
 type Game struct {
-	AppID              int `json:"app_id"`
+	AppID int `json:"app_id"`
 	// General information
-	Name               string `json:"name"`
-	URL                string `json:"url"`
-	Description        string `json:"description"`
-	HeaderImage        string `json:"header_image"`
+	Name        string `json:"name"`
+	URL         string `json:"url"`
+	Description string `json:"description"`
+	HeaderImage string `json:"header_image"`
 	// Sanitized HTML of the store description; only populated on the single-game endpoint.
-	DescriptionHTML    string `json:"description_html,omitempty"`
+	DescriptionHTML string `json:"description_html,omitempty"`
 	// Bundles advertised on the game's store page (scraper-internal).
-	BundleIDs          []int `json:"-"`
-	ReleaseDate        time.Time `json:"release_date"`
+	BundleIDs   []int     `json:"-"`
+	ReleaseDate time.Time `json:"release_date"`
 	// Supported languages are stored as a slice of strings, as a game can support multiple languages.
-	SupportedLanguages  []string `json:"supported_languages"`
+	SupportedLanguages []string `json:"supported_languages"`
 	// Developers and Publishers are stored as slices of strings, as a game can have multiple developers and publishers.
-	Developers         []string `json:"developers"`
-	Publishers         []string `json:"publishers"`
+	Developers []string `json:"developers"`
+	Publishers []string `json:"publishers"`
 	// Price and discount information
 	Price              float64 `json:"price"`
 	OriginalPrice      float64 `json:"original_price"`
-	DiscountPercentage int `json:"discount_percentage"`
+	DiscountPercentage int     `json:"discount_percentage"`
 	// The genres and tags are stored as slices of strings, as a game can have multiple genres and tags.
-	Genres             []string `json:"genres"`
-	Tags               []string `json:"tags"`
+	Genres []string `json:"genres"`
+	Tags   []string `json:"tags"`
 	// Review Overview
-	ReviewScore        string `json:"review_score"`
-	ReviewCount        int `json:"review_count"`
-	Reviews 		   []Review `json:"reviews"`
+	ReviewScore string   `json:"review_score"`
+	ReviewCount int      `json:"review_count"`
+	Reviews     []Review `json:"reviews"`
 	// Compatibility flags
-	WindowsCompatible  bool`json:"windows_compatible"`
-	LinuxCompatible    bool`json:"linux_compatible"`
-	MacCompatible      bool`json:"mac_compatible"`
+	WindowsCompatible bool `json:"windows_compatible"`
+	LinuxCompatible   bool `json:"linux_compatible"`
+	MacCompatible     bool `json:"mac_compatible"`
 }
 
 // PricePoint represents a single day's recorded price for a game.

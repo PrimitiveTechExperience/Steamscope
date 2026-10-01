@@ -12,9 +12,8 @@ import (
 
 	"github.com/joho/godotenv"
 )
-	
+
 func main() {
-	// Start database connection.
 	err := godotenv.Load()
 	if err != nil {
 		log.Println("Error loading .env file")
@@ -27,7 +26,6 @@ func main() {
 	}
 	defer db.Close()
 
-	// Load configuration, cookies
 	cfg := config.LoadConfig()
 
 	s := scraper.New(cfg.Steam.BaseURL)
