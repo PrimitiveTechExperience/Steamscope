@@ -27,15 +27,25 @@
         <h2 class="mt-8 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Included games</h2>
         <ul class="grid gap-2 sm:grid-cols-2">
             @for (g of games(); track g.app_id) {
-                <li class="edge-panel-sm px-4 py-3 text-sm">
+                <li class="edge-panel-sm flex items-center justify-between gap-3 px-4 py-3 text-sm">
                     @if (g.tracked) {
                         <a [routerLink]="['/games', g.app_id]" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ g.name }}</a>
                     } @else {
                         <span class="text-[var(--color-text-muted)]">{{ g.name }}</span>
+                        @if (!auth.isLoggedIn()) {
+                            <a routerLink="/login" [queryParams]="{ returnUrl: '/bundles/' + b.bundle_id }" class="shrink-0 text-xs text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">Log in to request</a>
+                        } @else if (requestStatus(g) === '' || requestStatus(g) === 'failed') {
+                            <button (click)="requestGame(g)" class="edge-btn shrink-0 bg-[var(--color-surface)] px-2 py-1 text-xs">Request tracking</button>
+                        } @else {
+                            <span class="shrink-0 text-xs font-bold text-[var(--color-text-muted)]">{{ statusLabel(requestStatus(g)) }}</span>
+                        }
                     }
                 </li>
             }
         </ul>
+        @if (requestError(); as e) {
+            <p class="mt-2 text-xs text-[var(--color-accent)]">{{ e }}</p>
+        }
     } @else {
         <p class="mt-6 text-sm text-[var(--color-text-muted)]">That bundle couldn't be found.</p>
     }

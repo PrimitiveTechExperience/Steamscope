@@ -218,9 +218,11 @@ func (db *DB) GetBundle(ctx context.Context, bundleID int) (*models.BundleDetail
 	}
 
 	gameRows, err := db.Pool.Query(ctx, `
-		SELECT bg.app_id, COALESCE(NULLIF(g.name, ''), bg.name), (g.app_id IS NOT NULL)
+		SELECT bg.app_id, COALESCE(NULLIF(g.name, ''), bg.name), (g.app_id IS NOT NULL),
+			CASE WHEN g.app_id IS NULL THEN COALESCE(t.status, '') ELSE '' END
 		FROM bundle_games bg
 		LEFT JOIN games g ON g.app_id = bg.app_id
+		LEFT JOIN tracked_games t ON t.app_id = bg.app_id
 		WHERE bg.bundle_id = $1
 		ORDER BY 3 DESC, 2`, bundleID)
 	if err != nil {
@@ -229,7 +231,7 @@ func (db *DB) GetBundle(ctx context.Context, bundleID int) (*models.BundleDetail
 	defer gameRows.Close()
 	for gameRows.Next() {
 		var g models.BundleGame
-		if err := gameRows.Scan(&g.AppID, &g.Name, &g.Tracked); err != nil {
+		if err := gameRows.Scan(&g.AppID, &g.Name, &g.Tracked, &g.TrackStatus); err != nil {
 			return nil, fmt.Errorf("failed to scan bundle game: %w", err)
 		}
 		b.Games = append(b.Games, g)

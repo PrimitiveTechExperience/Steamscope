@@ -132,6 +132,11 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if user.IsBanned {
+		writeError(w, http.StatusForbidden, "this account has been suspended")
+		return
+	}
+
 	if err := h.Sessions.Create(r.Context(), w, user.UserID); err != nil {
 		log.Printf("login: session: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to log in")

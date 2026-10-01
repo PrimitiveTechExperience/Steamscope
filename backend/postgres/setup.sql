@@ -135,6 +135,8 @@ create table users (
     password_hash text not null,
     steam_id text unique,
     is_admin boolean not null default false,
+    is_banned boolean not null default false,
+    submissions_blocked boolean not null default false,
 
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -217,6 +219,20 @@ create table bundle_price_history (
     discount_percentage integer not null,
 
     primary key (bundle_id, recorded_date)
+);
+
+-- Admin-managed rules that keep games off the site. field 'app_id' blocks one
+-- app ID (pattern is the number); the others are case-insensitive regular
+-- expressions matched against the game's name, a developer or a publisher.
+create table if not exists blacklist_rules (
+    rule_id bigint generated always as identity primary key,
+    field text not null check (field in ('app_id', 'name', 'developer', 'publisher')),
+    pattern text not null check (length(pattern) between 1 and 200),
+    note text not null default '' check (length(note) <= 200),
+    created_by bigint references users(user_id) on delete set null,
+    created_at timestamptz not null default now(),
+
+    unique (field, pattern)
 );
 
 -- Row level security: every table has RLS enabled with no policies, so

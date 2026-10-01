@@ -9,11 +9,13 @@ import (
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/moderation"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/sanitize"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 )
 
 func (h *Handler) AdminListUsers(w http.ResponseWriter, r *http.Request) {
-	users, err := h.DB.ListUsers(r.Context())
+	users, err := h.DB.ListUsers(r.Context(), 1000)
 	if err != nil {
 		log.Printf("admin list users: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to load users")
@@ -46,7 +48,7 @@ func (h *Handler) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) AdminListItems(w http.ResponseWriter, r *http.Request) {
-	items, err := h.DB.ListItems(r.Context())
+	items, err := h.DB.ListItems(r.Context(), 1000)
 	if err != nil {
 		log.Printf("admin list items: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to load games")
@@ -135,4 +137,175 @@ func (h *Handler) AdminRejectItem(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("Your submission of Steam %s wasn't approved.", what))
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) AdminStats(w http.ResponseWriter, r *http.Request) {
+	stats, err := h.DB.GetAdminStats(r.Context())
+	if err != nil {
+		log.Printf("admin stats: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to load stats")
+		return
+	}
+	writeJSON(w, http.StatusOK, stats)
+}
+
+type moderationRequest struct {
+	IsBanned           *bool `json:"is_banned"`
+	SubmissionsBlocked *bool `json:"submissions_blocked"`
+}
+
+// AdminModerateUser bans/unbans a user or blocks/unblocks their game
+// suggestions. Admins (including the caller) can't be moderated this way.
+func (h *Handler) AdminModerateUser(w http.ResponseWriter, r *http.Request) {
+	admin := auth.CurrentUser(r.Context())
+	id, err := strconv.ParseInt(r.PathValue("userID"), 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid user id")
+		return
+	}
+	var req moderationRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	if req.IsBanned == nil && req.SubmissionsBlocked == nil {
+		writeError(w, http.StatusBadRequest, "nothing to change")
+		return
+	}
+	switch err := h.DB.SetUserModeration(r.Context(), id, req.IsBanned, req.SubmissionsBlocked); {
+	case errors.Is(err, database.ErrNotFound):
+		writeError(w, http.StatusNotFound, "no such user (admins can't be moderated)")
+	case err != nil:
+		log.Printf("admin moderate user: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to update user")
+	default:
+		log.Printf("admin %s moderated user %d: %+v", admin.Username, id, req)
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+func (h *Handler) AdminListBlacklist(w http.ResponseWriter, r *http.Request) {
+	rules, err := h.DB.ListBlacklist(r.Context())
+	if err != nil {
+		log.Printf("admin list blacklist: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to load the blacklist")
+		return
+	}
+	writeJSON(w, http.StatusOK, rules)
+}
+
+type blacklistRequest struct {
+	Field   string `json:"field"`
+	Pattern string `json:"pattern"`
+	Note    string `json:"note"`
+}
+
+func (h *Handler) AdminAddBlacklistRule(w http.ResponseWriter, r *http.Request) {
+	admin := auth.CurrentUser(r.Context())
+	var req blacklistRequest
+	if !decodeJSON(w, r, &req) {
+		return
+	}
+	req.Pattern = sanitize.Text(req.Pattern, 200)
+	req.Note = sanitize.Text(req.Note, 200)
+	if err := moderation.ValidateRule(req.Field, req.Pattern); err != nil {
+		writeError(w, http.StatusBadRequest, err.Error())
+		return
+	}
+	id, err := h.DB.AddBlacklistRule(r.Context(), req.Field, req.Pattern, req.Note, admin.UserID)
+	switch {
+	case errors.Is(err, database.ErrRuleExists):
+		writeError(w, http.StatusConflict, err.Error())
+		return
+	case err != nil:
+		log.Printf("admin add blacklist rule: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to add rule")
+		return
+	}
+	rule, err := h.DB.GetBlacklistRule(r.Context(), id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "rule added, but failed to reload it")
+		return
+	}
+	writeJSON(w, http.StatusCreated, rule)
+}
+
+func (h *Handler) AdminDeleteBlacklistRule(w http.ResponseWriter, r *http.Request) {
+	id, err := strconv.ParseInt(r.PathValue("ruleID"), 10, 64)
+	if err != nil || id <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid rule id")
+		return
+	}
+	switch err := h.DB.DeleteBlacklistRule(r.Context(), id); {
+	case errors.Is(err, database.ErrNotFound):
+		writeError(w, http.StatusNotFound, "no such rule")
+	case err != nil:
+		log.Printf("admin delete blacklist rule: %v", err)
+		writeError(w, http.StatusInternalServerError, "failed to delete rule")
+	default:
+		w.WriteHeader(http.StatusNoContent)
+	}
+}
+
+// matchingGames returns the stored games a rule would block.
+func (h *Handler) matchingGames(r *http.Request) (rule *database.BlacklistRule, matches []moderation.GameMeta, status int, err error) {
+	id, perr := strconv.ParseInt(r.PathValue("ruleID"), 10, 64)
+	if perr != nil || id <= 0 {
+		return nil, nil, http.StatusBadRequest, errors.New("invalid rule id")
+	}
+	rule, err = h.DB.GetBlacklistRule(r.Context(), id)
+	if errors.Is(err, database.ErrNotFound) {
+		return nil, nil, http.StatusNotFound, errors.New("no such rule")
+	}
+	if err != nil {
+		log.Printf("blacklist matches: %v", err)
+		return nil, nil, http.StatusInternalServerError, errors.New("failed to load the rule")
+	}
+	compiled, err := moderation.CompileRule(rule.Field, rule.Pattern)
+	if err != nil {
+		return nil, nil, http.StatusInternalServerError, errors.New("that rule is no longer valid")
+	}
+	metas, err := h.DB.GamesMeta(r.Context(), 0)
+	if err != nil {
+		log.Printf("blacklist matches: %v", err)
+		return nil, nil, http.StatusInternalServerError, errors.New("failed to load games")
+	}
+	for _, m := range metas {
+		if compiled.Matches(m) {
+			matches = append(matches, m)
+		}
+	}
+	return rule, matches, http.StatusOK, nil
+}
+
+// AdminBlacklistMatches previews which games already on the site a rule blocks.
+func (h *Handler) AdminBlacklistMatches(w http.ResponseWriter, r *http.Request) {
+	_, matches, status, err := h.matchingGames(r)
+	if err != nil {
+		writeError(w, status, err.Error())
+		return
+	}
+	out := make([]map[string]any, 0, len(matches))
+	for _, m := range matches {
+		out = append(out, map[string]any{"app_id": m.AppID, "name": m.Name})
+	}
+	writeJSON(w, http.StatusOK, out)
+}
+
+// AdminPurgeBlacklistMatches removes every game on the site that a rule blocks.
+func (h *Handler) AdminPurgeBlacklistMatches(w http.ResponseWriter, r *http.Request) {
+	_, matches, status, err := h.matchingGames(r)
+	if err != nil {
+		writeError(w, status, err.Error())
+		return
+	}
+	removed := 0
+	for _, m := range matches {
+		if err := h.DB.RejectGame(r.Context(), m.AppID); err != nil {
+			log.Printf("blacklist purge %d: %v", m.AppID, err)
+			continue
+		}
+		removed++
+	}
+	h.InvalidateCaches(r.Context())
+	writeJSON(w, http.StatusOK, map[string]int{"removed": removed})
 }

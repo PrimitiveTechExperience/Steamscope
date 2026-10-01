@@ -41,7 +41,25 @@ export const routes: Routes = [
     {
         path: 'admin',
         canActivate: [adminGuard],
-        loadComponent: () => import('./pages/admin/admin').then((m) => m.AdminComponent),
+        loadComponent: () => import('./pages/admin/shell/admin-shell').then((m) => m.AdminShellComponent),
+        children: [
+            {
+                path: '',
+                loadComponent: () => import('./pages/admin/dashboard/admin-dashboard').then((m) => m.AdminDashboardComponent),
+            },
+            {
+                path: 'games',
+                loadComponent: () => import('./pages/admin/games/admin-games').then((m) => m.AdminGamesComponent),
+            },
+            {
+                path: 'users',
+                loadComponent: () => import('./pages/admin/users/admin-users').then((m) => m.AdminUsersComponent),
+            },
+            {
+                path: 'blacklist',
+                loadComponent: () => import('./pages/admin/blacklist/admin-blacklist').then((m) => m.AdminBlacklistComponent),
+            },
+        ],
     },
     {
         path: 'submit',

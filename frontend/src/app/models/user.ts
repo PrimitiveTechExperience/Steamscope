@@ -6,6 +6,7 @@ export interface User {
     email: string;
     steam_id: string | null;
     is_admin: boolean;
+    submissions_blocked: boolean;
     created_at: string;
 }
 

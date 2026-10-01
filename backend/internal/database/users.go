@@ -17,11 +17,11 @@ var (
 	ErrNotFound      = errors.New("not found")
 )
 
-const userColumns = `user_id, username, email, password_hash, steam_id, is_admin, created_at`
+const userColumns = `user_id, username, email, password_hash, steam_id, is_admin, is_banned, submissions_blocked, created_at`
 
 func scanUser(row pgx.Row) (*models.User, error) {
 	var u models.User
-	if err := row.Scan(&u.UserID, &u.Username, &u.Email, &u.PasswordHash, &u.SteamID, &u.IsAdmin, &u.CreatedAt); err != nil {
+	if err := row.Scan(&u.UserID, &u.Username, &u.Email, &u.PasswordHash, &u.SteamID, &u.IsAdmin, &u.IsBanned, &u.SubmissionsBlocked, &u.CreatedAt); err != nil {
 		if errors.Is(err, pgx.ErrNoRows) {
 			return nil, ErrNotFound
 		}

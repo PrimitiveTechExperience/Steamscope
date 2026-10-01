@@ -48,6 +48,13 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	// Admin only.
 	mux.HandleFunc("GET /api/admin/users", auth.RequireAdmin(h.AdminListUsers))
 	mux.HandleFunc("DELETE /api/admin/users/{userID}", auth.RequireAdmin(h.AdminDeleteUser))
+	mux.HandleFunc("PUT /api/admin/users/{userID}/moderation", auth.RequireAdmin(h.AdminModerateUser))
+	mux.HandleFunc("GET /api/admin/stats", auth.RequireAdmin(h.AdminStats))
+	mux.HandleFunc("GET /api/admin/blacklist", auth.RequireAdmin(h.AdminListBlacklist))
+	mux.HandleFunc("POST /api/admin/blacklist", auth.RequireAdmin(h.AdminAddBlacklistRule))
+	mux.HandleFunc("DELETE /api/admin/blacklist/{ruleID}", auth.RequireAdmin(h.AdminDeleteBlacklistRule))
+	mux.HandleFunc("GET /api/admin/blacklist/{ruleID}/matches", auth.RequireAdmin(h.AdminBlacklistMatches))
+	mux.HandleFunc("POST /api/admin/blacklist/{ruleID}/purge", auth.RequireAdmin(h.AdminPurgeBlacklistMatches))
 	mux.HandleFunc("GET /api/admin/items", auth.RequireAdmin(h.AdminListItems))
 	mux.HandleFunc("DELETE /api/admin/items/{kind}/{id}", auth.RequireAdmin(h.AdminDeleteItem))
 	mux.HandleFunc("POST /api/admin/items/{kind}/{id}/approve", auth.RequireAdmin(h.AdminApproveItem))

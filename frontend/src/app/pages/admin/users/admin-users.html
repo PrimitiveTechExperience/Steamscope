@@ -1,0 +1,55 @@
+@if (error(); as e) {
+    <p class="mt-4 border-2 border-[var(--color-accent)] px-3 py-2 text-sm text-[var(--color-accent)]">{{ e }}</p>
+}
+
+<h2 class="mt-8 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+    Users ({{ filtered().length }})
+</h2>
+<p class="mb-3 text-xs text-[var(--color-text-muted)]">
+    Banning logs a user out and blocks sign-in. Blocking submissions keeps their account working but stops them suggesting games.
+</p>
+<input
+    type="search"
+    placeholder="Search username or email"
+    maxlength="100"
+    [value]="search()"
+    (input)="onSearch($event)"
+    class="mb-3 w-full border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm text-[var(--color-text)]"
+/>
+
+@if (users() === null) {
+    <div class="skeleton h-24"></div>
+} @else {
+    <ul class="flex flex-col gap-2">
+        @for (u of filtered(); track u.user_id) {
+            <li class="edge-panel-sm flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                <div class="min-w-0">
+                    <span class="font-bold text-[var(--color-text)]">{{ u.username }}</span>
+                    @if (u.is_admin) {
+                        <span class="edge-btn ml-2 bg-[var(--color-accent)] px-2 py-0.5 text-[10px] text-white">admin</span>
+                    }
+                    @if (u.is_banned) {
+                        <span class="edge-btn ml-2 bg-[var(--color-accent)] px-2 py-0.5 text-[10px] text-white">banned</span>
+                    }
+                    @if (u.submissions_blocked) {
+                        <span class="edge-btn ml-2 bg-[var(--color-surface-alt)] px-2 py-0.5 text-[10px] text-[var(--color-text)]">can't submit</span>
+                    }
+                    <div class="truncate text-xs text-[var(--color-text-muted)]">{{ u.email }} &middot; joined {{ u.created_at | date:'mediumDate' }}</div>
+                </div>
+                @if (canModerate(u)) {
+                    <div class="flex flex-wrap gap-2">
+                        <button (click)="toggleSubmissions(u)" class="edge-btn bg-[var(--color-surface)] px-3 py-1.5 text-xs">
+                            {{ u.submissions_blocked ? 'Allow submissions' : 'Block submissions' }}
+                        </button>
+                        <button (click)="toggleBan(u)" class="edge-btn bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-accent)]">
+                            {{ u.is_banned ? 'Unban' : 'Ban' }}
+                        </button>
+                        <button (click)="deleteUser(u)" class="edge-btn bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-accent)]">Delete</button>
+                    </div>
+                }
+            </li>
+        } @empty {
+            <li class="text-sm text-[var(--color-text-muted)]">No users match.</li>
+        }
+    </ul>
+}

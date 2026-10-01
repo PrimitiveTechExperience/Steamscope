@@ -13,6 +13,7 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/itad"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/moderation"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scraper"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 )
@@ -66,6 +67,14 @@ func processSubmission(ctx context.Context, db *database.DB, cfg *config.Config,
 	}
 
 	appID := job.id
+	if blockedAfterScrape(ctx, db, appID) {
+		if err := db.RejectGame(ctx, appID); err != nil {
+			log.Printf("submission %d: %v", appID, err)
+		}
+		db.CreateNotification(ctx, job.userID, nil, "submission_rejected",
+			fmt.Sprintf("Your submission of Steam game %d wasn't approved.", appID))
+		return
+	}
 	name, err := db.GetGameName(ctx, appID)
 	if err == nil && name != "" {
 		if err := db.SetTrackedGameStatus(ctx, appID, "tracked"); err != nil {
@@ -107,8 +116,17 @@ func (h *Handler) SubmitGame(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
+	if user.SubmissionsBlocked {
+		writeError(w, http.StatusForbidden, "you're not able to submit games")
+		return
+	}
+	if kind == steam.StoreKindApp && h.appIDBlacklisted(r.Context(), id) {
+		writeError(w, http.StatusUnprocessableEntity, "that game can't be added to Steamscope")
+		return
+	}
+	// Admins aren't rate limited: their submissions are scraped straight away.
 	limitKey := "ratelimit:submit:" + strconv.FormatInt(user.UserID, 10)
-	if !cache.Allow(r.Context(), h.Redis, limitKey, 5, time.Hour) {
+	if !user.IsAdmin && !cache.Allow(r.Context(), h.Redis, limitKey, 5, time.Hour) {
 		writeError(w, http.StatusTooManyRequests, "you can submit up to 5 games or bundles an hour")
 		return
 	}
@@ -189,4 +207,40 @@ func (h *Handler) enqueueSubmission(ctx context.Context, kind steam.StoreKind, i
 // InvalidateCaches drops cached search results after game data changes.
 func (h *Handler) InvalidateCaches(ctx context.Context) {
 	BumpSearchVersion(ctx, h.Redis)
+}
+
+// appIDBlacklisted reports whether an app_id rule blocks this game outright.
+// (Name/developer/publisher rules need the scraped data; see blockedAfterScrape.)
+func (h *Handler) appIDBlacklisted(ctx context.Context, appID int) bool {
+	rules, err := h.DB.CompiledBlacklist(ctx)
+	if err != nil {
+		log.Printf("blacklist: %v", err)
+		return false
+	}
+	for _, r := range rules {
+		if r.Matches(moderation.GameMeta{AppID: appID}) && r.IsAppID() {
+			return true
+		}
+	}
+	return false
+}
+
+// blockedAfterScrape checks a freshly scraped game against every blacklist
+// rule (name, developer and publisher rules can only be checked once we know
+// them).
+func blockedAfterScrape(ctx context.Context, db *database.DB, appID int) bool {
+	rules, err := db.CompiledBlacklist(ctx)
+	if err != nil || len(rules) == 0 {
+		return false
+	}
+	metas, err := db.GamesMeta(ctx, appID)
+	if err != nil || len(metas) == 0 {
+		return false
+	}
+	for _, r := range rules {
+		if r.Matches(metas[0]) {
+			return true
+		}
+	}
+	return false
 }

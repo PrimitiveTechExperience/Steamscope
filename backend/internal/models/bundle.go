@@ -22,6 +22,9 @@ type BundleGame struct {
 	AppID   int    `json:"app_id"`
 	Name    string `json:"name"`
 	Tracked bool   `json:"tracked"`
+	// TrackStatus is the game's tracked_games status when it isn't on the
+	// site yet (awaiting_approval, pending, failed, rejected), else empty.
+	TrackStatus string `json:"track_status"`
 }
 
 type BundleDetail struct {

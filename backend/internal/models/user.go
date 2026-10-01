@@ -9,6 +9,9 @@ type User struct {
 	PasswordHash string    `json:"-"`
 	SteamID      *string   `json:"steam_id"`
 	IsAdmin      bool      `json:"is_admin"`
+	IsBanned     bool      `json:"-"`
+	// SubmissionsBlocked users can use the site but can't suggest games.
+	SubmissionsBlocked bool `json:"submissions_blocked"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 

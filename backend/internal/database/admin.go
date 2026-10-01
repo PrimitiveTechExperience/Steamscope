@@ -16,7 +16,10 @@ type AdminUser struct {
 	Email     string    `json:"email"`
 	SteamID   *string   `json:"steam_id"`
 	IsAdmin   bool      `json:"is_admin"`
-	CreatedAt time.Time `json:"created_at"`
+	IsBanned  bool      `json:"is_banned"`
+	// SubmissionsBlocked users can't suggest games.
+	SubmissionsBlocked bool      `json:"submissions_blocked"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 // AdminItem is a tracked game or bundle of any status.
@@ -29,10 +32,10 @@ type AdminItem struct {
 	CreatedAt   time.Time `json:"created_at"`
 }
 
-func (db *DB) ListUsers(ctx context.Context) ([]AdminUser, error) {
+func (db *DB) ListUsers(ctx context.Context, limit int) ([]AdminUser, error) {
 	rows, err := db.Pool.Query(ctx, `
-		SELECT user_id, username, email, steam_id, is_admin, created_at
-		FROM users ORDER BY created_at DESC LIMIT 1000`)
+		SELECT user_id, username, email, steam_id, is_admin, is_banned, submissions_blocked, created_at
+		FROM users ORDER BY created_at DESC LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list users: %w", err)
 	}
@@ -40,7 +43,7 @@ func (db *DB) ListUsers(ctx context.Context) ([]AdminUser, error) {
 	users := []AdminUser{}
 	for rows.Next() {
 		var u AdminUser
-		if err := rows.Scan(&u.UserID, &u.Username, &u.Email, &u.SteamID, &u.IsAdmin, &u.CreatedAt); err != nil {
+		if err := rows.Scan(&u.UserID, &u.Username, &u.Email, &u.SteamID, &u.IsAdmin, &u.IsBanned, &u.SubmissionsBlocked, &u.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan user: %w", err)
 		}
 		users = append(users, u)
@@ -65,7 +68,7 @@ func (db *DB) DeleteUser(ctx context.Context, userID int64) error {
 
 // ListItems returns every tracked game and bundle with its status, newest
 // first.
-func (db *DB) ListItems(ctx context.Context) ([]AdminItem, error) {
+func (db *DB) ListItems(ctx context.Context, limit int) ([]AdminItem, error) {
 	rows, err := db.Pool.Query(ctx, `
 		SELECT * FROM (
 			SELECT 'app' AS kind, t.app_id AS id, g.name, t.status, u.username, t.created_at
@@ -78,7 +81,7 @@ func (db *DB) ListItems(ctx context.Context) ([]AdminItem, error) {
 			LEFT JOIN users u ON u.user_id = b.submitted_by
 		) i
 		ORDER BY created_at DESC
-		LIMIT 1000`)
+		LIMIT $1`, limit)
 	if err != nil {
 		return nil, fmt.Errorf("failed to list items: %w", err)
 	}
@@ -166,4 +169,23 @@ func (db *DB) GetTrackStatuses(ctx context.Context, appIDs []int) (map[int]strin
 		statuses[id] = status
 	}
 	return statuses, rows.Err()
+}
+
+// SetUserModeration updates a non-admin user's ban and submission-block
+// flags; nil leaves a flag unchanged. ErrNotFound if there is no such
+// non-admin user.
+func (db *DB) SetUserModeration(ctx context.Context, userID int64, banned, submissionsBlocked *bool) error {
+	tag, err := db.Pool.Exec(ctx, `
+		UPDATE users
+		SET is_banned = COALESCE($2, is_banned),
+			submissions_blocked = COALESCE($3, submissions_blocked),
+			updated_at = now()
+		WHERE user_id = $1 AND NOT is_admin`, userID, banned, submissionsBlocked)
+	if err != nil {
+		return fmt.Errorf("failed to update user: %w", err)
+	}
+	if tag.RowsAffected() == 0 {
+		return ErrNotFound
+	}
+	return nil
 }

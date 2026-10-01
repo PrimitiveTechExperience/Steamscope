@@ -19,7 +19,7 @@ func (m *SessionManager) Middleware(load UserLoader) func(http.Handler) http.Han
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if userID, ok := m.Resolve(r.Context(), r); ok {
-				if user, err := load(r.Context(), userID); err == nil && user != nil {
+				if user, err := load(r.Context(), userID); err == nil && user != nil && !user.IsBanned {
 					r = r.WithContext(context.WithValue(r.Context(), ctxKey{}, user))
 				}
 			}
