@@ -1,0 +1,33 @@
+@if (showHeader()) {
+    <img
+        [src]="bundle().header_image"
+        [alt]="bundle().name"
+        (error)="onHeaderError()"
+        class="h-full w-full object-cover"
+        loading="lazy"
+        decoding="async"
+    />
+} @else if (tiles().length > 0) {
+    <div
+        class="grid h-full w-full gap-px bg-[var(--color-border)] [&>img:nth-child(3):last-child]:col-span-2"
+        [class.grid-cols-1]="tiles().length === 1"
+        [class.grid-cols-2]="tiles().length > 1"
+        [attr.aria-label]="bundle().name"
+        role="img"
+    >
+        @for (t of tiles(); track t.appId) {
+            <img
+                [src]="t.src"
+                alt=""
+                (error)="onTileError(t.appId)"
+                class="h-full w-full object-cover"
+                loading="lazy"
+                decoding="async"
+            />
+        }
+    </div>
+} @else {
+    <div class="flex h-full w-full items-center justify-center bg-[var(--color-surface-alt)] text-xs font-bold uppercase text-[var(--color-text-muted)]">
+        Bundle
+    </div>
+}

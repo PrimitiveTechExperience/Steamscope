@@ -8,6 +8,7 @@ type User struct {
 	Email        string    `json:"email"`
 	PasswordHash string    `json:"-"`
 	SteamID      *string   `json:"steam_id"`
+	IsAdmin      bool      `json:"is_admin"`
 	CreatedAt    time.Time `json:"created_at"`
 }
 
@@ -35,7 +36,8 @@ type Notification struct {
 }
 
 type Submission struct {
-	AppID     int       `json:"app_id"`
+	Kind      string    `json:"kind"` // "app" or "bundle"
+	ID        int       `json:"id"`
 	Name      *string   `json:"name"`
 	Status    string    `json:"status"`
 	CreatedAt time.Time `json:"created_at"`
@@ -72,4 +74,8 @@ type SteamPlayedGame struct {
 	IconURL          string `json:"icon_url"`
 	PlaytimeTwoWeeks int    `json:"playtime_2weeks"`
 	PlaytimeForever  int    `json:"playtime_forever"`
+	// TrackStatus is our tracking status for this game ("" = not submitted,
+	// else awaiting_approval/pending/tracked/failed/rejected). Filled per
+	// request, never cached.
+	TrackStatus string `json:"track_status"`
 }

@@ -76,34 +76,7 @@
         </div>
 
         <div class="mt-8 flex flex-col gap-6">
-            <div class="edge-panel p-4">
-                <div class="flex flex-wrap items-center justify-between gap-2">
-                    <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Price History</h2>
-                    <div class="flex flex-wrap gap-1">
-                        @for (key of rangeKeys; track key) {
-                            <button
-                                class="edge-btn px-3 py-1.5 text-xs"
-                                [style.background]="activeRangeTab() === key ? 'var(--color-accent)' : 'var(--color-surface)'"
-                                [style.color]="activeRangeTab() === key ? '#fff' : 'var(--color-text-muted)'"
-                                (click)="activeRangeTab.set(key)"
-                            >
-                                {{ rangeLabels[key] }}
-                            </button>
-                        }
-                    </div>
-                </div>
-                @if (priceHistoryLoading()) {
-                    <div class="skeleton mt-4 h-80"></div>
-                } @else if (isBrowser && hasPriceHistory()) {
-                    <div class="mt-4 h-80">
-                        <canvas baseChart [data]="chartData()" [options]="chartOptions()" type="line"></canvas>
-                    </div>
-                } @else {
-                    <div class="mt-4 flex h-80 items-center justify-center text-sm text-[var(--color-text-muted)]">
-                        Not enough price history for this range yet.
-                    </div>
-                }
-            </div>
+            <app-price-chart [points]="priceHistory()" [loading]="priceHistoryLoading()" />
 
             <div class="edge-panel p-4">
                 <div class="flex flex-wrap gap-1 border-b-2 border-[var(--color-border)] pb-3">
@@ -133,7 +106,7 @@
                     </button>
                 </div>
 
-                <div class="mt-4 max-h-96 overflow-y-auto text-sm text-[var(--color-text)]">
+                <div class="mt-4 max-h-[34rem] overflow-y-auto text-sm text-[var(--color-text)]">
                     @switch (activeDetailTab()) {
                         @case ('description') {
                             @if (game.description_html) {
@@ -202,6 +175,22 @@
                     @for (g of sameDeveloperGames(); track g.app_id) {
                         <div class="w-64 shrink-0" appRevealOnScroll>
                             <app-game-card [game]="g" />
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+
+        @if (bundles().length > 0) {
+            <div class="mt-10">
+                <div class="mb-3 flex items-center justify-between">
+                    <h2 class="text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Bundles including this game</h2>
+                    <a routerLink="/bundles" class="edge-btn px-3 py-1.5 text-xs">All bundles</a>
+                </div>
+                <div class="carousel-fade hairline-scroll flex gap-4 overflow-x-auto py-2">
+                    @for (b of bundles(); track b.bundle_id) {
+                        <div class="w-64 shrink-0" appRevealOnScroll>
+                            <app-bundle-card [bundle]="b" />
                         </div>
                     }
                 </div>

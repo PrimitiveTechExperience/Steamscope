@@ -78,3 +78,28 @@ func TestValidateCallback(t *testing.T) {
 		}
 	}
 }
+
+func TestParseStoreURLBundles(t *testing.T) {
+	kind, id, err := ParseStoreURL("https://store.steampowered.com/bundle/12958/Facepunch_Complete_Bundle/?l=english")
+	if err != nil || kind != StoreKindBundle || id != 12958 {
+		t.Errorf("bundle link: got %q %d %v", kind, id, err)
+	}
+	kind, id, err = ParseStoreURL("https://store.steampowered.com/app/730/")
+	if err != nil || kind != StoreKindApp || id != 730 {
+		t.Errorf("app link: got %q %d %v", kind, id, err)
+	}
+	for _, bad := range []string{
+		"https://store.steampowered.com/sub/123",
+		"https://evil.com/bundle/123",
+		"https://store.steampowered.com.evil.com/bundle/123",
+		"https://store.steampowered.com/bundle/0",
+		"https://store.steampowered.com/bundle/abc",
+	} {
+		if _, _, err := ParseStoreURL(bad); err == nil {
+			t.Errorf("ParseStoreURL(%q) should fail", bad)
+		}
+	}
+	if _, err := ParseStoreAppURL("https://store.steampowered.com/bundle/123"); err == nil {
+		t.Error("ParseStoreAppURL should reject bundle links")
+	}
+}

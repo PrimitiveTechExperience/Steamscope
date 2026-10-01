@@ -1,15 +1,21 @@
 import { Routes } from '@angular/router';
 import { GamesComponent } from './pages/games/games';
-import { GameDetailComponent } from './pages/game-detail/game-detail';
 import { SearchComponent } from './pages/search/search';
 import { LandingComponent } from './pages/landing/landing';
-import { authGuard, guestGuard } from './guards/auth.guard';
+import { adminGuard, authGuard, guestGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
     { path: '', component: LandingComponent },
     { path: 'games', component: GamesComponent },
     { path: 'search', component: SearchComponent },
-    { path: 'games/:app_id', component: GameDetailComponent },
+    // Lazy: pulls in Chart.js, which the landing/browse pages don't need.
+    { path: 'games/:app_id', loadComponent: () => import('./pages/game-detail/game-detail').then((m) => m.GameDetailComponent) },
+
+    { path: 'bundles', loadComponent: () => import('./pages/bundles/bundles').then((m) => m.BundlesComponent) },
+    {
+        path: 'bundles/:bundle_id',
+        loadComponent: () => import('./pages/bundle-detail/bundle-detail').then((m) => m.BundleDetailComponent),
+    },
 
     // Account pages are lazy-loaded: most visitors never open them.
     {
@@ -31,6 +37,11 @@ export const routes: Routes = [
         path: 'account',
         canActivate: [authGuard],
         loadComponent: () => import('./pages/account/account').then((m) => m.AccountComponent),
+    },
+    {
+        path: 'admin',
+        canActivate: [adminGuard],
+        loadComponent: () => import('./pages/admin/admin').then((m) => m.AdminComponent),
     },
     {
         path: 'submit',

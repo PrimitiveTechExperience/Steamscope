@@ -12,6 +12,7 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/sanitize"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 	"golang.org/x/sync/errgroup"
 )
@@ -45,8 +46,9 @@ func (h *Handler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "too many preferred genres")
 		return
 	}
-	for _, genre := range prefs.PreferredGenres {
-		if len(genre) > 50 {
+	for i, genre := range prefs.PreferredGenres {
+		prefs.PreferredGenres[i] = sanitize.Text(genre, 50)
+		if prefs.PreferredGenres[i] == "" {
 			writeError(w, http.StatusBadRequest, "invalid genre")
 			return
 		}
@@ -156,6 +158,9 @@ func (h *Handler) GetSteamProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	profile, err := h.steamProfile(r, *user.SteamID)
+	if err == nil {
+		h.fillTrackStatuses(r, profile)
+	}
 	if errors.Is(err, steam.ErrNoAPIKey) {
 		writeError(w, http.StatusServiceUnavailable, "steam profiles aren't configured on this server")
 		return
@@ -243,6 +248,23 @@ type recentSearch struct {
 	MaxPrice   *float64 `json:"max_price,omitempty"`
 }
 
+// clean strips control characters and bounds every user-supplied string.
+func (s *recentSearch) clean() {
+	s.Search = sanitize.Text(s.Search, 100)
+	for _, list := range []*[]string{&s.Genres, &s.Tags, &s.Languages, &s.Developers, &s.Publishers} {
+		if len(*list) > 30 {
+			*list = (*list)[:30]
+		}
+		cleaned := make([]string, 0, len(*list))
+		for _, v := range *list {
+			if v = sanitize.Text(v, 100); v != "" {
+				cleaned = append(cleaned, v)
+			}
+		}
+		*list = cleaned
+	}
+}
+
 func (s recentSearch) isEmpty() bool {
 	return strings.TrimSpace(s.Search) == "" && len(s.Genres) == 0 && len(s.Tags) == 0 &&
 		len(s.Languages) == 0 && len(s.Developers) == 0 && len(s.Publishers) == 0 &&
@@ -277,6 +299,7 @@ func (h *Handler) AddRecentSearch(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &s) {
 		return
 	}
+	s.clean()
 	if s.isEmpty() {
 		w.WriteHeader(http.StatusNoContent)
 		return
@@ -299,4 +322,22 @@ func (h *Handler) AddRecentSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// fillTrackStatuses marks which of the profile's recently played games we
+// already track (or have queued), so the feed can offer a "track" button for
+// the rest. Done per request because the profile itself is cached.
+func (h *Handler) fillTrackStatuses(r *http.Request, profile *models.SteamProfile) {
+	ids := make([]int, 0, len(profile.RecentlyPlayed))
+	for _, g := range profile.RecentlyPlayed {
+		ids = append(ids, g.AppID)
+	}
+	statuses, err := h.DB.GetTrackStatuses(r.Context(), ids)
+	if err != nil {
+		log.Printf("steam profile: track statuses: %v", err)
+		return
+	}
+	for i := range profile.RecentlyPlayed {
+		profile.RecentlyPlayed[i].TrackStatus = statuses[profile.RecentlyPlayed[i].AppID]
+	}
 }

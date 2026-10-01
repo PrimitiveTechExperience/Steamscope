@@ -11,6 +11,14 @@ export const authGuard: CanActivateFn = async (_route, state) => {
   return user ? true : router.createUrlTree(['/login'], { queryParams: { returnUrl: state.url } });
 };
 
+/** Admins only; everyone else is sent to the home page. */
+export const adminGuard: CanActivateFn = async () => {
+  const auth = inject(AuthService);
+  const router = inject(Router);
+  const user = await auth.ready();
+  return user?.is_admin ? true : router.createUrlTree(['/']);
+};
+
 /** Keeps logged-in users off the login/register pages. */
 export const guestGuard: CanActivateFn = async () => {
   const auth = inject(AuthService);

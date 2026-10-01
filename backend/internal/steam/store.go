@@ -8,21 +8,38 @@ import (
 	"strings"
 )
 
-var ErrInvalidStoreURL = errors.New("enter a Steam store link, like https://store.steampowered.com/app/730/")
+var ErrInvalidStoreURL = errors.New("enter a Steam store link for a game or bundle, like https://store.steampowered.com/app/730/")
 
-var storeAppURL = regexp.MustCompile(`^https?://store\.steampowered\.com/app/(\d+)(?:[/?#].*)?$`)
+type StoreKind string
 
-// ParseStoreAppURL extracts the app ID from a Steam store page link. Only
-// store.steampowered.com/app/<id> links are accepted - no other hosts, so a
-// submission can't point the scraper somewhere arbitrary.
-func ParseStoreAppURL(raw string) (int, error) {
-	match := storeAppURL.FindStringSubmatch(strings.TrimSpace(raw))
+const (
+	StoreKindApp    StoreKind = "app"
+	StoreKindBundle StoreKind = "bundle"
+)
+
+var storeURL = regexp.MustCompile(`^https?://store\.steampowered\.com/(app|bundle)/(\d+)(?:[/?#].*)?$`)
+
+// ParseStoreURL extracts the kind and ID from a Steam store link for a game
+// (/app/<id>) or bundle (/bundle/<id>). Only store.steampowered.com is
+// accepted - no other hosts, so a submission can't point the scraper
+// somewhere arbitrary.
+func ParseStoreURL(raw string) (StoreKind, int, error) {
+	match := storeURL.FindStringSubmatch(strings.TrimSpace(raw))
 	if match == nil {
+		return "", 0, ErrInvalidStoreURL
+	}
+	id, err := strconv.Atoi(match[2])
+	if err != nil || id <= 0 || id > math.MaxInt32 {
+		return "", 0, ErrInvalidStoreURL
+	}
+	return StoreKind(match[1]), id, nil
+}
+
+// ParseStoreAppURL is ParseStoreURL restricted to games.
+func ParseStoreAppURL(raw string) (int, error) {
+	kind, id, err := ParseStoreURL(raw)
+	if err != nil || kind != StoreKindApp {
 		return 0, ErrInvalidStoreURL
 	}
-	appID, err := strconv.Atoi(match[1])
-	if err != nil || appID <= 0 || appID > math.MaxInt32 {
-		return 0, ErrInvalidStoreURL
-	}
-	return appID, nil
+	return id, nil
 }

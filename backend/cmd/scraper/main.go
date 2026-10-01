@@ -54,7 +54,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Failed to load tracked games: %v", err)
 	}
-	if err := scraper.RunScrape(ctx, db, cfg, s, appIDs); err != nil {
+	if err := scraper.RunScrapeAll(ctx, db, cfg, s, appIDs); err != nil {
 		log.Printf("Scrape run finished with errors: %v", err)
 	}
 }

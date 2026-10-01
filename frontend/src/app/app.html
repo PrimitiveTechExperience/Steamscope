@@ -20,6 +20,9 @@
         <a routerLink="/games" class="text-sm font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
           Browse
         </a>
+        <a routerLink="/bundles" class="text-sm font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
+          Bundles
+        </a>
         <a routerLink="/search" class="text-sm font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">
           Search
         </a>
@@ -84,6 +87,9 @@
                 <a routerLink="/feed" class="px-3 py-2 text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]">My feed</a>
                 <a routerLink="/account" class="px-3 py-2 text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]">Account</a>
                 <a routerLink="/submit" class="px-3 py-2 text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]">Submit a game</a>
+                @if (user.is_admin) {
+                  <a routerLink="/admin" class="px-3 py-2 text-[var(--color-text)] hover:bg-[var(--color-surface-alt)]">Admin</a>
+                }
                 <button (click)="logout()" class="px-3 py-2 text-left text-[var(--color-accent)] hover:bg-[var(--color-surface-alt)]">Log out</button>
               </div>
             }

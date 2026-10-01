@@ -16,6 +16,8 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	mux.HandleFunc("GET /api/games/{appID}/reviews", h.GetReviews)
 	mux.HandleFunc("GET /api/games/{appID}/price-history", h.GetPriceHistory)
 	mux.HandleFunc("GET /api/filters", h.GetFilterOptions)
+	mux.HandleFunc("GET /api/bundles", h.GetBundles)
+	mux.HandleFunc("GET /api/bundles/{bundleID}", h.GetBundle)
 	mux.HandleFunc("GET /api/health", getHealthHandler())
 
 	// Auth.
@@ -42,6 +44,14 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	mux.HandleFunc("GET /api/me/feed", auth.RequireAuth(h.GetFeed))
 	mux.HandleFunc("GET /api/me/submissions", auth.RequireAuth(h.GetSubmissions))
 	mux.HandleFunc("POST /api/submissions", auth.RequireAuth(h.SubmitGame))
+
+	// Admin only.
+	mux.HandleFunc("GET /api/admin/users", auth.RequireAdmin(h.AdminListUsers))
+	mux.HandleFunc("DELETE /api/admin/users/{userID}", auth.RequireAdmin(h.AdminDeleteUser))
+	mux.HandleFunc("GET /api/admin/items", auth.RequireAdmin(h.AdminListItems))
+	mux.HandleFunc("DELETE /api/admin/items/{kind}/{id}", auth.RequireAdmin(h.AdminDeleteItem))
+	mux.HandleFunc("POST /api/admin/items/{kind}/{id}/approve", auth.RequireAdmin(h.AdminApproveItem))
+	mux.HandleFunc("POST /api/admin/items/{kind}/{id}/reject", auth.RequireAdmin(h.AdminRejectItem))
 
 	var handler http.Handler = mux
 	handler = h.Sessions.Middleware(h.DB.GetUserByID)(handler)

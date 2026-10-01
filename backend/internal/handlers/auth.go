@@ -12,6 +12,7 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/cache"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/moderation"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/sanitize"
 )
 
 const (
@@ -35,8 +36,15 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
+	// Usernames are then held to a strict allow-list by ValidateUsername;
+	// emails must be a single clean token with no stray characters.
 	req.Username = strings.TrimSpace(req.Username)
-	req.Email = strings.TrimSpace(req.Email)
+	email, cleanEmail := sanitize.Identifier(req.Email, 254)
+	if !cleanEmail {
+		writeError(w, http.StatusBadRequest, "please enter a valid email address")
+		return
+	}
+	req.Email = email
 
 	if err := moderation.ValidateUsername(req.Username); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
@@ -48,6 +56,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 	}
 	if len(req.Password) < minPasswordLength || len(req.Password) > maxPasswordLength {
 		writeError(w, http.StatusBadRequest, "password must be 8-128 characters")
+		return
+	}
+	if !sanitize.ValidPassword(req.Password) {
+		writeError(w, http.StatusBadRequest, "password contains invalid characters")
 		return
 	}
 	if !cache.Allow(r.Context(), h.Redis, "ratelimit:register:"+clientIP(r), 10, time.Hour) {
@@ -90,7 +102,12 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	req.Login = strings.TrimSpace(req.Login)
+	// Bound the login before it's used in a rate-limit key or a query.
+	req.Login = sanitize.Text(req.Login, 254)
+	if !sanitize.ValidPassword(req.Password) || len(req.Password) > maxPasswordLength {
+		writeError(w, http.StatusUnauthorized, "invalid username/email or password")
+		return
+	}
 
 	limitKey := "ratelimit:login:" + clientIP(r) + ":" + strings.ToLower(req.Login)
 	if !cache.Allow(r.Context(), h.Redis, limitKey, 10, 15*time.Minute) {

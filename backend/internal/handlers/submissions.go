@@ -12,12 +12,14 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/cache"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/itad"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scraper"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 )
 
 type submissionJob struct {
-	appID  int
+	kind   steam.StoreKind
+	id     int
 	userID int64
 }
 
@@ -55,15 +57,27 @@ func (q *SubmissionQueue) Run(ctx context.Context, db *database.DB, cfg *config.
 }
 
 func processSubmission(ctx context.Context, db *database.DB, cfg *config.Config, s *scraper.Scraper, job submissionJob, onTracked func()) {
-	if err := scraper.RunScrape(ctx, db, cfg, s, []int{job.appID}); err != nil {
-		log.Printf("submission %d: scrape: %v", job.appID, err)
+	if job.kind == steam.StoreKindBundle {
+		processBundleSubmission(ctx, db, s, job, onTracked)
+		return
+	}
+	if err := scraper.RunScrape(ctx, db, cfg, s, []int{job.id}); err != nil {
+		log.Printf("submission %d: scrape: %v", job.id, err)
 	}
 
-	appID := job.appID
+	appID := job.id
 	name, err := db.GetGameName(ctx, appID)
 	if err == nil && name != "" {
 		if err := db.SetTrackedGameStatus(ctx, appID, "tracked"); err != nil {
 			log.Printf("submission %d: %v", appID, err)
+		}
+		// Today's price was just written by the scrape; pull the past two
+		// years from ITAD so the chart has something to draw immediately.
+		if cfg.ITADAPIKey != "" {
+			now := time.Now()
+			if _, err := itad.BackfillGame(ctx, db, itad.New(cfg.ITADAPIKey), appID, now.AddDate(-2, 0, 0), now); err != nil {
+				log.Printf("submission %d: price history backfill: %v", appID, err)
+			}
 		}
 		db.CreateNotification(ctx, job.userID, &appID, "submission_tracked",
 			fmt.Sprintf("%s is now being tracked. Thanks for the submission!", name))
@@ -88,34 +102,45 @@ func (h *Handler) SubmitGame(w http.ResponseWriter, r *http.Request) {
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	appID, err := steam.ParseStoreAppURL(req.URL)
+	kind, id, err := steam.ParseStoreURL(req.URL)
 	if err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())
 		return
 	}
 	limitKey := "ratelimit:submit:" + strconv.FormatInt(user.UserID, 10)
 	if !cache.Allow(r.Context(), h.Redis, limitKey, 5, time.Hour) {
-		writeError(w, http.StatusTooManyRequests, "you can submit up to 5 games an hour")
+		writeError(w, http.StatusTooManyRequests, "you can submit up to 5 games or bundles an hour")
 		return
 	}
 
-	status, shouldScrape, err := h.DB.SubmitTrackedGame(r.Context(), appID, user.UserID)
+	// Ordinary users' submissions wait for an admin to approve them before
+	// anything is scraped; admins' own submissions go straight through.
+	initial := "awaiting_approval"
+	if user.IsAdmin {
+		initial = "pending"
+	}
+	var status string
+	var created bool
+	if kind == steam.StoreKindBundle {
+		status, created, err = h.DB.SubmitBundle(r.Context(), id, user.UserID, initial)
+	} else {
+		status, created, err = h.DB.SubmitTrackedGame(r.Context(), id, user.UserID, initial)
+	}
 	if err != nil {
 		log.Printf("submit game: %v", err)
 		writeError(w, http.StatusInternalServerError, "failed to submit game")
 		return
 	}
-	if shouldScrape && !h.Submissions.enqueue(submissionJob{appID: appID, userID: user.UserID}) {
-		h.DB.SetTrackedGameStatus(r.Context(), appID, "failed")
-		writeError(w, http.StatusServiceUnavailable, "too many games are being added right now, try again shortly")
+	if created && status == "pending" && !h.enqueueSubmission(r.Context(), kind, id, user.UserID) {
+		writeError(w, http.StatusServiceUnavailable, "too many submissions are being processed right now, try again shortly")
 		return
 	}
 
 	httpStatus := http.StatusOK
-	if shouldScrape {
+	if created {
 		httpStatus = http.StatusAccepted
 	}
-	writeJSON(w, httpStatus, map[string]any{"app_id": appID, "status": status})
+	writeJSON(w, httpStatus, map[string]any{"kind": kind, "id": id, "status": status})
 }
 
 func (h *Handler) GetSubmissions(w http.ResponseWriter, r *http.Request) {
@@ -127,4 +152,41 @@ func (h *Handler) GetSubmissions(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, submissions)
+}
+
+// processBundleSubmission scrapes a submitted bundle (and stores it), then
+// tells the submitter how it went.
+func processBundleSubmission(ctx context.Context, db *database.DB, s *scraper.Scraper, job submissionJob, onTracked func()) {
+	stored := scraper.ScrapeAndStoreBundles(ctx, db, s, map[int]bool{job.id: true}, time.Now())
+	if !stored[job.id] {
+		if err := db.SetBundleStatus(ctx, job.id, "failed"); err != nil {
+			log.Printf("bundle submission %d: %v", job.id, err)
+		}
+		db.CreateNotification(ctx, job.userID, nil, "bundle_failed",
+			fmt.Sprintf("We couldn't read Steam bundle %d, so it wasn't added.", job.id))
+		return
+	}
+	name, _ := db.GetBundleName(ctx, job.id)
+	db.CreateNotification(ctx, job.userID, nil, "bundle_tracked",
+		fmt.Sprintf("%s is now being tracked. Thanks for the submission!", name))
+	onTracked()
+}
+
+// enqueueSubmission hands an approved submission to the scrape worker. If the
+// queue is full it marks the item failed so it can be resubmitted.
+func (h *Handler) enqueueSubmission(ctx context.Context, kind steam.StoreKind, id int, userID int64) bool {
+	if h.Submissions.enqueue(submissionJob{kind: kind, id: id, userID: userID}) {
+		return true
+	}
+	if kind == steam.StoreKindBundle {
+		h.DB.SetBundleStatus(ctx, id, "failed")
+	} else {
+		h.DB.SetTrackedGameStatus(ctx, id, "failed")
+	}
+	return false
+}
+
+// InvalidateCaches drops cached search results after game data changes.
+func (h *Handler) InvalidateCaches(ctx context.Context) {
+	BumpSearchVersion(ctx, h.Redis)
 }

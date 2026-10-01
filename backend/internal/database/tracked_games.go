@@ -44,18 +44,18 @@ func (db *DB) GetTrackedAppIDs(ctx context.Context) ([]int, error) {
 	return appIDs, rows.Err()
 }
 
-// SubmitTrackedGame records a user's submission. It returns the resulting
-// status and whether a scrape should be started: true for a brand new game
-// or a retry of a previously failed one, false if it's already tracked or
-// already pending.
-func (db *DB) SubmitTrackedGame(ctx context.Context, appID int, userID int64) (status string, shouldScrape bool, err error) {
+// SubmitTrackedGame records a user's submission with the given initial
+// status: "awaiting_approval" for ordinary users, "pending" (scrape now)
+// for admins. created is true for a brand new game or a retry of a failed
+// one, false if it already exists in any other state.
+func (db *DB) SubmitTrackedGame(ctx context.Context, appID int, userID int64, initial string) (status string, shouldScrape bool, err error) {
 	err = db.Pool.QueryRow(ctx, `
 		INSERT INTO tracked_games (app_id, submitted_by, status)
-		VALUES ($1, $2, 'pending')
+		VALUES ($1, $2, $3)
 		ON CONFLICT (app_id) DO UPDATE
-			SET status = 'pending', submitted_by = EXCLUDED.submitted_by, created_at = now()
+			SET status = EXCLUDED.status, submitted_by = EXCLUDED.submitted_by, created_at = now()
 			WHERE tracked_games.status = 'failed'
-		RETURNING status`, appID, userID,
+		RETURNING status`, appID, userID, initial,
 	).Scan(&status)
 	if err == nil {
 		return status, true, nil
@@ -92,11 +92,17 @@ func (db *DB) GetGameName(ctx context.Context, appID int) (string, error) {
 
 func (db *DB) GetSubmissions(ctx context.Context, userID int64) ([]models.Submission, error) {
 	rows, err := db.Pool.Query(ctx, `
-		SELECT t.app_id, g.name, t.status, t.created_at
-		FROM tracked_games t
-		LEFT JOIN games g ON g.app_id = t.app_id
-		WHERE t.submitted_by = $1
-		ORDER BY t.created_at DESC
+		SELECT * FROM (
+			SELECT 'app' AS kind, t.app_id AS id, g.name, t.status, t.created_at
+			FROM tracked_games t
+			LEFT JOIN games g ON g.app_id = t.app_id
+			WHERE t.submitted_by = $1
+			UNION ALL
+			SELECT 'bundle', b.bundle_id, NULLIF(b.name, ''), b.status, b.created_at
+			FROM bundles b
+			WHERE b.submitted_by = $1
+		) s
+		ORDER BY created_at DESC
 		LIMIT 50`, userID)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get submissions: %w", err)
@@ -106,7 +112,7 @@ func (db *DB) GetSubmissions(ctx context.Context, userID int64) ([]models.Submis
 	submissions := []models.Submission{}
 	for rows.Next() {
 		var s models.Submission
-		if err := rows.Scan(&s.AppID, &s.Name, &s.Status, &s.CreatedAt); err != nil {
+		if err := rows.Scan(&s.Kind, &s.ID, &s.Name, &s.Status, &s.CreatedAt); err != nil {
 			return nil, fmt.Errorf("failed to scan submission: %w", err)
 		}
 		submissions = append(submissions, s)

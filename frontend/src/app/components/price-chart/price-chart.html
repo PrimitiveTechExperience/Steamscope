@@ -1,0 +1,28 @@
+<div class="edge-panel p-4">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">{{ title() }}</h2>
+        <div class="flex flex-wrap gap-1">
+            @for (key of rangeKeys; track key) {
+                <button
+                    class="edge-btn px-3 py-1.5 text-xs"
+                    [style.background]="activeRange() === key ? 'var(--color-accent)' : 'var(--color-surface)'"
+                    [style.color]="activeRange() === key ? '#fff' : 'var(--color-text-muted)'"
+                    (click)="activeRange.set(key)"
+                >
+                    {{ rangeLabels[key] }}
+                </button>
+            }
+        </div>
+    </div>
+    @if (loading()) {
+        <div class="skeleton mt-4 h-80"></div>
+    } @else if (isBrowser && hasData()) {
+        <div class="mt-4 h-80">
+            <canvas baseChart [data]="chartData()" [options]="chartOptions()" type="line"></canvas>
+        </div>
+    } @else {
+        <div class="mt-4 flex h-80 items-center justify-center text-center text-sm text-[var(--color-text-muted)]">
+            {{ emptyMessage() }}
+        </div>
+    }
+</div>

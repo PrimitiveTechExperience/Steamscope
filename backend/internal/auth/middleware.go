@@ -46,3 +46,22 @@ func RequireAuth(next http.HandlerFunc) http.HandlerFunc {
 		next(w, r)
 	}
 }
+
+// RequireAdmin rejects anyone who isn't a logged-in admin: 401 when logged
+// out, 403 when logged in without admin rights.
+func RequireAdmin(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		user := CurrentUser(r.Context())
+		if user == nil || !user.IsAdmin {
+			status, msg := http.StatusUnauthorized, `{"error":"not logged in"}`
+			if user != nil {
+				status, msg = http.StatusForbidden, `{"error":"admin access required"}`
+			}
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(status)
+			w.Write([]byte(msg))
+			return
+		}
+		next(w, r)
+	}
+}

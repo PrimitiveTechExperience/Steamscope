@@ -40,7 +40,7 @@ export class LoginComponent {
     }
     this.submitting.set(true);
     this.error.set(null);
-    this.auth.login(this.login, this.password).subscribe({
+    this.auth.login(this.login.trim(), this.password).subscribe({
       next: () => this.router.navigateByUrl(safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'))),
       error: (err) => {
         this.error.set(apiErrorMessage(err, 'Login failed.'));

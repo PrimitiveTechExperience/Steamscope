@@ -1,0 +1,88 @@
+<div class="mx-auto max-w-5xl px-6 py-10">
+    <h1 class="text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Admin
+    </h1>
+    <p class="mt-1 text-sm text-[var(--color-text-muted)]">Approve submissions, and remove users or tracked games and bundles.</p>
+
+    @if (error(); as e) {
+        <p class="mt-4 border-2 border-[var(--color-accent)] px-3 py-2 text-sm text-[var(--color-accent)]">{{ e }}</p>
+    }
+
+    <h2 class="mt-10 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Awaiting approval ({{ awaiting().length }})
+    </h2>
+    @if (items() === null) {
+        <div class="skeleton h-20"></div>
+    } @else if (awaiting().length === 0) {
+        <p class="text-sm text-[var(--color-text-muted)]">Nothing to review.</p>
+    } @else {
+        <ul class="flex flex-col gap-2">
+            @for (i of awaiting(); track i.kind + i.id) {
+                <li class="edge-panel-sm flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
+                    <div class="min-w-0">
+                        <a [href]="storeUrl(i)" target="_blank" rel="noopener noreferrer" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">
+                            {{ i.kind === 'bundle' ? 'Bundle' : 'App' }} {{ i.id }} &nearr;
+                        </a>
+                        <div class="text-xs text-[var(--color-text-muted)]">
+                            by {{ i.submitted_by ?? 'a deleted user' }} &middot; {{ i.created_at | date:'medium' }}
+                        </div>
+                    </div>
+                    <div class="flex gap-2">
+                        <button (click)="approve(i)" class="edge-btn bg-[var(--color-discount)] px-3 py-1.5 text-xs text-white">Approve</button>
+                        <button (click)="reject(i)" class="edge-btn bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-accent)]">Reject</button>
+                    </div>
+                </li>
+            }
+        </ul>
+    }
+
+    <h2 class="mt-10 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Games and bundles ({{ others().length }})
+    </h2>
+    @if (items() === null) {
+        <div class="skeleton h-24"></div>
+    } @else {
+        <ul class="flex flex-col gap-2">
+            @for (i of others(); track i.kind + i.id) {
+                <li class="edge-panel-sm flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                    <div class="min-w-0">
+                        @if (i.status === 'tracked' && i.name) {
+                            <a [routerLink]="[i.kind === 'bundle' ? '/bundles' : '/games', i.id]" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ i.name }}</a>
+                        } @else {
+                            <span class="font-bold text-[var(--color-text)]">{{ label(i) }}</span>
+                        }
+                        <div class="text-xs text-[var(--color-text-muted)]">
+                            {{ i.kind === 'bundle' ? 'Bundle' : 'Game' }} &middot; {{ i.status }}
+                            @if (i.submitted_by) { &middot; submitted by {{ i.submitted_by }} }
+                        </div>
+                    </div>
+                    <button (click)="deleteItem(i)" class="edge-btn shrink-0 bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-accent)]">Delete</button>
+                </li>
+            }
+        </ul>
+    }
+
+    <h2 class="mt-10 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Users ({{ users()?.length ?? 0 }})
+    </h2>
+    @if (users() === null) {
+        <div class="skeleton h-24"></div>
+    } @else {
+        <ul class="flex flex-col gap-2">
+            @for (u of users(); track u.user_id) {
+                <li class="edge-panel-sm flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                    <div class="min-w-0">
+                        <span class="font-bold text-[var(--color-text)]">{{ u.username }}</span>
+                        @if (u.is_admin) {
+                            <span class="edge-btn ml-2 bg-[var(--color-accent)] px-2 py-0.5 text-[10px] text-white">admin</span>
+                        }
+                        <div class="truncate text-xs text-[var(--color-text-muted)]">{{ u.email }} &middot; joined {{ u.created_at | date:'mediumDate' }}</div>
+                    </div>
+                    @if (canDelete(u)) {
+                        <button (click)="deleteUser(u)" class="edge-btn shrink-0 bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-accent)]">Delete</button>
+                    }
+                </li>
+            }
+        </ul>
+    }
+</div>

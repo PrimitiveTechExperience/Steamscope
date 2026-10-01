@@ -1,6 +1,6 @@
-import { Component, computed, inject } from '@angular/core';
-import { RouterLink } from '@angular/router';
-import { CurrencyPipe, DecimalPipe } from '@angular/common';
+import { Component, computed, inject, signal } from '@angular/core';
+import { Router, RouterLink } from '@angular/router';
+import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of } from 'rxjs';
@@ -9,7 +9,8 @@ import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
 import { GameCardComponent } from '../../components/game-card/game-card';
 import { RevealOnScrollDirective } from '../../directives/reveal-on-scroll';
-import { Feed, SteamProfile } from '../../models/user';
+import { AppNotification, Feed, NotificationKind, SteamPlayedGame, SteamProfile, SubmissionStatus } from '../../models/user';
+import { apiErrorMessage } from '../../api';
 import { withLoading } from '../../utils/with-loading';
 
 type ProfileState =
@@ -28,14 +29,80 @@ function greetingFor(hour: number): string {
 
 @Component({
   selector: 'app-feed',
-  imports: [RouterLink, CurrencyPipe, DecimalPipe, GameCardComponent, RevealOnScrollDirective],
+  imports: [RouterLink, CurrencyPipe, DatePipe, DecimalPipe, GameCardComponent, RevealOnScrollDirective],
   templateUrl: './feed.html',
 })
 export class FeedComponent {
   protected auth = inject(AuthService);
-  private account = inject(AccountService);
+  protected account = inject(AccountService);
+  private router = inject(Router);
 
   protected greeting = greetingFor(new Date().getHours());
+
+  constructor() {
+    // The header bell polls once a minute; load fresh ones on arrival.
+    this.account.loadNotifications();
+  }
+
+  /** Track requests made from this page, so tiles update without a reload. */
+  private trackOverrides = signal<Record<number, SubmissionStatus>>({});
+  protected trackError = signal<string | null>(null);
+
+  protected trackStatus(game: SteamPlayedGame): SubmissionStatus | '' {
+    return this.trackOverrides()[game.app_id] ?? game.track_status;
+  }
+
+  protected trackLabel(status: SubmissionStatus | ''): string {
+    switch (status) {
+      case 'tracked':
+        return 'Tracked';
+      case 'awaiting_approval':
+        return 'Awaiting approval';
+      case 'pending':
+        return 'Fetching...';
+      case 'rejected':
+        return 'Not approved';
+      default:
+        return '';
+    }
+  }
+
+  /** Asks for a played game to be added to tracking (admins get it added directly). */
+  protected requestTrack(game: SteamPlayedGame) {
+    this.trackError.set(null);
+    this.account.submitGame(`https://store.steampowered.com/app/${game.app_id}`).subscribe({
+      next: (res) => this.trackOverrides.update((o) => ({ ...o, [game.app_id]: res.status })),
+      error: (err) => this.trackError.set(apiErrorMessage(err, "Couldn't submit that game.")),
+    });
+  }
+
+  protected recentNotifications = computed(() => this.account.notifications().slice(0, 8));
+
+  protected notificationIcon(kind: NotificationKind): string {
+    switch (kind) {
+      case 'price_drop':
+        return '\u{1F4C9}';
+      case 'target_price':
+        return '\u{1F3AF}';
+      case 'submission_tracked':
+      case 'bundle_tracked':
+        return '\u2705';
+      case 'submission_rejected':
+        return '\u26D4';
+      case 'submission_failed':
+      case 'bundle_failed':
+        return '\u26A0\uFE0F';
+    }
+  }
+
+  protected openNotification(n: AppNotification) {
+    if (!n.read_at) this.account.markRead(n.notification_id).subscribe();
+    if (n.app_id) this.router.navigate(['/games', n.app_id]);
+  }
+
+  protected markAllRead() {
+    this.account.markAllRead().subscribe();
+  }
 
   private feedState = toSignal(
     withLoading(this.account.getFeed().pipe(catchError(() => of(EMPTY_FEED))), EMPTY_FEED),

@@ -99,3 +99,28 @@ func (db *DB) GetPriceHistory(ctx context.Context, appID int) ([]models.PricePoi
 	}
 	return points, nil
 }
+
+// GetAppIDsNeedingBackfill returns tracked games with fewer than minRows
+// price_history rows - games added after the historical backfill last ran.
+func (db *DB) GetAppIDsNeedingBackfill(ctx context.Context, minRows int) ([]int, error) {
+	rows, err := db.Pool.Query(ctx, `
+		SELECT t.app_id
+		FROM tracked_games t
+		WHERE t.status = 'tracked'
+			AND (SELECT count(*) FROM price_history p WHERE p.app_id = t.app_id) < $1
+		ORDER BY t.app_id`, minRows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find games needing backfill: %w", err)
+	}
+	defer rows.Close()
+
+	appIDs := []int{}
+	for rows.Next() {
+		var appID int
+		if err := rows.Scan(&appID); err != nil {
+			return nil, fmt.Errorf("failed to scan app id: %w", err)
+		}
+		appIDs = append(appIDs, appID)
+	}
+	return appIDs, rows.Err()
+}

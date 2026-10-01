@@ -16,6 +16,17 @@ import (
 // by the one-shot scraper CLI and the in-server daily scheduler so the two
 // never drift apart.
 func RunScrape(ctx context.Context, db *database.DB, cfg *config.Config, s *Scraper, appIDs []int) error {
+	return runScrape(ctx, db, cfg, s, appIDs, false)
+}
+
+// RunScrapeAll is RunScrape plus a re-scrape of every tracked bundle, not
+// just the ones these games advertise - so bundles users submitted by link
+// keep their price history current too. Used for the daily run.
+func RunScrapeAll(ctx context.Context, db *database.DB, cfg *config.Config, s *Scraper, appIDs []int) error {
+	return runScrape(ctx, db, cfg, s, appIDs, true)
+}
+
+func runScrape(ctx context.Context, db *database.DB, cfg *config.Config, s *Scraper, appIDs []int, includeTrackedBundles bool) error {
 	games, err := s.ScrapeGames(appIDs, ReviewOption{
 		Filter:     cfg.Steam.ReviewFilter,
 		MaxReviews: cfg.Steam.ReviewMaxReviews,
@@ -65,5 +76,49 @@ func RunScrape(ctx context.Context, db *database.DB, cfg *config.Config, s *Scra
 	close(jobs)
 
 	wg.Wait()
+
+	// Bundles: the ones these games' pages advertise (auto-discovery), plus
+	// optionally every bundle already tracked.
+	bundleIDs := map[int]bool{}
+	for _, game := range games {
+		for _, id := range game.BundleIDs {
+			bundleIDs[id] = true
+		}
+	}
+	if includeTrackedBundles {
+		tracked, err := db.GetTrackedBundleIDs(ctx)
+		if err != nil {
+			log.Printf("Failed to load tracked bundles: %v", err)
+		}
+		for _, id := range tracked {
+			bundleIDs[id] = true
+		}
+	}
+	ScrapeAndStoreBundles(ctx, db, s, bundleIDs, today)
 	return nil
+}
+
+// ScrapeAndStoreBundles scrapes the given bundle pages and saves each
+// (contents, price, and today's price-history row). Failures are logged and
+// skipped so one removed bundle doesn't block the rest. It returns the IDs
+// that were stored.
+func ScrapeAndStoreBundles(ctx context.Context, db *database.DB, s *Scraper, bundleIDs map[int]bool, date time.Time) map[int]bool {
+	stored := map[int]bool{}
+	if len(bundleIDs) == 0 {
+		return stored
+	}
+	ids := make([]int, 0, len(bundleIDs))
+	for id := range bundleIDs {
+		ids = append(ids, id)
+	}
+	bundles, _ := s.ScrapeBundles(ids)
+	for _, b := range bundles {
+		if err := db.UpsertBundle(ctx, b, date); err != nil {
+			log.Printf("Failed to store bundle %d (%s): %v", b.BundleID, b.Name, err)
+			continue
+		}
+		stored[b.BundleID] = true
+	}
+	log.Printf("Bundles: stored %d of %d", len(stored), len(ids))
+	return stored
 }

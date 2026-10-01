@@ -20,6 +20,7 @@
                     name="login"
                     [(ngModel)]="login"
                     autocomplete="username"
+                    maxlength="254"
                     class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
                 />
             </label>
@@ -30,6 +31,7 @@
                     type="password"
                     [(ngModel)]="password"
                     autocomplete="current-password"
+                    maxlength="128"
                     class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
                 />
             </label>

@@ -48,26 +48,12 @@ func main() {
 	}
 
 	for _, appID := range appIDs {
-		itadID, err := client.LookupGameID(appID)
+		days, err := itad.BackfillGame(ctx, db, client, appID, startDate, endDate)
 		if err != nil {
 			log.Printf("Skipping appID %d: %v", appID, err)
 			continue
 		}
-
-		events, err := client.GetHistory(itadID)
-		if err != nil {
-			log.Printf("Skipping appID %d: %v", appID, err)
-			continue
-		}
-
-		series := itad.BuildDailySeries(events, startDate, endDate)
-		log.Printf("Backfilling %d days of price history for appID %d", len(series), appID)
-
-		if err := db.UpsertPriceHistoryBatch(ctx, appID, series); err != nil {
-			log.Printf("Failed to backfill price history for appID %d: %v", appID, err)
-			continue
-		}
-		log.Printf("Backfilled appID %d successfully", appID)
+		log.Printf("Backfilled %d days for appID %d", days, appID)
 
 		time.Sleep(1 * time.Second) // stay well under ITAD's rate limit
 	}

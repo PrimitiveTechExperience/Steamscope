@@ -14,6 +14,9 @@ import (
 	"github.com/gocolly/colly/v2"
 )
 
+// storeCountry is the Steam store region prices are scraped in.
+const storeCountry = "us"
+
 type Scraper struct {
 	// Collector *colly.Collector
 	Jar http.CookieJar
@@ -76,7 +79,9 @@ func New(baseURL string) *Scraper {
 // GAME SCRAPING FUNCTIONS
 // 
 func (s *Scraper) ScrapeGame(appID int, c *colly.Collector) (error) {
-	url := fmt.Sprintf("%s/app/%d", s.BaseURL, appID)
+	// Steam prices by the requester's IP (this scraper was getting CDN$), while
+	// the price history it's stored next to is USD. cc pins the region.
+	url := fmt.Sprintf("%s/app/%d?cc=%s&l=english", s.BaseURL, appID, storeCountry)
 	ctx := colly.NewContext()
 	ctx.Put("appID", strconv.Itoa(appID))
 	return c.Request("GET", url, nil, ctx, nil)
@@ -94,7 +99,8 @@ func (s *Scraper) ScrapeGamePages(appIDs []int) ([]models.Game, error) {
 			results <- GameResult{Game: nil, Error: fmt.Errorf("failed to convert appID %s to int: %w", appIDstr, err)}
 			return
 		}
-		game := parseGamePage(e.DOM, appID, e.Request.URL.String())
+		// Canonical URL, not the request URL, which carries the cc/l query.
+		game := parseGamePage(e.DOM, appID, fmt.Sprintf("%s/app/%d", s.BaseURL, appID))
 
 		results <- GameResult{Game: &game, Error: nil}
 	})

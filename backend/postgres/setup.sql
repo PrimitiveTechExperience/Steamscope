@@ -134,6 +134,7 @@ create table users (
     email text not null,
     password_hash text not null,
     steam_id text unique,
+    is_admin boolean not null default false,
 
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
@@ -166,7 +167,7 @@ create table notifications (
     notification_id bigint generated always as identity primary key,
     user_id bigint not null references users(user_id) on delete cascade,
     app_id integer references games(app_id) on delete cascade,
-    kind text not null check (kind in ('price_drop', 'target_price', 'submission_tracked', 'submission_failed')),
+    kind text not null check (kind in ('price_drop', 'target_price', 'submission_tracked', 'submission_failed', 'submission_rejected', 'bundle_tracked', 'bundle_failed')),
     message text not null,
     read_at timestamptz,
     created_at timestamptz not null default now()
@@ -179,6 +180,54 @@ create index idx_notifications_user_created on notifications(user_id, created_at
 create table tracked_games (
     app_id integer primary key,
     submitted_by bigint references users(user_id) on delete set null,
-    status text not null default 'pending' check (status in ('pending', 'tracked', 'failed')),
+    status text not null default 'pending' check (status in ('awaiting_approval', 'pending', 'tracked', 'failed', 'rejected')),
     created_at timestamptz not null default now()
 );
+
+create table bundles (
+    bundle_id integer primary key,
+    name text not null default '',
+    url text not null,
+    header_image text not null default '',
+    price numeric(10, 2) not null default 0,
+    original_price numeric(10, 2) not null default 0,
+    discount_percentage integer not null default 0,
+    status text not null default 'pending' check (status in ('awaiting_approval', 'pending', 'tracked', 'failed', 'rejected')),
+    submitted_by bigint references users(user_id) on delete set null,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+-- No FK on app_id: a bundle can include games we don't track.
+create table bundle_games (
+    bundle_id integer not null references bundles(bundle_id) on delete cascade,
+    app_id integer not null,
+    name text not null default '',
+
+    primary key (bundle_id, app_id)
+);
+
+create index idx_bundle_games_app_id on bundle_games(app_id);
+
+create table bundle_price_history (
+    bundle_id integer not null references bundles(bundle_id) on delete cascade,
+    recorded_date date not null,
+    price numeric(10, 2) not null,
+    original_price numeric(10, 2) not null,
+    discount_percentage integer not null,
+
+    primary key (bundle_id, recorded_date)
+);
+
+-- Row level security: every table has RLS enabled with no policies, so
+-- Supabase's public API roles (anon / authenticated) can read or write
+-- nothing. The Go backend connects as the postgres role, which bypasses
+-- RLS, so it is unaffected. Add explicit policies here if you ever expose
+-- tables through the Supabase client directly.
+do $$
+declare t record;
+begin
+    for t in select tablename from pg_tables where schemaname = 'public' loop
+        execute format('alter table public.%I enable row level security', t.tablename);
+    end loop;
+end $$;

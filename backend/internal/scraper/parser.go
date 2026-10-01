@@ -41,7 +41,14 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	// the first ".game_area_purchase_game" block on the page, with any bundle
 	// upsells appearing after it, so price selectors must be scoped to it to
 	// avoid picking up a bundle's price.
-	purchaseSection := doc.Find(".game_area_purchase_game").Not(".game_area_purchase_game_dropdown_subscription").First()
+	//
+	// Only real purchasable packages carry an add_to_cart id; the demo
+	// download block above the purchase area (which has no price - Persona 3
+	// Reload scraped as $0 because of it) and the bundle dropdowns do not.
+	purchaseSection := doc.Find(".game_area_purchase_game[id^='game_area_purchase_section_add_to_cart']").First()
+	if purchaseSection.Length() == 0 {
+		purchaseSection = doc.Find(".game_area_purchase_game").Not(".game_area_purchase_game_dropdown_subscription, .demo_above_purchase").First()
+	}
 	if purchaseSection.Length() == 0 {
 		// No recognizable purchase container (e.g. in tests, or a page layout
 		// change) - fall back to searching the whole document like before.
@@ -85,6 +92,7 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	descriptionBlock := doc.Find("#game_area_description").First()
 	game.Description = strings.TrimSpace(descriptionBlock.Text())
 	game.DescriptionHTML = sanitizeDescriptionHTML(descriptionBlock)
+	game.BundleIDs = discoverBundleIDs(doc)
 	game.HeaderImage, _ = doc.Find(".game_header_image_full").First().Attr("src")
 	if game.HeaderImage == "" {
 		// Some page variants (layout experiments, interstitial banners, etc.)

@@ -1,9 +1,9 @@
 <div class="mx-auto max-w-3xl px-6 py-10">
     <h1 class="text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
-        Submit a game
+        Submit a game or bundle
     </h1>
     <p class="mt-1 text-sm text-[var(--color-text-muted)]">
-        Missing a game? Paste its Steam store link and we'll start tracking its price. Up to 5 submissions an hour.
+        Missing a game or bundle? Paste its Steam store link and we'll start tracking its price. An admin approves each submission before it is added. Up to 5 submissions an hour.
     </p>
 
     <form class="edge-panel mt-6 flex flex-col gap-3 p-5 sm:flex-row sm:items-end" (ngSubmit)="submit()">
@@ -37,25 +37,25 @@
     @if (submissions() === null) {
         <div class="skeleton h-24"></div>
     } @else if (submissions()!.length === 0) {
-        <p class="text-sm text-[var(--color-text-muted)]">You haven't submitted any games yet.</p>
+        <p class="text-sm text-[var(--color-text-muted)]">You haven't submitted anything yet.</p>
     } @else {
         <ul class="flex flex-col gap-2">
-            @for (s of submissions(); track s.app_id) {
+            @for (s of submissions(); track s.kind + s.id) {
                 <li class="edge-panel-sm flex items-center justify-between gap-3 px-4 py-3 text-sm">
                     <div class="min-w-0">
                         @if (s.status === 'tracked' && s.name) {
-                            <a [routerLink]="['/games', s.app_id]" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ s.name }}</a>
+                            <a [routerLink]="[s.kind === 'bundle' ? '/bundles' : '/games', s.id]" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ s.name }}</a>
                         } @else {
-                            <span class="font-bold text-[var(--color-text)]">App {{ s.app_id }}</span>
+                            <span class="font-bold text-[var(--color-text)]">{{ s.kind === 'bundle' ? 'Bundle' : 'App' }} {{ s.id }}</span>
                         }
                         <div class="text-xs text-[var(--color-text-muted)]">{{ s.created_at | date:'medium' }}</div>
                     </div>
                     <span
                         class="edge-btn shrink-0 px-2 py-1 text-xs"
-                        [style.background]="s.status === 'tracked' ? 'var(--color-discount)' : s.status === 'failed' ? 'var(--color-accent)' : 'var(--color-surface-alt)'"
-                        [style.color]="s.status === 'pending' ? 'var(--color-text)' : '#fff'"
+                        [style.background]="s.status === 'tracked' ? 'var(--color-discount)' : s.status === 'failed' || s.status === 'rejected' ? 'var(--color-accent)' : 'var(--color-surface-alt)'"
+                        [style.color]="s.status === 'pending' || s.status === 'awaiting_approval' ? 'var(--color-text)' : '#fff'"
                     >
-                        {{ s.status === 'pending' ? 'Fetching...' : s.status }}
+                        {{ statusLabel(s.status) }}
                     </span>
                 </li>
             }

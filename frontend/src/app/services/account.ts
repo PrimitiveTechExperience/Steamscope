@@ -10,6 +10,7 @@ import {
   RecentSearch,
   SteamProfile,
   Submission,
+  SubmissionStatus,
   WatchedGame,
 } from '../models/user';
 
@@ -57,6 +58,17 @@ export class AccountService {
     );
   }
 
+  markRead(id: number): Observable<void> {
+    return this.http.post<void>(`${this.base}/notifications/read`, { ids: [id] }).pipe(
+      tap(() => {
+        const now = new Date().toISOString();
+        this.notifications.update((list) =>
+          list.map((n) => (n.notification_id === id && !n.read_at ? { ...n, read_at: now } : n))
+        );
+      })
+    );
+  }
+
   clearNotifications(): void {
     this.notifications.set([]);
   }
@@ -85,7 +97,7 @@ export class AccountService {
     return this.http.get<Submission[]>(`${this.base}/submissions`);
   }
 
-  submitGame(url: string): Observable<{ app_id: number; status: Submission['status'] }> {
-    return this.http.post<{ app_id: number; status: Submission['status'] }>(`${API_URL}/submissions`, { url });
+  submitGame(url: string): Observable<{ kind: Submission['kind']; id: number; status: SubmissionStatus }> {
+    return this.http.post<{ kind: Submission['kind']; id: number; status: SubmissionStatus }>(`${API_URL}/submissions`, { url });
   }
 }

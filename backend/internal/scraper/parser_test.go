@@ -564,3 +564,28 @@ func TestParseAppIDFromURL(t *testing.T) {
 		}
 	}
 }
+
+func TestParseGamePageSkipsDemoBlockForPrice(t *testing.T) {
+	const page = `<html><body>
+		<div class="apphub_AppName">Persona 3 Reload</div>
+		<div class="game_area_purchase_game demo_above_purchase">
+			<h1>Download Persona 3 Reload Demo</h1>
+		</div>
+		<div class="game_area_purchase_game_wrapper">
+			<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_914635">
+				<div class="game_purchase_price price">$59.99</div>
+			</div>
+		</div>
+		<div class="game_area_purchase_game_dropdown_subscription game_area_purchase_game">
+			<div class="discount_final_price">$99.99</div>
+		</div>
+	</body></html>`
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader(page))
+	if err != nil {
+		t.Fatal(err)
+	}
+	game := parseGamePage(doc.Selection, 2161700, "https://store.steampowered.com/app/2161700")
+	if game.Price != 59.99 || game.OriginalPrice != 59.99 || game.DiscountPercentage != 0 {
+		t.Errorf("got price=%v original=%v discount=%v, want 59.99/59.99/0", game.Price, game.OriginalPrice, game.DiscountPercentage)
+	}
+}

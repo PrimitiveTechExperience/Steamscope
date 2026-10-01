@@ -1,0 +1,24 @@
+<div class="mx-auto max-w-7xl px-6 py-10">
+    <h1 class="text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+        Bundles
+    </h1>
+    <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+        Steam bundles that include games we track, biggest discount first. Prices are in USD.
+    </p>
+
+    @if (loading()) {
+        <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            @for (i of [1, 2, 3, 4, 5, 6]; track i) {
+                <div class="skeleton h-64"></div>
+            }
+        </div>
+    } @else if (bundles().length === 0) {
+        <p class="mt-6 text-sm text-[var(--color-text-muted)]">No bundles tracked yet.</p>
+    } @else {
+        <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+            @for (b of bundles(); track b.bundle_id) {
+                <app-bundle-card [bundle]="b" />
+            }
+        </div>
+    }
+</div>

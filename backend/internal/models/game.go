@@ -11,6 +11,8 @@ type Game struct {
 	HeaderImage        string `json:"header_image"`
 	// Sanitized HTML of the store description; only populated on the single-game endpoint.
 	DescriptionHTML    string `json:"description_html,omitempty"`
+	// Bundles advertised on the game's store page (scraper-internal).
+	BundleIDs          []int `json:"-"`
 	ReleaseDate        time.Time `json:"release_date"`
 	// Supported languages are stored as a slice of strings, as a game can support multiple languages.
 	SupportedLanguages  []string `json:"supported_languages"`

@@ -3,6 +3,7 @@ import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { FilterOptions, Game, GamesResponse, PricePoint } from '../models/game';
+import { Bundle, BundleDetail } from '../models/bundle';
 import { API_URL } from '../api';
 
 export interface GamesQueryOptions {
@@ -48,6 +49,16 @@ export class GamesService {
 
   getPriceHistory(id: number): Observable<PricePoint[]> {
     return this.http.get<PricePoint[]>(`${this.apiUrl}/games/${id}/price-history`);
+  }
+
+  getBundles(appId?: number): Observable<Bundle[]> {
+    let params = new HttpParams();
+    if (appId != null) params = params.set('app_id', appId);
+    return this.http.get<Bundle[]>(`${this.apiUrl}/bundles`, { params });
+  }
+
+  getBundle(id: number): Observable<BundleDetail> {
+    return this.http.get<BundleDetail>(`${this.apiUrl}/bundles/${id}`);
   }
 
   getFilterOptions(): Observable<FilterOptions> {

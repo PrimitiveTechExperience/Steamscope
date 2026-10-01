@@ -88,6 +88,7 @@ func (c *Client) GetHistory(itadID string) ([]HistoryEvent, error) {
 	q.Set("key", c.apiKey)
 	q.Set("id", itadID)
 	q.Set("shops", fmt.Sprintf("%d", steamShopID))
+	q.Set("country", "US") // must match the scraper's store region (USD)
 
 	resp, err := c.httpClient.Get(baseURL + "/games/history/v2?" + q.Encode())
 	if err != nil {

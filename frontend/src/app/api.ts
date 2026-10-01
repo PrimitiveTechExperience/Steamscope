@@ -7,7 +7,8 @@ export function apiErrorMessage(err: unknown, fallback: string): string {
   if (err instanceof HttpErrorResponse) {
     if (err.status === 0) return "Can't reach the server right now.";
     const message = err.error?.error;
-    if (typeof message === 'string' && message) return message;
+    // Server messages are lower-case sentences ("you can submit up to 5...").
+    if (typeof message === 'string' && message) return message.charAt(0).toUpperCase() + message.slice(1);
   }
   return fallback;
 }

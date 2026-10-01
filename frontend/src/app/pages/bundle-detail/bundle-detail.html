@@ -1,0 +1,42 @@
+<div class="mx-auto max-w-5xl px-6 py-10">
+    <a routerLink="/bundles" class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)] hover:text-[var(--color-accent)]">&larr; All bundles</a>
+
+    @if (loading()) {
+        <div class="skeleton mt-4 h-64"></div>
+    } @else if (bundle(); as b) {
+        <div class="edge-panel mt-4 flex flex-col overflow-hidden sm:flex-row">
+            <app-bundle-art [bundle]="b" class="block aspect-video w-full border-b-2 border-[var(--color-border)] sm:w-80 sm:shrink-0 sm:border-b-0 sm:border-r-2" />
+            <div class="flex flex-1 flex-col gap-3 p-5">
+                <h1 class="text-2xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">{{ b.name }}</h1>
+                <p class="text-sm text-[var(--color-text-muted)]">{{ b.game_count }} games</p>
+                <div class="flex items-center gap-3">
+                    @if (b.discount_percentage > 0) {
+                        <span class="edge-btn bg-[var(--color-discount)] px-2 py-1 text-xs text-white">-{{ b.discount_percentage }}%</span>
+                        <span class="text-sm text-[var(--color-text-muted)] line-through">{{ b.original_price | currency }}</span>
+                    }
+                    <span class="text-2xl font-bold text-[var(--color-text)]">{{ b.price | currency }}</span>
+                </div>
+                <a [href]="b.url" target="_blank" rel="noopener noreferrer" class="edge-btn mt-auto w-fit bg-[var(--color-accent)] px-4 py-2 text-sm text-white">View on Steam</a>
+            </div>
+        </div>
+
+        <div class="mt-6">
+            <app-price-chart [points]="history()" emptyMessage="Not enough history yet. Bundle prices are recorded daily from when we first found this bundle." />
+        </div>
+
+        <h2 class="mt-8 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Included games</h2>
+        <ul class="grid gap-2 sm:grid-cols-2">
+            @for (g of games(); track g.app_id) {
+                <li class="edge-panel-sm px-4 py-3 text-sm">
+                    @if (g.tracked) {
+                        <a [routerLink]="['/games', g.app_id]" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ g.name }}</a>
+                    } @else {
+                        <span class="text-[var(--color-text-muted)]">{{ g.name }}</span>
+                    }
+                </li>
+            }
+        </ul>
+    } @else {
+        <p class="mt-6 text-sm text-[var(--color-text-muted)]">That bundle couldn't be found.</p>
+    }
+</div>

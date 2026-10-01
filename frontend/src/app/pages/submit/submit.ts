@@ -4,10 +4,10 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 
 import { AccountService } from '../../services/account';
-import { Submission } from '../../models/user';
+import { Submission, SubmissionStatus } from '../../models/user';
 import { apiErrorMessage } from '../../api';
 
-const STORE_URL = /^https?:\/\/store\.steampowered\.com\/app\/\d+/;
+const STORE_URL = /^https?:\/\/store\.steampowered\.com\/(app|bundle)\/\d+/;
 const POLL_MS = 4000;
 
 @Component({
@@ -36,7 +36,7 @@ export class SubmitComponent implements OnInit {
   protected submit() {
     const url = this.url.trim();
     if (!STORE_URL.test(url)) {
-      this.message.set({ kind: 'error', text: 'Paste a Steam store link, like https://store.steampowered.com/app/730/' });
+      this.message.set({ kind: 'error', text: 'Paste a Steam game or bundle link, like https://store.steampowered.com/app/730/' });
       return;
     }
     this.submitting.set(true);
@@ -45,11 +45,7 @@ export class SubmitComponent implements OnInit {
       next: (res) => {
         this.submitting.set(false);
         this.url = '';
-        this.message.set(
-          res.status === 'tracked'
-            ? { kind: 'ok', text: 'Good news - that game is already being tracked.' }
-            : { kind: 'ok', text: "Thanks! We're fetching that game now. You'll get a notification when it's added." }
-        );
+        this.message.set({ kind: 'ok', text: this.resultText(res.status) });
         this.loadSubmissions();
       },
       error: (err) => {
@@ -57,6 +53,32 @@ export class SubmitComponent implements OnInit {
         this.message.set({ kind: 'error', text: apiErrorMessage(err, 'Submission failed.') });
       },
     });
+  }
+
+  protected statusLabel(status: SubmissionStatus): string {
+    switch (status) {
+      case 'awaiting_approval':
+        return 'Awaiting approval';
+      case 'pending':
+        return 'Fetching...';
+      case 'rejected':
+        return 'Not approved';
+      default:
+        return status;
+    }
+  }
+
+  private resultText(status: SubmissionStatus): string {
+    switch (status) {
+      case 'tracked':
+        return 'Good news - that is already being tracked.';
+      case 'awaiting_approval':
+        return "Thanks! An admin will review your submission, and you'll get a notification once it's decided.";
+      case 'rejected':
+        return "That one was reviewed before and wasn't approved.";
+      default:
+        return "Thanks! We're fetching that now. You'll get a notification when it's added.";
+    }
   }
 
   private loadSubmissions() {

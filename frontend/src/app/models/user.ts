@@ -5,6 +5,7 @@ export interface User {
     username: string;
     email: string;
     steam_id: string | null;
+    is_admin: boolean;
     created_at: string;
 }
 
@@ -22,7 +23,14 @@ export interface WatchedGame {
     watched_at: string;
 }
 
-export type NotificationKind = 'price_drop' | 'target_price' | 'submission_tracked' | 'submission_failed';
+export type NotificationKind =
+  | 'price_drop'
+  | 'target_price'
+  | 'submission_tracked'
+  | 'submission_failed'
+  | 'submission_rejected'
+  | 'bundle_tracked'
+  | 'bundle_failed';
 
 export interface AppNotification {
     notification_id: number;
@@ -33,10 +41,13 @@ export interface AppNotification {
     created_at: string;
 }
 
+export type SubmissionStatus = 'awaiting_approval' | 'pending' | 'tracked' | 'failed' | 'rejected';
+
 export interface Submission {
-    app_id: number;
+    kind: 'app' | 'bundle';
+    id: number;
     name: string | null;
-    status: 'pending' | 'tracked' | 'failed';
+    status: SubmissionStatus;
     created_at: string;
 }
 
@@ -59,6 +70,8 @@ export interface SteamPlayedGame {
     icon_url: string;
     playtime_2weeks: number;
     playtime_forever: number;
+    /** Our tracking status for this game; empty when it was never submitted. */
+    track_status: SubmissionStatus | '';
 }
 
 export interface SteamProfile {
