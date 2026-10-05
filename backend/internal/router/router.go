@@ -22,6 +22,8 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handle("GET /api/games/{appID}", h.GetGame)
 	handle("GET /api/games/{appID}/reviews", h.GetReviews)
 	handle("GET /api/games/{appID}/price-history", h.GetPriceHistory)
+	handle("GET /api/games/{appID}/prediction", h.GetPrediction)
+	handle("GET /api/games/{appID}/advice", h.GetAdvice)
 	handle("GET /api/filters", h.GetFilterOptions)
 	handle("GET /api/bundles", h.GetBundles)
 	handle("GET /api/bundles/{bundleID}", h.GetBundle)

@@ -11,6 +11,7 @@ import { AccountService } from '../../services/account';
 import { apiErrorMessage } from '../../api';
 import { PriceChartComponent } from '../../components/price-chart/price-chart';
 import { BundleCardComponent } from '../../components/bundle-card/bundle-card';
+import { PricePredictionComponent } from '../../components/price-prediction/price-prediction';
 import { GameCardComponent } from '../../components/game-card/game-card';
 import { RevealOnScrollDirective } from '../../directives/reveal-on-scroll';
 import { TiltDirective } from '../../directives/tilt';
@@ -24,7 +25,7 @@ type DetailTab = 'description' | 'tags' | 'misc';
 
 @Component({
   selector: 'app-game-detail',
-  imports: [CurrencyPipe, DatePipe, DecimalPipe, PriceChartComponent, BundleCardComponent, GameCardComponent, RevealOnScrollDirective, TiltDirective, GrowOnScrollDirective, RouterLink, FormsModule],
+  imports: [CurrencyPipe, DatePipe, DecimalPipe, PriceChartComponent, PricePredictionComponent, BundleCardComponent, GameCardComponent, RevealOnScrollDirective, TiltDirective, GrowOnScrollDirective, RouterLink, FormsModule],
   templateUrl: './game-detail.html',
   styleUrl: './game-detail.css',
 })

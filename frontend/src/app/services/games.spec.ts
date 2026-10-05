@@ -43,6 +43,13 @@ describe('GamesService', () => {
     http.expectOne(`${API_URL}/games/730/price-history`).flush([]);
   });
 
+  it('fetches the price forecast and the buy-or-wait advice', () => {
+    service.getPrediction(730).subscribe();
+    http.expectOne(`${API_URL}/games/730/prediction`).flush({});
+    service.getAdvice(730).subscribe();
+    http.expectOne(`${API_URL}/games/730/advice`).flush({});
+  });
+
   it('lists all bundles, or only those containing a game', () => {
     service.getBundles().subscribe();
     const all = http.expectOne((r) => r.url === `${API_URL}/bundles`);

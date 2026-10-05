@@ -80,6 +80,8 @@
         <div class="mt-8 flex flex-col gap-6">
             <app-price-chart [points]="priceHistory()" [loading]="priceHistoryLoading()" />
 
+            <app-price-prediction [appId]="game.app_id" [refreshKey]="watchState()" />
+
             <div class="edge-panel p-4">
                 <div class="flex flex-wrap gap-1 border-b-2 border-[var(--color-border)] pb-3">
                     <button

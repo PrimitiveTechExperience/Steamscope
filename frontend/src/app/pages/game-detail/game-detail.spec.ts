@@ -6,6 +6,7 @@ import { of } from 'rxjs';
 
 import { GameDetailComponent } from './game-detail';
 import { PriceChartComponent } from '../../components/price-chart/price-chart';
+import { PricePredictionComponent } from '../../components/price-prediction/price-prediction';
 import { GamesService } from '../../services/games';
 import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
@@ -17,6 +18,12 @@ import { asListedBundle, fakeAuth, makeBundle, makeGame, stubIntersectionObserve
 class StubPriceChart {
   points = input<unknown[]>([]);
   loading = input(false);
+}
+
+@Component({ selector: 'app-price-prediction', template: '<p class="prediction-stub">{{ appId() }}</p>' })
+class StubPrediction {
+  appId = input<number>();
+  refreshKey = input<unknown>();
 }
 
 async function render(game: Game, bundles: Bundle[] = []) {
@@ -35,7 +42,10 @@ async function render(game: Game, bundles: Bundle[] = []) {
       { provide: AccountService, useValue: {} },
     ],
   });
-  TestBed.overrideComponent(GameDetailComponent, { remove: { imports: [PriceChartComponent] }, add: { imports: [StubPriceChart] } });
+  TestBed.overrideComponent(GameDetailComponent, {
+    remove: { imports: [PriceChartComponent, PricePredictionComponent] },
+    add: { imports: [StubPriceChart, StubPrediction] },
+  });
   const harness = await RouterTestingHarness.create();
   await harness.navigateByUrl(`/games/${game.app_id}`, GameDetailComponent);
   harness.detectChanges();
@@ -74,6 +84,11 @@ describe('GameDetailComponent', () => {
     expect(html).not.toContain('<script');
     expect(html).not.toContain('onerror');
     expect(html).toContain('hi');
+  });
+
+  it('shows the buy-now-or-wait panel for the game', async () => {
+    const { el } = await render(makeGame({ app_id: 730 }));
+    expect(textOf(el.querySelector('app-price-prediction .prediction-stub'))).toBe('730');
   });
 
   it('shows the name, price, discount, developer and release date', async () => {

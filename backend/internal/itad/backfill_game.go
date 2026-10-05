@@ -32,5 +32,16 @@ func BackfillGame(ctx context.Context, db *database.DB, client *Client, appID in
 	if err := db.UpsertPriceHistoryBatch(ctx, appID, series); err != nil {
 		return 0, err
 	}
+	// Self-heal: drop rows before the first real event that an older version
+	// of this backfill invented from that event's price.
+	first := events[0]
+	for _, e := range events {
+		if e.Timestamp.Before(first.Timestamp) {
+			first = e
+		}
+	}
+	if _, err := db.DeleteFabricatedHistory(ctx, appID, truncateToDay(first.Timestamp), first.Price, first.Regular); err != nil {
+		return len(series), err
+	}
 	return len(series), nil
 }

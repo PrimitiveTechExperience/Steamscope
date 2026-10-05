@@ -28,6 +28,21 @@ func (db *DB) UpsertPriceHistory(ctx context.Context, appID int, price, original
 	return nil
 }
 
+// DeleteFabricatedHistory removes rows dated before `before` that carry exactly
+// the given price and regular price. An earlier version of the backfill filled
+// every day before ITAD's first event with that event's price, inventing
+// months of history that never existed; those rows all match the first event.
+func (db *DB) DeleteFabricatedHistory(ctx context.Context, appID int, before time.Time, price, originalPrice float64) (int64, error) {
+	tag, err := db.Pool.Exec(ctx, `
+		DELETE FROM price_history
+		WHERE app_id = $1 AND recorded_date < $2::date AND price = $3 AND original_price = $4`,
+		appID, before.Format("2006-01-02"), price, originalPrice)
+	if err != nil {
+		return 0, fmt.Errorf("failed to delete fabricated history for app_id %d: %w", appID, err)
+	}
+	return tag.RowsAffected(), nil
+}
+
 // UpsertPriceHistoryBatch writes an entire series for one game in a single
 // round trip, instead of one query per day. Backfilling ~2 years (~730 rows)
 // per game one row at a time over a remote DB connection is slow enough to

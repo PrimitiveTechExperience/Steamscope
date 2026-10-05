@@ -4,6 +4,7 @@ import { Observable } from 'rxjs';
 
 import { FilterOptions, Game, GamesResponse, PricePoint } from '../models/game';
 import { Bundle, BundleDetail } from '../models/bundle';
+import { Advice, Forecast } from '../models/prediction';
 import { API_URL } from '../api';
 
 export interface GamesQueryOptions {
@@ -59,6 +60,16 @@ export class GamesService {
 
   getBundle(id: number): Observable<BundleDetail> {
     return this.http.get<BundleDetail>(`${this.apiUrl}/bundles/${id}`);
+  }
+
+  /** Price forecast for up to two years ahead. */
+  getPrediction(id: number): Observable<Forecast> {
+    return this.http.get<Forecast>(`${this.apiUrl}/games/${id}/prediction`);
+  }
+
+  /** Buy-now-or-wait advice; personalised when the user is watching the game. */
+  getAdvice(id: number): Observable<Advice> {
+    return this.http.get<Advice>(`${this.apiUrl}/games/${id}/advice`);
   }
 
   getFilterOptions(): Observable<FilterOptions> {

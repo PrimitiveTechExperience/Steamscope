@@ -112,6 +112,19 @@ var (
 		Help: "Unix time of the last successful scrape run.",
 	})
 
+	// PredictionRequests counts forecast lookups by result: hit (served from the
+	// cache), miss (computed and cached) or insufficient (too little history).
+	PredictionRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "steamscope_prediction_requests_total",
+		Help: "Price forecast lookups, by result.",
+	}, []string{"result"})
+
+	PredictionCompute = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "steamscope_prediction_compute_seconds",
+		Help:    "Time to compute a price forecast (including any ITAD calls).",
+		Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 20},
+	})
+
 	buildInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "steamscope_build_info",
 		Help: "Build information; always 1.",
@@ -121,7 +134,7 @@ var (
 func init() {
 	Registry.MustRegister(
 		httpRequests, httpDuration, httpInFlight, httpPanics,
-		LoginAttempts, Submissions, ScrapeRuns, ScrapeDuration, ScrapeGames, ScrapeLastSuccess, buildInfo,
+		LoginAttempts, Submissions, PredictionRequests, PredictionCompute, ScrapeRuns, ScrapeDuration, ScrapeGames, ScrapeLastSuccess, buildInfo,
 		prometheus.NewGoCollector(),
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
 	)

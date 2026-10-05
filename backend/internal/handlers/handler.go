@@ -9,9 +9,12 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/itad"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/prediction"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 type Handler struct {
@@ -21,7 +24,12 @@ type Handler struct {
 	Config      *config.Config
 	SteamAPI    *steam.WebAPI
 	Submissions *SubmissionQueue
-	httpClient  *http.Client
+	// Predictions caches the most recent price forecasts (at most five).
+	Predictions *prediction.Store
+	// ITAD extends price history for forecasts; nil when no API key is set.
+	ITAD          *itad.Client
+	predictFlight singleflight.Group
+	httpClient    *http.Client
 }
 
 type Deps struct {
@@ -33,6 +41,10 @@ type Deps struct {
 }
 
 func New(d Deps) *Handler {
+	var itadClient *itad.Client
+	if d.Config.ITADAPIKey != "" {
+		itadClient = itad.New(d.Config.ITADAPIKey)
+	}
 	return &Handler{
 		DB:          d.DB,
 		Redis:       d.Redis,
@@ -40,6 +52,8 @@ func New(d Deps) *Handler {
 		Config:      d.Config,
 		SteamAPI:    steam.NewWebAPI(d.Config.Auth.SteamWebAPIKey),
 		Submissions: d.Submissions,
+		Predictions: prediction.NewStore(d.Redis, prediction.DefaultMaxEntries, prediction.DefaultTTL),
+		ITAD:        itadClient,
 		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
 }

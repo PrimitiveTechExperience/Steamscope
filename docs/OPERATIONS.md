@@ -63,6 +63,8 @@ journalctl -u steamscope-api -o cat | jq -c 'select(.msg=="request" and .status>
 | `steamscope_http_panics_total` | counter | - | recovered handler panics |
 | `steamscope_login_attempts_total` | counter | outcome = success / bad_credentials / banned / rate_limited | authentication health and brute-force signal |
 | `steamscope_submissions_total` | counter | kind, outcome | game and bundle suggestions |
+| `steamscope_prediction_requests_total` | counter | result = hit / miss / insufficient | price-forecast lookups: served from the cache, computed, or too little history |
+| `steamscope_prediction_compute_seconds` | histogram | - | time to compute a forecast, including any ITAD calls |
 | `steamscope_scrape_runs_total` | counter | result = success / error | scrape runs by the in-process scheduler |
 | `steamscope_scrape_last_duration_seconds`, `steamscope_scrape_last_games` | gauge | - | duration and size of the last run |
 | `steamscope_scrape_last_success_timestamp_seconds` | gauge | - | time of the last successful scrape |
