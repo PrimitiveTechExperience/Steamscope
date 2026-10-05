@@ -3,7 +3,7 @@ module github.com/PrimitiveTechExperience/Steamscope
 go 1.26.4
 
 require (
-	github.com/PuerkitoBio/goquery v1.12.0
+	github.com/PuerkitoBio/goquery v1.13.0
 	github.com/alicebob/miniredis/v2 v2.39.0
 	github.com/gocolly/colly/v2 v2.3.0
 	github.com/gorilla/securecookie v1.1.2
@@ -13,12 +13,12 @@ require (
 	github.com/prometheus/client_golang v1.24.1
 	github.com/redis/go-redis/v9 v9.22.0
 	golang.org/x/crypto v0.57.0
-	golang.org/x/net v0.58.0
+	golang.org/x/net v0.59.0
 	golang.org/x/sync v0.23.0
 )
 
 require (
-	github.com/andybalholm/cascadia v1.3.3 // indirect
+	github.com/andybalholm/cascadia v1.3.4 // indirect
 	github.com/antchfx/htmlquery v1.3.5 // indirect
 	github.com/antchfx/xmlquery v1.5.0 // indirect
 	github.com/antchfx/xpath v1.3.6 // indirect
