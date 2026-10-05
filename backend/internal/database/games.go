@@ -51,7 +51,7 @@ func (db *DB) InsertGame(ctx context.Context, game models.Game) error {
 			return fmt.Errorf("failed to insert game developer: %w", err)
 		}
 	}
-	
+
 	// Insert the publishers into the publishers table and the game_publishers table
 	for _, publisher := range game.Publishers {
 		publisherID, err := db.InsertPublisher(ctx, tx, publisher)
@@ -128,9 +128,8 @@ func (db *DB) InsertGameDetails(ctx context.Context, tx pgx.Tx, game models.Game
 		reviewScore = 9
 	}
 
-	
 	_, err := tx.Exec(
-		ctx, 
+		ctx,
 		`
 		INSERT INTO games (
 			app_id, name, url, description, description_html, header_image, release_date, price, original_price, discount_percentage, review_score, review_count, windows_compatible, linux_compatible, mac_compatible

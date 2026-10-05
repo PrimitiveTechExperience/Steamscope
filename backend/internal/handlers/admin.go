@@ -205,7 +205,12 @@ func (h *Handler) AdminAddBlacklistRule(w http.ResponseWriter, r *http.Request) 
 	if !decodeJSON(w, r, &req) {
 		return
 	}
-	req.Pattern = sanitize.Text(req.Pattern, 200)
+	pattern, ok := sanitize.Pattern(req.Pattern, 200)
+	if !ok {
+		writeError(w, http.StatusBadRequest, "pattern must be 1-200 characters with no control characters")
+		return
+	}
+	req.Pattern = pattern
 	req.Note = sanitize.Text(req.Note, 200)
 	if err := moderation.ValidateRule(req.Field, req.Pattern); err != nil {
 		writeError(w, http.StatusBadRequest, err.Error())

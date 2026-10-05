@@ -19,14 +19,14 @@ const storeCountry = "us"
 
 type Scraper struct {
 	// Collector *colly.Collector
-	Jar http.CookieJar
-	Client *http.Client
+	Jar     http.CookieJar
+	Client  *http.Client
 	BaseURL string
 	// GameResult chan GameResult
 }
 
-type GameResult struct{
-	Game *models.Game
+type GameResult struct {
+	Game  *models.Game
 	Error error
 }
 
@@ -41,17 +41,17 @@ func (s *Scraper) newCollector() *colly.Collector {
 	c.Async = true
 	c.SetCookieJar(s.Jar)
 	c.Limit(&colly.LimitRule{
-		DomainGlob: fmt.Sprintf("*%s*", baseURL.Hostname()),
+		DomainGlob:  fmt.Sprintf("*%s*", baseURL.Hostname()),
 		Parallelism: 4,
-		Delay: 250*time.Millisecond,
-		RandomDelay: 250*time.Millisecond,
+		Delay:       250 * time.Millisecond,
+		RandomDelay: 250 * time.Millisecond,
 	})
-	c.OnRequest(func(r *colly.Request){
+	c.OnRequest(func(r *colly.Request) {
 		log.Printf("Visiting: %s", r.URL.String())
 	})
 	c.OnResponse(func(r *colly.Response) {
 		log.Printf("Received %d bytes\n", len(r.Body))
-	})	
+	})
 
 	return c
 }
@@ -64,21 +64,20 @@ func New(baseURL string) *Scraper {
 	}
 
 	client := &http.Client{
-		Jar: jar,
+		Jar:     jar,
 		Timeout: 30 * time.Second,
 	}
 
 	s := &Scraper{
-		Jar: jar,
-		Client: client,
+		Jar:     jar,
+		Client:  client,
 		BaseURL: baseURL,
 	}
 	return s
 }
-// 
+
 // GAME SCRAPING FUNCTIONS
-// 
-func (s *Scraper) ScrapeGame(appID int, c *colly.Collector) (error) {
+func (s *Scraper) ScrapeGame(appID int, c *colly.Collector) error {
 	// Steam prices by the requester's IP (this scraper was getting CDN$), while
 	// the price history it's stored next to is USD. cc pins the region.
 	url := fmt.Sprintf("%s/app/%d?cc=%s&l=english", s.BaseURL, appID, storeCountry)
@@ -91,7 +90,7 @@ func (s *Scraper) ScrapeGamePages(appIDs []int) ([]models.Game, error) {
 	// We let colly do the work
 	c := s.newCollector()
 	results := make(chan GameResult, len(appIDs))
-	c.OnHTML("html", func(e *colly.HTMLElement){
+	c.OnHTML("html", func(e *colly.HTMLElement) {
 		appIDstr := e.Request.Ctx.Get("appID")
 
 		appID, err := strconv.Atoi(appIDstr)
@@ -125,7 +124,7 @@ func (s *Scraper) ScrapeGamePages(appIDs []int) ([]models.Game, error) {
 
 	c.Wait()
 	close(results)
-	
+
 	var games []models.Game
 	var scrapeErrors []error
 
@@ -158,15 +157,16 @@ func (s *Scraper) ScrapeGames(appIDs []int, options ReviewOption) ([]models.Game
 		return nil, fmt.Errorf("failed to fetch reviews for games: %w", err)
 	}
 	// Assign reviews to each game
-	for i := range games{
+	for i := range games {
 		games[i].Reviews = reviews[games[i].AppID]
 	}
 
 	return games, nil
 }
-// 
+
+//
 // UTILITY FUNCTIONS
-// 
+//
 
 func (s *Scraper) SetSteamCookies(cookies []config.Cookie) error {
 	u, err := url.Parse("https://store.steampowered.com")
@@ -176,13 +176,13 @@ func (s *Scraper) SetSteamCookies(cookies []config.Cookie) error {
 	httpCookies := make([]*http.Cookie, 0, len(cookies))
 	for _, cookie := range cookies {
 		httpCookies = append(httpCookies, &http.Cookie{
-			Name:  cookie.Name,
-			Value: cookie.Value,
+			Name:   cookie.Name,
+			Value:  cookie.Value,
 			Domain: cookie.Domain,
 		})
 	}
 	s.Jar.SetCookies(u, httpCookies)
-	
+
 	return nil
 }
 

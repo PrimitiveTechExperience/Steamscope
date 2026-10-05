@@ -1,6 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-export const API_URL = 'http://localhost:8080/api';
+import { environment } from '../environments/environment';
+
+/** Base URL of the backend API; set per build in src/environments. */
+export const API_URL = environment.apiUrl;
 
 /** Pulls the `{"error": "..."}` message out of an API error response. */
 export function apiErrorMessage(err: unknown, fallback: string): string {

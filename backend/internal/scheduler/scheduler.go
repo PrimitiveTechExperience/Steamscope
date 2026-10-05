@@ -3,12 +3,14 @@ package scheduler
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log"
 	"time"
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/itad"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/observability"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scraper"
 )
 
@@ -41,6 +43,49 @@ func backfillThinHistories(ctx context.Context, db *database.DB, cfg *config.Con
 	}
 }
 
+// scrapeAndBackfill re-scrapes every tracked game and bundle, then backfills
+// any game whose price history is still thin, recording run metrics.
+func scrapeAndBackfill(ctx context.Context, db *database.DB, cfg *config.Config, s *scraper.Scraper) error {
+	appIDs, err := db.GetTrackedAppIDs(ctx)
+	if err != nil {
+		observability.ScrapeRuns.WithLabelValues("error").Inc()
+		return fmt.Errorf("failed to load tracked games: %w", err)
+	}
+	log.Printf("Scheduler: starting scrape run for %d games", len(appIDs))
+	start := time.Now()
+	runErr := scraper.RunScrapeAll(ctx, db, cfg, s, appIDs)
+	observability.ScrapeDuration.Set(time.Since(start).Seconds())
+	observability.ScrapeGames.Set(float64(len(appIDs)))
+	if runErr != nil {
+		observability.ScrapeRuns.WithLabelValues("error").Inc()
+		log.Printf("Scheduler: scrape run finished with errors: %v", runErr)
+	} else {
+		observability.ScrapeRuns.WithLabelValues("success").Inc()
+		observability.ScrapeLastSuccess.SetToCurrentTime()
+		log.Println("Scheduler: scrape run complete")
+	}
+	backfillThinHistories(ctx, db, cfg)
+	return runErr
+}
+
+// RunOnce does one complete maintenance pass - scrape, price-history
+// backfill and old-history cleanup - and returns. It is what the standalone
+// scraper command (and so the daily cron job) runs.
+func RunOnce(ctx context.Context, db *database.DB, cfg *config.Config, s *scraper.Scraper) error {
+	err := scrapeAndBackfill(ctx, db, cfg, s)
+	pruneOldHistory(ctx, db)
+	return err
+}
+
+func pruneOldHistory(ctx context.Context, db *database.DB) {
+	cutoff := time.Now().AddDate(-2, 0, 0)
+	if n, err := db.DeleteOldPriceHistory(ctx, cutoff); err != nil {
+		log.Printf("Scheduler: price history cleanup failed: %v", err)
+	} else if n > 0 {
+		log.Printf("Scheduler: deleted %d price_history rows older than 2 years", n)
+	}
+}
+
 // Start launches a background loop that re-scrapes all tracked games (read
 // from the tracked_games table each run, so user submissions are included)
 // once per interval, immediately on startup and then on every tick,
@@ -50,29 +95,13 @@ func backfillThinHistories(ctx context.Context, db *database.DB, cfg *config.Con
 // it with `go scheduler.Start(...)`.
 func Start(ctx context.Context, db *database.DB, cfg *config.Config, s *scraper.Scraper, interval time.Duration, onScrape func()) {
 	runScrape := func() {
-		appIDs, err := db.GetTrackedAppIDs(ctx)
-		if err != nil {
-			log.Printf("Scheduler: failed to load tracked games: %v", err)
-			return
+		if err := scrapeAndBackfill(ctx, db, cfg, s); err != nil {
+			log.Printf("Scheduler: %v", err)
 		}
-		log.Printf("Scheduler: starting scrape run for %d games", len(appIDs))
-		if err := scraper.RunScrapeAll(ctx, db, cfg, s, appIDs); err != nil {
-			log.Printf("Scheduler: scrape run finished with errors: %v", err)
-		} else {
-			log.Println("Scheduler: scrape run complete")
-		}
-		backfillThinHistories(ctx, db, cfg)
 		onScrape()
 	}
 
-	runCleanup := func() {
-		cutoff := time.Now().AddDate(-2, 0, 0)
-		if n, err := db.DeleteOldPriceHistory(ctx, cutoff); err != nil {
-			log.Printf("Scheduler: price history cleanup failed: %v", err)
-		} else if n > 0 {
-			log.Printf("Scheduler: deleted %d price_history rows older than 2 years", n)
-		}
-	}
+	runCleanup := func() { pruneOldHistory(ctx, db) }
 
 	runScrape()
 	runCleanup()

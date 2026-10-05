@@ -5,13 +5,16 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"slices"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/sanitize"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -21,10 +24,10 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	limit := 20
 	offset := 0
 	filters := models.GameFilters{}
-	filters.Search = r.URL.Query().Get("search")
-	filters.Genre = r.URL.Query().Get("genre")
-	filters.Developer = r.URL.Query().Get("developer")
-	filters.Publisher = r.URL.Query().Get("publisher")
+	filters.Search = sanitize.Text(r.URL.Query().Get("search"), maxFilterLength)
+	filters.Genre = sanitize.Text(r.URL.Query().Get("genre"), maxFilterLength)
+	filters.Developer = sanitize.Text(r.URL.Query().Get("developer"), maxFilterLength)
+	filters.Publisher = sanitize.Text(r.URL.Query().Get("publisher"), maxFilterLength)
 	filters.Genres = splitFilterValues(r.URL.Query().Get("genres"))
 	filters.Tags = splitFilterValues(r.URL.Query().Get("tags"))
 	filters.Languages = splitFilterValues(r.URL.Query().Get("languages"))
@@ -34,7 +37,7 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	if value := r.URL.Query().Get("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 1 {
-			http.Error(w, "Invalid limit parameter", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Invalid limit parameter")
 			return
 		}
 		limit = parsed
@@ -42,7 +45,7 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	if value := r.URL.Query().Get("offset"); value != "" {
 		parsed, err := strconv.Atoi(value)
 		if err != nil || parsed < 0 {
-			http.Error(w, "Invalid offset parameter", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Invalid offset parameter")
 			return
 		}
 		offset = parsed
@@ -50,7 +53,7 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	if value := r.URL.Query().Get("minPrice"); value != "" {
 		parsed, err := strconv.ParseFloat(value, 64)
 		if err != nil || parsed < 0 {
-			http.Error(w, "Invalid minPrice parameter", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Invalid minPrice parameter")
 			return
 		}
 		filters.MinPrice = parsed
@@ -58,13 +61,13 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	if value := r.URL.Query().Get("maxPrice"); value != "" {
 		parsed, err := strconv.ParseFloat(value, 64)
 		if err != nil || parsed < 0 {
-			http.Error(w, "Invalid maxPrice parameter", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Invalid maxPrice parameter")
 			return
 		}
 		filters.MaxPrice = parsed
 	}
 	if filters.MaxPrice > 0 && filters.MinPrice > filters.MaxPrice {
-		http.Error(w, "minPrice cannot exceed maxPrice", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "minPrice cannot exceed maxPrice")
 		return
 	}
 	filters.Limit = min(limit, maxGamesLimit)
@@ -80,7 +83,7 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 
 	games, err := h.DB.GetGames(r.Context(), filters)
 	if err != nil {
-		http.Error(w, "Failed to retrieve games", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve games")
 		return
 	}
 	response := GameResponse{
@@ -91,7 +94,7 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	}
 	encoded, err := json.Marshal(response)
 	if err != nil {
-		http.Error(w, "Failed to encode games", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to encode games")
 		return
 	}
 	if len(encoded) <= maxCachedSearchBytes {
@@ -104,6 +107,7 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 
 const (
 	maxGamesLimit        = 100
+	maxFilterLength      = 100
 	searchCacheTTL       = 10 * time.Minute
 	maxCachedSearchBytes = 64 << 10
 	searchVersionKey     = "search:version"
@@ -140,7 +144,9 @@ func splitFilterValues(value string) []string {
 	values := strings.Split(value, ",")
 	filtered := make([]string, 0, len(values))
 	for _, item := range values {
-		if item = strings.TrimSpace(item); item != "" {
+		// Control characters (a NUL byte makes Postgres reject the query)
+		// have no place in a filter value.
+		if item = sanitize.Text(item, maxFilterLength); item != "" {
 			filtered = append(filtered, item)
 		}
 	}
@@ -152,19 +158,23 @@ func (h *Handler) GetGame(w http.ResponseWriter, r *http.Request) {
 
 	appID, err := strconv.Atoi(appIDStr)
 	if err != nil {
-		http.Error(w, "Invalid appID parameter", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "Invalid appID parameter")
 		return
 	}
 
 	game, err := h.DB.GetGame(r.Context(), appID)
+	if errors.Is(err, database.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "Game not found")
+		return
+	}
 	if err != nil {
-		http.Error(w, "Failed to retrieve game", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve game")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(game); err != nil {
-		http.Error(w, "Failed to encode game", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to encode game")
 		return
 	}
 }
@@ -174,19 +184,19 @@ func (h *Handler) GetPriceHistory(w http.ResponseWriter, r *http.Request) {
 
 	appID, err := strconv.Atoi(appIDStr)
 	if err != nil {
-		http.Error(w, "Invalid appID parameter", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "Invalid appID parameter")
 		return
 	}
 
 	history, err := h.DB.GetPriceHistory(r.Context(), appID)
 	if err != nil {
-		http.Error(w, "Failed to retrieve price history", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve price history")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(history); err != nil {
-		http.Error(w, "Failed to encode price history", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to encode price history")
 		return
 	}
 }

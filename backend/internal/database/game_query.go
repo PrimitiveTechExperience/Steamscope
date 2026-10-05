@@ -2,10 +2,12 @@ package database
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
+	"github.com/jackc/pgx/v5"
 )
 
 func (db *DB) GetGame(ctx context.Context, appID int) (*models.Game, error) {
@@ -20,6 +22,9 @@ func (db *DB) GetGame(ctx context.Context, appID int) (*models.Game, error) {
 		&game.Price, &game.OriginalPrice, &game.DiscountPercentage, &score,
 		&game.ReviewCount, &game.WindowsCompatible, &game.MacCompatible, &game.LinuxCompatible,
 	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return nil, ErrNotFound
+	}
 	if err != nil {
 		return nil, fmt.Errorf("failed to get game with app_id %d: %w", appID, err)
 	}

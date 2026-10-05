@@ -8,11 +8,12 @@ import (
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scheduler"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scraper"
 
 	"github.com/joho/godotenv"
 )
-	
+
 func main() {
 	// Start database connection.
 	err := godotenv.Load()
@@ -46,15 +47,14 @@ func main() {
 		log.Printf("Loaded cookie: %s", c.Name)
 	}
 
-	// Scrape and persist all tracked games (details, reviews, price history).
+	// One full pass: scrape every tracked game and bundle, backfill thin
+	// price histories, prune old history. Exits non-zero on failure so cron
+	// and CI can notice.
 	if err := db.SeedTrackedGames(ctx, cfg.Steam.TrackedAppIDs); err != nil {
 		log.Fatalf("Failed to seed tracked games: %v", err)
 	}
-	appIDs, err := db.GetTrackedAppIDs(ctx)
-	if err != nil {
-		log.Fatalf("Failed to load tracked games: %v", err)
-	}
-	if err := scraper.RunScrapeAll(ctx, db, cfg, s, appIDs); err != nil {
+	if err := scheduler.RunOnce(ctx, db, cfg, s); err != nil {
 		log.Printf("Scrape run finished with errors: %v", err)
+		os.Exit(1)
 	}
 }

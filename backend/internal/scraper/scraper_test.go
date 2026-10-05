@@ -74,7 +74,7 @@ func TestScrapeGame_ParsesNameAndDeveloper(t *testing.T) {
 	defer server.Close()
 
 	s := New(server.URL)
-	games, err := s.ScrapeGamePages( []int{12345} )
+	games, err := s.ScrapeGamePages([]int{12345})
 	if err != nil {
 		t.Fatalf("Failed to scrape game pages: %v", err)
 	}

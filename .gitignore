@@ -8,3 +8,9 @@ bin/
 # Ignore .env
 .env
 
+
+# Local artifacts
+*.exe
+logs/
+coverage/
+coverage.out

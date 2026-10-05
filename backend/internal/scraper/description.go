@@ -183,3 +183,15 @@ func safeLinkURL(raw string) string {
 	}
 	return u.String()
 }
+
+// descriptionPlainText flattens the description to whitespace-collapsed text,
+// without Steam's leading "About This Game" heading.
+func descriptionPlainText(sel *goquery.Selection) string {
+	if sel.Length() == 0 {
+		return ""
+	}
+	clone := sel.Clone()
+	clone.Find("script, style, iframe, object, embed, noscript, template").Remove()
+	text := strings.Join(strings.Fields(clone.Text()), " ")
+	return strings.TrimSpace(strings.TrimPrefix(text, "About This Game"))
+}

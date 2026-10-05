@@ -62,3 +62,21 @@ func ValidPassword(s string) bool {
 	}
 	return !strings.ContainsFunc(s, unicode.IsControl)
 }
+
+// Pattern validates a value that must be used exactly as written, such as a
+// regular expression: it is trimmed of outer whitespace but never altered
+// otherwise. ok is false for invalid UTF-8, control or invisible formatting
+// characters, an empty result, or more than max characters - rejecting
+// rather than silently truncating, which would change what a pattern means.
+func Pattern(s string, max int) (string, bool) {
+	s = strings.TrimSpace(s)
+	if s == "" || !utf8.ValidString(s) || utf8.RuneCountInString(s) > max {
+		return "", false
+	}
+	for _, r := range s {
+		if unicode.IsControl(r) || unicode.Is(unicode.Cf, r) {
+			return "", false
+		}
+	}
+	return s, true
+}

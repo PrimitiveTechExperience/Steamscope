@@ -12,6 +12,7 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/cache"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/moderation"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/observability"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/sanitize"
 )
 
@@ -111,6 +112,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	limitKey := "ratelimit:login:" + clientIP(r) + ":" + strings.ToLower(req.Login)
 	if !cache.Allow(r.Context(), h.Redis, limitKey, 10, 15*time.Minute) {
+		observability.LoginAttempts.WithLabelValues("rate_limited").Inc()
 		writeError(w, http.StatusTooManyRequests, "too many login attempts, try again in a few minutes")
 		return
 	}
@@ -128,11 +130,13 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 	ok, _ := auth.VerifyPassword(req.Password, hash)
 	if user == nil || !ok {
+		observability.LoginAttempts.WithLabelValues("bad_credentials").Inc()
 		writeError(w, http.StatusUnauthorized, "invalid username/email or password")
 		return
 	}
 
 	if user.IsBanned {
+		observability.LoginAttempts.WithLabelValues("banned").Inc()
 		writeError(w, http.StatusForbidden, "this account has been suspended")
 		return
 	}
@@ -142,6 +146,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to log in")
 		return
 	}
+	observability.LoginAttempts.WithLabelValues("success").Inc()
 	writeJSON(w, http.StatusOK, map[string]any{"user": user})
 }
 

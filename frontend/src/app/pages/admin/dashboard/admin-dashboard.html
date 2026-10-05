@@ -33,7 +33,7 @@
                             class="flex-1 bg-[var(--color-accent)]"
                             [style.height.%]="barHeight(s.activity, sr.key, d)"
                             [style.opacity]="d[sr.key] === 0 ? 0.25 : 1"
-                            [title]="(d.date | date:'MMM d') + ': ' + d[sr.key]"
+                            [title]="(d.date | date:'MMM d':'UTC') + ': ' + d[sr.key]"
                         ></div>
                     }
                 </div>

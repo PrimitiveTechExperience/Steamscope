@@ -20,12 +20,15 @@ const RANGE_LABELS: Record<RangeKey, string> = {
 
 // Chart labels are user-facing text, not data - normalize the raw ISO
 // timestamps from the API into something nobody has to mentally parse.
+// Price points are calendar days stored at midnight UTC, so format them in UTC;
+// in the viewer's timezone every label west of UTC would be a day early.
 function formatChartDate(iso: string, range: RangeKey): string {
   const showYear = range === '2y' || range === '1y';
   return new Date(iso).toLocaleDateString('en-US', {
     month: 'short',
     day: 'numeric',
     year: showYear ? 'numeric' : undefined,
+    timeZone: 'UTC',
   });
 }
 

@@ -10,12 +10,12 @@ import (
 func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	appIDStr := r.PathValue("appID")
 	if appIDStr == "" {
-		http.Error(w, "Missing appID parameter", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "Missing appID parameter")
 		return
 	}
 	appID, err := strconv.Atoi(appIDStr)
 	if err != nil {
-		http.Error(w, "Invalid appID parameter", http.StatusBadRequest)
+		writeError(w, http.StatusBadRequest, "Invalid appID parameter")
 		return
 	}
 	limitStr := r.URL.Query().Get("limit")
@@ -25,25 +25,25 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	if limitStr != "" {
 		limit, err = strconv.Atoi(limitStr)
 		if err != nil || limit < 1 {
-			http.Error(w, "Invalid limit parameter", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Invalid limit parameter")
 			return
 		}
 	}
 	if offsetStr != "" {
 		offset, err = strconv.Atoi(offsetStr)
 		if err != nil || offset < 0 {
-			http.Error(w, "Invalid offset parameter", http.StatusBadRequest)
+			writeError(w, http.StatusBadRequest, "Invalid offset parameter")
 			return
 		}
 	}
 	reviews, err := h.DB.GetReviews(context.Background(), appID, limit, offset)
 	if err != nil {
-		http.Error(w, "Failed to retrieve reviews", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to retrieve reviews")
 		return
 	}
 	total, err := h.DB.GetCountOfReviews(context.Background(), appID)
 	if err != nil {
-		http.Error(w, "Failed to count reviews", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to count reviews")
 		return
 	}
 	response := ReviewResponse{
@@ -54,7 +54,7 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		http.Error(w, "Failed to encode reviews", http.StatusInternalServerError)
+		writeError(w, http.StatusInternalServerError, "Failed to encode reviews")
 		return
 	}
 }

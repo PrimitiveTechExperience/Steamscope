@@ -3,16 +3,16 @@ package models
 import "time"
 
 type User struct {
-	UserID       int64     `json:"user_id"`
-	Username     string    `json:"username"`
-	Email        string    `json:"email"`
-	PasswordHash string    `json:"-"`
-	SteamID      *string   `json:"steam_id"`
-	IsAdmin      bool      `json:"is_admin"`
-	IsBanned     bool      `json:"-"`
+	UserID       int64   `json:"user_id"`
+	Username     string  `json:"username"`
+	Email        string  `json:"email"`
+	PasswordHash string  `json:"-"`
+	SteamID      *string `json:"steam_id"`
+	IsAdmin      bool    `json:"is_admin"`
+	IsBanned     bool    `json:"-"`
 	// SubmissionsBlocked users can use the site but can't suggest games.
-	SubmissionsBlocked bool `json:"submissions_blocked"`
-	CreatedAt    time.Time `json:"created_at"`
+	SubmissionsBlocked bool      `json:"submissions_blocked"`
+	CreatedAt          time.Time `json:"created_at"`
 }
 
 type Preferences struct {

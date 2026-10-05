@@ -87,7 +87,7 @@ func TestPruneReviews(t *testing.T) {
 		t.Fatalf("failed to create mock pool: %v", err)
 	}
 	defer mockPool.Close()
-	
+
 	appID := 123
 	maxReviews := 5
 	mockPool.ExpectBegin()
@@ -95,13 +95,13 @@ func TestPruneReviews(t *testing.T) {
 		WithArgs(appID, maxReviews).
 		WillReturnResult(pgxmock.NewResult("DELETE", 3))
 	mockPool.ExpectRollback()
-	
+
 	db := &DB{Pool: mockPool}
 	tx, err := db.Pool.Begin(ctx)
 	if err != nil {
 		t.Fatalf("failed to begin mock transaction: %v", err)
 	}
-	
+
 	if err := db.PruneReviews(ctx, tx, appID, maxReviews); err != nil {
 		t.Fatalf("PruneReviews() returned an error: %v", err)
 	}
@@ -193,7 +193,7 @@ func TestStorReviews_ErrorHandling(t *testing.T) {
 		t.Fatalf("failed to create mock pool: %v", err)
 	}
 	defer mockPool.Close()
-	
+
 	appID := 123
 	maxReviews := 5
 	reviews := []models.Review{
@@ -222,7 +222,7 @@ func TestStorReviews_ErrorHandling(t *testing.T) {
 	if err == nil {
 		t.Fatalf("StoreReviews() did not return an error when expected")
 	}
-	
+
 	if err := mockPool.ExpectationsWereMet(); err != nil {
 		t.Fatalf("mock expectations were not met: %v", err)
 	}

@@ -11,12 +11,12 @@ import (
 
 // AdminUser is a user row as shown on the admin page.
 type AdminUser struct {
-	UserID    int64     `json:"user_id"`
-	Username  string    `json:"username"`
-	Email     string    `json:"email"`
-	SteamID   *string   `json:"steam_id"`
-	IsAdmin   bool      `json:"is_admin"`
-	IsBanned  bool      `json:"is_banned"`
+	UserID   int64   `json:"user_id"`
+	Username string  `json:"username"`
+	Email    string  `json:"email"`
+	SteamID  *string `json:"steam_id"`
+	IsAdmin  bool    `json:"is_admin"`
+	IsBanned bool    `json:"is_banned"`
 	// SubmissionsBlocked users can't suggest games.
 	SubmissionsBlocked bool      `json:"submissions_blocked"`
 	CreatedAt          time.Time `json:"created_at"`

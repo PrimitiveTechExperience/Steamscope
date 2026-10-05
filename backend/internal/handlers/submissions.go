@@ -14,6 +14,7 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/itad"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/moderation"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/observability"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/scraper"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 )
@@ -155,9 +156,12 @@ func (h *Handler) SubmitGame(w http.ResponseWriter, r *http.Request) {
 	}
 
 	httpStatus := http.StatusOK
+	outcome := "duplicate"
 	if created {
 		httpStatus = http.StatusAccepted
+		outcome = status
 	}
+	observability.Submissions.WithLabelValues(string(kind), outcome).Inc()
 	writeJSON(w, httpStatus, map[string]any{"kind": kind, "id": id, "status": status})
 }
 

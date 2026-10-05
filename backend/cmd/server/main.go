@@ -64,7 +64,11 @@ func main() {
 
 	submissions := handlers.NewSubmissionQueue(100)
 	go submissions.Run(ctx, db, cfg, s, invalidateSearchCache)
-	go scheduler.Start(ctx, db, cfg, s, 24*time.Hour, invalidateSearchCache)
+	if cfg.DisableScheduler {
+		log.Println("In-process scheduler disabled (DISABLE_SCHEDULER=true); run cmd/scraper from cron instead")
+	} else {
+		go scheduler.Start(ctx, db, cfg, s, 24*time.Hour, invalidateSearchCache)
+	}
 
 	h := handlers.New(handlers.Deps{
 		DB:          db,

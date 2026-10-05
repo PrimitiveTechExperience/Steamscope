@@ -10,7 +10,8 @@ import (
 // BuildDailySeries turns a sparse log of price-change events into a daily
 // price series covering [startDate, endDate], by carrying the most recent
 // known price forward across every day where nothing changed. Days before
-// the first recorded event use that event's price (we have no earlier data).
+// the first recorded event are left out: we have no data for them, and for a
+// recent release inventing a price would draw a history that never existed.
 func BuildDailySeries(events []HistoryEvent, startDate, endDate time.Time) []models.PricePoint {
 	if len(events) == 0 {
 		return nil
@@ -25,12 +26,15 @@ func BuildDailySeries(events []HistoryEvent, startDate, endDate time.Time) []mod
 
 	points := make([]models.PricePoint, 0, int(endDate.Sub(startDate).Hours()/24)+1)
 	eventIdx := 0
-	current := sorted[0]
+	var current HistoryEvent
 
 	for day := startDate; !day.After(endDate); day = day.AddDate(0, 0, 1) {
 		for eventIdx < len(sorted) && !sorted[eventIdx].Timestamp.After(day) {
 			current = sorted[eventIdx]
 			eventIdx++
+		}
+		if eventIdx == 0 {
+			continue // no price known yet on this day
 		}
 		points = append(points, models.PricePoint{
 			Date:               day,

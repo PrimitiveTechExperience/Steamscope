@@ -29,10 +29,7 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 		game.Publishers = append(game.Publishers, strings.TrimSpace(s.Text()))
 	})
 	// Convert ReleaseDate to time.Time
-	releaseDateStr := strings.TrimSpace(doc.Find(".date").First().Text())
-	if releaseDate, err := time.Parse("2 Jan, 2006", releaseDateStr); err == nil {
-		game.ReleaseDate = releaseDate
-	}
+	game.ReleaseDate = parseReleaseDate(doc.Find(".release_date .date, .date").First().Text())
 	// The purchase area can contain multiple ".game_area_purchase_game" blocks:
 	// the game's own purchase/play section, plus promotional "buy as a bundle"
 	// sections (e.g. class "game_area_purchase_game_dropdown_subscription", or
@@ -64,7 +61,7 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 		game.Price = discountPrice
 		game.OriginalPrice = originalPrice
 		game.DiscountPercentage = parseDiscountPercentage(purchaseSection.Find(".discount_pct").First().Text())
-	}else{
+	} else {
 		priceStr := strings.TrimSpace(purchaseSection.Find(".game_purchase_price").First().Text())
 		price, _ := parsePrice(priceStr)
 		game.Price = price
@@ -89,10 +86,12 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	game.ReviewCount, _ = strconv.Atoi(reviewCountText)
 	// Need to fetch from second or third instance of .user_reviews_summary_row as html layout is odd.
 	game.ReviewScore = strings.TrimSpace(doc.Find(".user_reviews_summary_row").Eq(1).Find(".game_review_summary").First().Text())
-	descriptionBlock := doc.Find("#game_area_description").First()
-	game.Description = strings.TrimSpace(descriptionBlock.Text())
-	game.DescriptionHTML = sanitizeDescriptionHTML(descriptionBlock)
-	game.BundleIDs = discoverBundleIDs(doc)
+	// The description is stored twice: as sanitized HTML (headings,
+	// paragraphs, bold text, images, lists) for the game page to render the
+	// way Steam's store page does, and as plain text for cards and search.
+	descriptionSel := doc.Find("#game_area_description").First()
+	game.DescriptionHTML = sanitizeDescriptionHTML(descriptionSel)
+	game.Description = descriptionPlainText(descriptionSel)
 	game.HeaderImage, _ = doc.Find(".game_header_image_full").First().Attr("src")
 	if game.HeaderImage == "" {
 		// Some page variants (layout experiments, interstitial banners, etc.)
@@ -143,19 +142,41 @@ func parseDiscountPercentage(discountText string) int {
 }
 
 func parsePrice(priceText string) (float64, string) {
-    priceText = strings.TrimSpace(priceText)
+	priceText = strings.TrimSpace(priceText)
 
-    re := regexp.MustCompile(`^\s*([^\d]*?)\s*(\d+(?:\.\d+)?)\s*([^\d]*)\s*$`)
-    matches := re.FindStringSubmatch(priceText)
-    if len(matches) != 4 {
-        return 0, ""
-    }
+	re := regexp.MustCompile(`^\s*([^\d]*?)\s*(\d+(?:\.\d+)?)\s*([^\d]*)\s*$`)
+	matches := re.FindStringSubmatch(priceText)
+	if len(matches) != 4 {
+		return 0, ""
+	}
 
-    price, err := strconv.ParseFloat(matches[2], 64)
-    if err != nil {
-        return 0, ""
-    }
+	price, err := strconv.ParseFloat(matches[2], 64)
+	if err != nil {
+		return 0, ""
+	}
 
-    currency := strings.TrimSpace(matches[1] + matches[3])
-    return price, currency
+	currency := strings.TrimSpace(matches[1] + matches[3])
+	return price, currency
+}
+
+// releaseDateLayouts are the formats Steam writes release dates in. Which one
+// it uses depends on the store region (US pages say "Sep 2, 2026", others
+// "2 Sep, 2026"). Month-only and year-only dates ("Sep 2026") resolve to the
+// first day of that period.
+var releaseDateLayouts = []string{
+	"2 Jan, 2006", "2 January, 2006",
+	"Jan 2, 2006", "January 2, 2006",
+	"Jan 2006", "January 2006", "2006",
+}
+
+// parseReleaseDate returns the zero time for anything unparseable, such as
+// "Coming soon" or "To be announced".
+func parseReleaseDate(raw string) time.Time {
+	raw = strings.TrimSpace(raw)
+	for _, layout := range releaseDateLayouts {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }

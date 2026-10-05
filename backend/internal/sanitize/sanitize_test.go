@@ -42,3 +42,21 @@ func TestValidPassword(t *testing.T) {
 		t.Error("control/invalid passwords accepted")
 	}
 }
+
+func TestPattern(t *testing.T) {
+	if got, ok := Pattern("  ^shady  games$ ", 50); !ok || got != "^shady  games$" {
+		t.Errorf("got %q, %v; inner whitespace must be preserved exactly", got, ok)
+	}
+	bad := map[string]string{
+		"empty":         "   ",
+		"too long":      "aaaaaa",
+		"control char":  "a\x00b",
+		"zero width":    "a\u200bb",
+		"invalid utf-8": "a\xffb",
+	}
+	for name, in := range bad {
+		if _, ok := Pattern(in, 5); ok {
+			t.Errorf("%s: %q should be rejected", name, in)
+		}
+	}
+}
