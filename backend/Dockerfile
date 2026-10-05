@@ -4,7 +4,7 @@
 # Build from the REPOSITORY ROOT (go.mod lives there):
 #   docker build -f backend/Dockerfile -t steamscope-api --build-arg VERSION=$(git rev-parse --short HEAD) .
 
-FROM golang:1.26-alpine AS build
+FROM golang:1.27-alpine AS build
 WORKDIR /src
 
 # Download modules first so this layer is cached until go.mod/go.sum change.
