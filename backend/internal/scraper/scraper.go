@@ -75,10 +75,9 @@ func New(baseURL string) *Scraper {
 	}
 	return s
 }
-// 
+
 // GAME SCRAPING FUNCTIONS
-// 
-func (s *Scraper) ScrapeGame(appID int, c *colly.Collector) (error) {
+func (s *Scraper) ScrapeGame(appID int, c *colly.Collector) error {
 	// Steam prices by the requester's IP (this scraper was getting CDN$), while
 	// the price history it's stored next to is USD. cc pins the region.
 	url := fmt.Sprintf("%s/app/%d?cc=%s&l=english", s.BaseURL, appID, storeCountry)

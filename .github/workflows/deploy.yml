@@ -32,7 +32,10 @@ jobs:
 
       - uses: actions/setup-go@v5
         with:
-          go-version-file: go.mod
+          # Latest 1.26.x patch release, so the standard library has the current security fixes
+          # (go.mod only sets the minimum). Fixes the govulncheck stdlib findings.
+          go-version: 1.26.x
+          check-latest: true
           cache: true
 
       - name: Build server, scraper and backfill tool
