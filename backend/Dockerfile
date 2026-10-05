@@ -21,7 +21,7 @@ RUN --mount=type=cache,target=/go/pkg/mod --mount=type=cache,target=/root/.cache
         -o /out/${cmd} ./backend/cmd/${cmd}; \
     done
 
-FROM alpine:3.20
+FROM alpine:3.24
 RUN apk add --no-cache ca-certificates tzdata \
     && addgroup -S app && adduser -S -G app app
 WORKDIR /app
