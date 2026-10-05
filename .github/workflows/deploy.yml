@@ -30,7 +30,7 @@ jobs:
         with:
           ref: ${{ env.SHA }}
 
-      - uses: actions/setup-go@v5
+      - uses: actions/setup-go@v7
         with:
           # Latest 1.26.x patch release, so the standard library has the current security fixes
           # (go.mod only sets the minimum). Fixes the govulncheck stdlib findings.
