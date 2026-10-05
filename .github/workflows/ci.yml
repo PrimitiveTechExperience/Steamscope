@@ -88,6 +88,12 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # package.json pins npm 11 (the "packageManager" field), and Dependabot and local
+      # installs write lockfiles with it. Node 22 bundles npm 10, which rejects those
+      # lockfiles ("Missing: @emnapi/core ... from lock file"). Use the pinned version.
+      - name: Use the pinned npm version
+        run: npm install -g npm@11.6.2
+
       - run: npm ci
 
       - name: Unit and component tests

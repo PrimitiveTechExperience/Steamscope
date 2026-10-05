@@ -13,8 +13,19 @@ updates:
     schedule:
       interval: weekly
     groups:
+      # Angular packages pin each other's exact versions (core 21.2.25 needs common 21.2.25,
+      # router 21.2.25, ...), so they can only be upgraded together. One PR for all of them.
+      angular:
+        patterns: ["@angular/*", "@angular-devkit/*", "@schematics/*"]
+        update-types: [minor, patch]
       npm-minor-and-patch:
         update-types: [minor, patch]
+    ignore:
+      # Major upgrades are deliberate projects, not automatic PRs: Angular 22 needs every
+      # @angular/* package moved at once (and a new TypeScript), TypeScript 7 isn't supported
+      # by Angular 21 (it requires ~5.9), and so on. Bump these by hand when you decide to.
+      - dependency-name: "*"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
@@ -25,8 +36,16 @@ updates:
     directory: /backend
     schedule:
       interval: monthly
+    ignore:
+      # CI and go.mod track Go 1.26; move the base image together with them, by hand.
+      - dependency-name: golang
+        update-types: ["version-update:semver-major", "version-update:semver-minor"]
 
   - package-ecosystem: docker
     directory: /frontend
     schedule:
       interval: monthly
+    ignore:
+      # Stay on the Node 22 LTS line that CI and the lockfile are tested with.
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
