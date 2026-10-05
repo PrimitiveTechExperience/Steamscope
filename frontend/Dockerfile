@@ -7,6 +7,9 @@
 FROM node:22-alpine AS build
 WORKDIR /app
 
+# Match the "packageManager" pin; the npm bundled with Node 22 (v10) rejects lockfiles written by npm 11.
+RUN npm install -g npm@11.6.2
+
 COPY package.json package-lock.json ./
 RUN --mount=type=cache,target=/root/.npm npm ci
 
@@ -19,6 +22,7 @@ RUN printf "export const environment = {\n  apiUrl: '%s',\n};\n" "$API_URL" > sr
 FROM node:22-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=4000
+RUN npm install -g npm@11.6.2
 
 # The SSR bundle imports express (and friends) at runtime.
 COPY package.json package-lock.json ./
