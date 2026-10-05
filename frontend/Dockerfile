@@ -4,7 +4,7 @@
 # Build context is the frontend/ directory:
 #   docker build -t steamscope-web --build-arg API_URL=https://api.example.com/api frontend
 
-FROM node:22-alpine AS build
+FROM node:26-alpine AS build
 WORKDIR /app
 
 COPY package.json package-lock.json ./
@@ -16,7 +16,7 @@ ARG API_URL=http://localhost:8080/api
 RUN printf "export const environment = {\n  apiUrl: '%s',\n};\n" "$API_URL" > src/environments/environment.production.ts \
     && npx ng build
 
-FROM node:22-alpine
+FROM node:26-alpine
 WORKDIR /app
 ENV NODE_ENV=production PORT=4000
 
