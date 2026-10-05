@@ -1,0 +1,16 @@
+# Daily Steamscope scrape. Install for the user that owns /opt/steamscope:
+#
+#   crontab -e          # then paste the lines below
+#
+# or system-wide:  sudo cp deploy/cron/steamscope.crontab /etc/cron.d/steamscope
+# (in /etc/cron.d a user column is required: add "steamscope" before the command).
+#
+# Fields: minute hour day-of-month month day-of-week command
+# 04:15 every day, server local time. Pick a quiet hour; Steam is slowest in US evenings.
+
+SHELL=/bin/bash
+PATH=/usr/local/bin:/usr/bin:/bin
+STEAMSCOPE_DIR=/opt/steamscope
+# PING_URL=https://hc-ping.com/your-uuid   # optional: alert if the job stops running
+
+15 4 * * * /usr/bin/env bash /opt/steamscope/deploy/cron/scrape.sh

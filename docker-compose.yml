@@ -1,0 +1,44 @@
+# Optional: run the API and web app in containers.
+#   docker compose up --build
+# Postgres (Supabase) and Redis (Upstash) stay external, configured in .env.
+# See docs/CI-CD.md. The daily scrape is meant to run from cron, not here
+# (deploy/); the "scraper" profile is only for a one-off manual run:
+#   docker compose --profile tools run --rm scraper
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+      args:
+        VERSION: ${VERSION:-dev}
+    env_file: .env
+    environment:
+      PORT: "8080"
+      # The API serves the scheduled scrape too, unless cron does it instead.
+      DISABLE_SCHEDULER: ${DISABLE_SCHEDULER:-false}
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+
+  web:
+    build:
+      context: frontend
+      args:
+        API_URL: ${API_URL:-http://localhost:8080/api}
+    environment:
+      PORT: "4000"
+      NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-localhost}
+    ports:
+      - "4000:4000"
+    depends_on:
+      - api
+    restart: unless-stopped
+
+  scraper:
+    profiles: ["tools"]
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    env_file: .env
+    command: ["/app/scraper"]

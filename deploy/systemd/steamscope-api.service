@@ -1,0 +1,25 @@
+[Unit]
+Description=Steamscope API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=steamscope
+Group=steamscope
+WorkingDirectory=/opt/steamscope
+ExecStart=/opt/steamscope/server
+# The daily scrape is run by steamscope-scrape.timer, so the in-process scheduler stays off.
+Environment=DISABLE_SCHEDULER=true
+Environment=PORT=8080
+Restart=on-failure
+RestartSec=5
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/opt/steamscope
+
+[Install]
+WantedBy=multi-user.target

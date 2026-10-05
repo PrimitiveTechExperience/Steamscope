@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the Steamscope scrape every day
+
+[Timer]
+OnCalendar=*-*-* 04:15:00
+# If the machine was off at 04:15, run once as soon as it's back up.
+Persistent=true
+# Spread load if several hosts share a schedule.
+RandomizedDelaySec=10min
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,24 @@
+[Unit]
+Description=Steamscope daily scrape (games, bundles, price history)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=steamscope
+Group=steamscope
+WorkingDirectory=/opt/steamscope
+# The scraper loads /opt/steamscope/.env itself; this file is for overrides such as PING_URL.
+EnvironmentFile=-/etc/default/steamscope
+Environment=STEAMSCOPE_DIR=/opt/steamscope
+ExecStart=/usr/bin/env bash /opt/steamscope/deploy/cron/scrape.sh
+# A scrape that hangs shouldn't hold the lock forever.
+TimeoutStartSec=2h
+Nice=10
+
+# Hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/steamscope/logs /tmp
+ProtectHome=true

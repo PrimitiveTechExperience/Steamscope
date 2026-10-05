@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 	"github.com/PuerkitoBio/goquery"
@@ -156,4 +157,26 @@ func parsePrice(priceText string) (float64, string) {
 
 	currency := strings.TrimSpace(matches[1] + matches[3])
 	return price, currency
+}
+
+// releaseDateLayouts are the formats Steam writes release dates in. Which one
+// it uses depends on the store region (US pages say "Sep 2, 2026", others
+// "2 Sep, 2026"). Month-only and year-only dates ("Sep 2026") resolve to the
+// first day of that period.
+var releaseDateLayouts = []string{
+	"2 Jan, 2006", "2 January, 2006",
+	"Jan 2, 2006", "January 2, 2006",
+	"Jan 2006", "January 2006", "2006",
+}
+
+// parseReleaseDate returns the zero time for anything unparseable, such as
+// "Coming soon" or "To be announced".
+func parseReleaseDate(raw string) time.Time {
+	raw = strings.TrimSpace(raw)
+	for _, layout := range releaseDateLayouts {
+		if t, err := time.Parse(layout, raw); err == nil {
+			return t
+		}
+	}
+	return time.Time{}
 }

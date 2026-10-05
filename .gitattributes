@@ -1,0 +1,11 @@
+# Keep line endings LF in the repository so formatters, CI on Linux and shell
+# scripts behave the same as on Windows checkouts.
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.woff binary
+*.woff2 binary
+*.exe binary

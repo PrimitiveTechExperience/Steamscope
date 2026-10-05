@@ -1,0 +1,22 @@
+.git
+.github
+.claude
+.vscode
+.idea
+
+# Secrets and local state never go into an image
+.env
+.env.*
+!.env.example
+*.exe
+test.txt
+
+# Built output and dependencies are produced inside the image
+frontend/node_modules
+frontend/dist
+frontend/.angular
+bin/
+
+# Docs and deployment scripts aren't needed at runtime
+docs
+deploy

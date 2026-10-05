@@ -1,0 +1,151 @@
+name: Deploy
+
+# Runs after CI succeeds on main (or on demand). Every stage is opt-in through
+# repository variables/secrets, so with none configured this just builds the
+# Linux binaries and attaches them to the run. See docs/CI-CD.md.
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  build-binaries:
+    name: Build Linux binaries
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Build server, scraper and backfill tool
+        env:
+          CGO_ENABLED: "0"
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist
+          for cmd in server scraper backfill-history; do
+            go build -trimpath \
+              -ldflags "-s -w -X github.com/PrimitiveTechExperience/Steamscope/backend/internal/observability.Version=${SHA::7}" \
+              -o dist/$cmd ./backend/cmd/$cmd
+          done
+          cp -r deploy dist/deploy
+          cp backend/internal/config/config.json dist/config.json
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: steamscope-linux-amd64
+          path: dist
+          retention-days: 30
+
+  deploy-ssh:
+    name: Deploy over SSH
+    needs: build-binaries
+    # Opt in: Settings > Secrets and variables > Actions > Variables > DEPLOY_SSH_ENABLED = true
+    if: vars.DEPLOY_SSH_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: steamscope-linux-amd64
+          path: dist
+
+      - name: Install SSH key
+        run: |
+          install -m 700 -d ~/.ssh
+          echo "${{ secrets.DEPLOY_SSH_KEY }}" > ~/.ssh/id_deploy
+          chmod 600 ~/.ssh/id_deploy
+          ssh-keyscan -p "${{ vars.DEPLOY_SSH_PORT || 22 }}" "${{ secrets.DEPLOY_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload files
+        run: |
+          rsync -az --delete-after \
+            -e "ssh -i ~/.ssh/id_deploy -p ${{ vars.DEPLOY_SSH_PORT || 22 }}" \
+            dist/deploy/ "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ vars.DEPLOY_PATH || '/opt/steamscope' }}/deploy/"
+          scp -i ~/.ssh/id_deploy -P "${{ vars.DEPLOY_SSH_PORT || 22 }}" \
+            dist/server dist/scraper dist/backfill-history \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}:${{ vars.DEPLOY_PATH || '/opt/steamscope' }}/"
+
+      - name: Restart the API
+        run: |
+          ssh -i ~/.ssh/id_deploy -p "${{ vars.DEPLOY_SSH_PORT || 22 }}" \
+            "${{ secrets.DEPLOY_USER }}@${{ secrets.DEPLOY_HOST }}" \
+            "chmod +x ${{ vars.DEPLOY_PATH || '/opt/steamscope' }}/{server,scraper,backfill-history} && sudo systemctl restart steamscope-api"
+
+      - name: Smoke test
+        if: vars.HEALTHCHECK_URL != ''
+        run: |
+          for i in $(seq 1 12); do
+            if curl -fsS "${{ vars.HEALTHCHECK_URL }}/api/ready"; then echo; exit 0; fi
+            sleep 5
+          done
+          echo "readiness check never passed"; exit 1
+
+  publish-images:
+    name: Publish images to GHCR
+    needs: build-binaries
+    # Opt in with the variable PUBLISH_IMAGES = true.
+    if: vars.PUBLISH_IMAGES == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.SHA }}
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Lower-case image prefix
+        run: echo "IMAGE=ghcr.io/${GITHUB_REPOSITORY,,}" >> "$GITHUB_ENV"
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: backend/Dockerfile
+          push: true
+          build-args: VERSION=${{ env.SHA }}
+          tags: |
+            ${{ env.IMAGE }}-api:latest
+            ${{ env.IMAGE }}-api:${{ env.SHA }}
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,scope=api,mode=max
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: frontend
+          push: true
+          build-args: API_URL=${{ vars.API_URL }}
+          tags: |
+            ${{ env.IMAGE }}-web:latest
+            ${{ env.IMAGE }}-web:${{ env.SHA }}
+          cache-from: type=gha,scope=web
+          cache-to: type=gha,scope=web,mode=max

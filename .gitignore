@@ -7,7 +7,8 @@
 bin/
 # Ignore .env
 .env
-
+# Ignore local ./docs
+docs/
 
 # Local artifacts
 *.exe
