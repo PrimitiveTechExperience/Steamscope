@@ -22,6 +22,8 @@ type Config struct {
 	// DisableScheduler turns off the in-process daily scrape (use when an
 	// external cron job runs the scraper).
 	DisableScheduler bool
+	// AccessLog logs every request (not just server errors) when true.
+	AccessLog bool
 }
 
 type AuthConfig struct {
@@ -79,6 +81,7 @@ func LoadConfig() *Config {
 		BackendURL:       strings.TrimRight(getEnv("BACKEND_URL", "http://localhost:8080"), "/"),
 		MetricsToken:     os.Getenv("METRICS_TOKEN"),
 		DisableScheduler: os.Getenv("DISABLE_SCHEDULER") == "true",
+		AccessLog:        os.Getenv("ACCESS_LOG") == "true",
 	}
 }
 

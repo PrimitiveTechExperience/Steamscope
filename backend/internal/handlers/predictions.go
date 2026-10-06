@@ -36,6 +36,9 @@ func (h *Handler) GetPrediction(w http.ResponseWriter, r *http.Request) {
 	}
 	f, err := h.forecast(r.Context(), appID)
 	if err != nil {
+		if r.Context().Err() != nil {
+			return // the client went away; nobody is waiting for an answer
+		}
 		log.Printf("prediction for %d: %v", appID, err)
 		writeError(w, http.StatusInternalServerError, "failed to compute the forecast")
 		return
@@ -59,6 +62,9 @@ func (h *Handler) GetAdvice(w http.ResponseWriter, r *http.Request) {
 	}
 	f, err := h.forecast(r.Context(), appID)
 	if err != nil {
+		if r.Context().Err() != nil {
+			return
+		}
 		log.Printf("advice for %d: %v", appID, err)
 		writeError(w, http.StatusInternalServerError, "failed to compute the advice")
 		return
@@ -100,6 +106,9 @@ func (h *Handler) predictionRequest(w http.ResponseWriter, r *http.Request) (int
 		writeError(w, http.StatusNotFound, "game not found")
 		return 0, false
 	} else if err != nil {
+		if r.Context().Err() != nil {
+			return 0, false // the client went away
+		}
 		log.Printf("prediction: game lookup %d: %v", appID, err)
 		writeError(w, http.StatusInternalServerError, "failed to load the game")
 		return 0, false
@@ -115,7 +124,7 @@ func (h *Handler) forecast(ctx context.Context, appID int) (prediction.Forecast,
 	if err != nil {
 		return prediction.Forecast{}, err
 	}
-	version := fmt.Sprintf("%d|%s|%.2f|itad=%t", summary.Rows, summary.LastDate.Format("2006-01-02"), summary.LastPrice, h.ITAD != nil)
+	version := fmt.Sprintf("m%s|%d|%s|%.2f|itad=%t", prediction.ModelVersion, summary.Rows, summary.LastDate.Format("2006-01-02"), summary.LastPrice, h.ITAD != nil)
 
 	if f, ok := h.Predictions.Get(ctx, appID, version); ok {
 		observability.PredictionRequests.WithLabelValues("hit").Inc()
@@ -128,11 +137,11 @@ func (h *Handler) forecast(ctx context.Context, appID int) (prediction.Forecast,
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*itadTimeout)
 		defer cancel()
 
-		points, extended, err := h.historyPoints(cctx, appID)
+		points, allTimeLow, extended, err := h.historyPoints(cctx, appID)
 		if err != nil {
 			return nil, err
 		}
-		f := prediction.Predict(appID, points, version, prediction.Options{})
+		f := prediction.Predict(appID, points, version, prediction.Options{AllTimeLow: allTimeLow})
 		f.UsedExtended = extended
 		observability.PredictionCompute.Observe(time.Since(start).Seconds())
 
@@ -156,17 +165,17 @@ func (h *Handler) forecast(ctx context.Context, appID int) (prediction.Forecast,
 // configured, extends it backwards with ITAD's longer log. Recorded days always
 // win over ITAD's for the dates they cover. A failing ITAD call only costs the
 // extension, never the forecast.
-func (h *Handler) historyPoints(ctx context.Context, appID int) ([]prediction.Point, bool, error) {
+func (h *Handler) historyPoints(ctx context.Context, appID int) (points []prediction.Point, allTimeLow float64, extended bool, err error) {
 	recorded, err := h.DB.GetPriceHistory(ctx, appID)
 	if err != nil {
-		return nil, false, err
+		return nil, 0, false, err
 	}
-	points := make([]prediction.Point, 0, len(recorded))
+	points = make([]prediction.Point, 0, len(recorded))
 	for _, p := range recorded {
 		points = append(points, prediction.Point{Date: p.Date, Price: p.Price, Regular: p.OriginalPrice})
 	}
 	if h.ITAD == nil {
-		return points, false, nil
+		return points, 0, false, nil
 	}
 
 	ictx, cancel := context.WithTimeout(ctx, itadTimeout)
@@ -174,9 +183,26 @@ func (h *Handler) historyPoints(ctx context.Context, appID int) ([]prediction.Po
 	events, err := h.ITAD.History(ictx, appID)
 	if err != nil {
 		log.Printf("prediction: ITAD history for %d unavailable, using recorded history only: %v", appID, err)
-		return points, false, nil
+		return points, 0, false, nil
 	}
-	return mergeHistory(points, events, time.Now()), true, nil
+	return mergeHistory(points, events, time.Now()), lowestPaid(events), true, nil
+}
+
+// lowestPaid is the lowest price anyone could have bought the game at in
+// ITAD's whole log. A $0 price is a free promotion (or free to play), not a
+// purchase price, and is ignored, whether or not ITAD labels it as one. It
+// returns 0 when there is no paid price.
+func lowestPaid(events []itad.HistoryEvent) float64 {
+	low := 0.0
+	for _, e := range events {
+		if e.Price <= 0 {
+			continue
+		}
+		if low == 0 || e.Price < low {
+			low = e.Price
+		}
+	}
+	return low
 }
 
 // mergeHistory prepends the daily series built from ITAD events to the

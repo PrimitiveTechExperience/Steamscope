@@ -12,6 +12,7 @@ const (
 	VerdictWait    = "wait"
 	VerdictTossUp  = "toss_up"
 	VerdictNoData  = "not_enough_data"
+	VerdictFree    = "free"
 	buyThreshold   = 60
 	waitThreshold  = 40
 	baseScore      = 50
@@ -54,6 +55,8 @@ type Advice struct {
 	ChanceOfLower float64 `json:"chance_of_lower"`
 	// ExpectedSavingPercent is the expected extra saving from waiting that long.
 	ExpectedSavingPercent float64 `json:"expected_saving_percent"`
+	// AtRecordLow is true when today's price is the lowest on record.
+	AtRecordLow bool `json:"at_record_low"`
 	// WaitUntil is the likely date of the next sale (only for a "wait" verdict).
 	WaitUntil    *string `json:"wait_until"`
 	Personalized bool    `json:"personalized"`
@@ -82,7 +85,7 @@ func patience(in AdviceInput) int {
 // forecast-based rules scaled down when the forecast is weak. The user's own
 // target price is never scaled: it is a fact, not an estimate.
 func Advise(f Forecast, in AdviceInput) Advice {
-	a := Advice{Reasons: []Reason{}, PatienceDays: patience(in), Personalized: in.Watching}
+	a := Advice{Reasons: []Reason{}, PatienceDays: patience(in), Personalized: in.Watching, AtRecordLow: f.AtRecordLow}
 	score := float64(baseScore)
 	add := func(code, text string, impact float64) {
 		score += impact
@@ -102,6 +105,14 @@ func Advise(f Forecast, in AdviceInput) Advice {
 		}
 	}
 
+	if f.Model == ModelFree {
+		a.Verdict = VerdictFree
+		a.Score = 100
+		a.Confidence = 1
+		a.Reasons = append(a.Reasons, Reason{Code: "free", Text: "This game is free, so there is nothing to wait for"})
+		return a
+	}
+
 	if f.Model == ModelInsufficient {
 		a.Verdict = VerdictNoData
 		if targetMet {
@@ -118,6 +129,8 @@ func Advise(f Forecast, in AdviceInput) Advice {
 	if f.HistoricLow > 0 && price > 0 {
 		ratio := price / f.HistoricLow
 		switch {
+		case f.AtRecordLow:
+			addForecast("record_low", fmt.Sprintf("This is the lowest price on record ($%.2f)", f.HistoricLow), 30)
 		case ratio <= 1.02:
 			addForecast("at_historic_low", fmt.Sprintf("Within 2%% of the lowest price on record ($%.2f)", f.HistoricLow), 30)
 		case ratio <= 1.10:
@@ -193,7 +206,7 @@ func Advise(f Forecast, in AdviceInput) Advice {
 		a.Verdict = VerdictBuyNow
 		a.Score = max(a.Score, buyThreshold)
 	}
-	a.Confidence = round2(math.Min(1, math.Abs(float64(a.Score)-baseScore)/baseScore) * (0.5 + 0.5*f.Confidence))
+	a.Confidence = round4(math.Min(1, math.Abs(float64(a.Score)-baseScore)/baseScore) * (0.5 + 0.5*f.Confidence))
 
 	if a.Verdict == VerdictWait && f.Next.MedianDays != nil {
 		d := f.GeneratedAt.AddDate(0, 0, *f.Next.MedianDays).Format(time.DateOnly)

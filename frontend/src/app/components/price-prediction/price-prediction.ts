@@ -1,4 +1,4 @@
-import { Component, PLATFORM_ID, computed, inject, input } from '@angular/core';
+import { Component, PLATFORM_ID, computed, effect, inject, input, output } from '@angular/core';
 import { CurrencyPipe, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular/common';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ChartConfiguration } from 'chart.js';
@@ -8,6 +8,7 @@ import { Observable, catchError, combineLatest, map, of, startWith, switchMap } 
 import { GamesService } from '../../services/games';
 import { ThemeService } from '../../services/theme';
 import { Advice, Forecast, Verdict } from '../../models/prediction';
+import { confidenceText } from '../../utils/confidence';
 
 interface Load<T> {
   data: T | null;
@@ -30,6 +31,7 @@ const VERDICT_LABELS: Record<Verdict, string> = {
   wait: 'Wait',
   toss_up: 'Toss-up',
   not_enough_data: 'Not enough data',
+  free: 'Free',
 };
 
 const VERDICT_BACKGROUNDS: Record<Verdict, string> = {
@@ -37,6 +39,7 @@ const VERDICT_BACKGROUNDS: Record<Verdict, string> = {
   wait: 'var(--color-accent)',
   toss_up: 'var(--color-surface-alt)',
   not_enough_data: 'var(--color-surface-alt)',
+  free: 'var(--color-discount)',
 };
 
 const HORIZON_LABELS: Record<number, string> = { 30: '1 month', 90: '3 months', 180: '6 months', 365: '1 year', 730: '2 years' };
@@ -51,6 +54,9 @@ export class PricePredictionComponent {
   appId = input.required<number>();
   /** Change this to refetch, e.g. after the user starts watching or sets a target price. */
   refreshKey = input<unknown>(null);
+
+  /** Emits whether today's price is the lowest on record, once the forecast has loaded. */
+  recordLowChange = output<boolean>();
 
   private games = inject(GamesService);
   private themeService = inject(ThemeService);
@@ -74,15 +80,25 @@ export class PricePredictionComponent {
 
   protected hasForecast = computed(() => {
     const f = this.forecast();
-    return !!f && f.model !== 'insufficient';
+    return !!f && f.model !== 'insufficient' && f.model !== 'free';
   });
+  protected isFree = computed(() => this.forecast()?.model === 'free');
+  protected atRecordLow = computed(() => this.forecast()?.at_record_low === true);
+
+  constructor() {
+    effect(() => this.recordLowChange.emit(this.atRecordLow()));
+  }
 
   protected verdictLabel = computed(() => VERDICT_LABELS[this.advice()?.verdict ?? 'not_enough_data']);
   protected verdictBackground = computed(() => VERDICT_BACKGROUNDS[this.advice()?.verdict ?? 'not_enough_data']);
-  protected verdictColor = computed(() => (this.advice()?.verdict === 'buy_now' || this.advice()?.verdict === 'wait' ? '#fff' : 'var(--color-text)'));
+  protected verdictColor = computed(() => {
+    const v = this.advice()?.verdict;
+    return v === 'buy_now' || v === 'wait' || v === 'free' ? '#fff' : 'var(--color-text)';
+  });
 
-  protected forecastConfidence = computed(() => confidenceLabel(this.forecast()?.confidence ?? 0));
-  protected adviceConfidence = computed(() => confidenceLabel(this.advice()?.confidence ?? 0));
+  // e.g. "High-medium (54.37%)": the word, plus the exact percentage.
+  protected forecastConfidence = computed(() => confidenceText(this.forecast()?.confidence ?? 0));
+  protected adviceConfidence = computed(() => confidenceText(this.advice()?.confidence ?? 0));
 
   protected nextSaleText = computed(() => {
     const next = this.forecast()?.next_sale;
@@ -169,12 +185,6 @@ export class PricePredictionComponent {
       },
     };
   });
-}
-
-function confidenceLabel(c: number): string {
-  if (c >= 0.66) return 'High';
-  if (c >= 0.33) return 'Medium';
-  return 'Low';
 }
 
 /** "2027-03-14" -> "Mar '27". Dates are calendar days, so they are formatted in UTC. */

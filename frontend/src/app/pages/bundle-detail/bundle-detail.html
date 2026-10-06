@@ -15,9 +15,16 @@
                         <span class="text-sm text-[var(--color-text-muted)] line-through">{{ b.original_price | currency }}</span>
                     }
                     <span class="text-2xl font-bold text-[var(--color-text)]">{{ b.price | currency }}</span>
+                    @if (b.at_record_low) {
+                        <span class="record-low-badge edge-btn bg-[var(--color-discount)] px-2 py-1 text-xs font-black uppercase text-white" title="The lowest price recorded for this bundle">Record low</span>
+                    }
                 </div>
                 <a [href]="b.url" target="_blank" rel="noopener noreferrer" class="edge-btn mt-auto w-fit bg-[var(--color-accent)] px-4 py-2 text-sm text-white">View on Steam</a>
             </div>
+        </div>
+
+        <div class="mt-6">
+            <app-bundle-value [value]="b.value" [historyDays]="b.history_days" />
         </div>
 
         <div class="mt-6">

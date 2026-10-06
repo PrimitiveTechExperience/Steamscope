@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/prediction"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/testutil"
 )
 
@@ -409,5 +410,38 @@ func TestDeleteFabricatedHistory(t *testing.T) {
 	}
 	if n, _ := app.DB.DeleteFabricatedHistory(t.Context(), 7601, eventDay, 5, 10); n != 0 {
 		t.Errorf("a second run deleted %d rows, want 0 (idempotent)", n)
+	}
+}
+
+func TestCachedForecastsAreTiedToTheModelVersion(t *testing.T) {
+	// A forecast made by a different version of the model must never be served:
+	// after a model change, old numbers would otherwise linger for hours.
+	app := testutil.NewApp(t)
+	app.SeedGame(7701, "Versioned", []string{"d"}, []string{"p"})
+	app.SeedPriceHistory(7701, periodicHistory(400))
+	c := app.NewClient()
+
+	first := c.Get("/api/games/7701/prediction").JSON()
+	if v, _ := first["data_version"].(string); !strings.HasPrefix(v, "m"+prediction.ModelVersion+"|") {
+		t.Fatalf("data_version = %q, want it to start with the model version m%s|", first["data_version"], prediction.ModelVersion)
+	}
+	if c.Get("/api/games/7701/prediction").JSON()["cached"] != true {
+		t.Fatal("the second request should be cached")
+	}
+
+	// Rewrite the stored forecast as if an older model had made it.
+	raw, err := app.Mini.Get("prediction:7701")
+	if err != nil {
+		t.Fatal(err)
+	}
+	old := strings.Replace(raw, `"data_version":"m`+prediction.ModelVersion+`|`, `"data_version":"m0|`, 1)
+	if old == raw {
+		t.Fatal("could not find the data version in the cached forecast")
+	}
+	app.Mini.Set("prediction:7701", old)
+
+	resp := c.Get("/api/games/7701/prediction").JSON()
+	if resp["cached"] != false {
+		t.Error("a forecast from another model version was served from the cache")
 	}
 }

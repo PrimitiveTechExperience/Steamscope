@@ -11,7 +11,7 @@ function render(over = {}) {
   return { fixture, el: fixture.nativeElement as HTMLElement };
 }
 
-const GAMES = [1, 2, 3, 4, 5].map((id) => ({ app_id: id, name: `Game ${id}`, tracked: true, track_status: '' as const }));
+const GAMES = [1, 2, 3, 4, 5].map((id) => ({ app_id: id, name: `Game ${id}`, tracked: true, track_status: '' as const, price: 10, regular_price: 20 }));
 
 describe('BundleArtComponent', () => {
   it("shows Steam's header image when the bundle has one", () => {

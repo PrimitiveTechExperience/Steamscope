@@ -92,14 +92,15 @@ func Backtest(series map[int][]Point, cfg BacktestConfig) BacktestReport {
 				}
 			}
 			f := Predict(id, known, "backtest", Options{Now: cutoff, Paths: cfg.Paths, Seed: 1})
-			if f.Model == ModelInsufficient {
-				continue
+			if f.Model == ModelInsufficient || f.Model == ModelFree {
+				continue // a free game has no price to forecast
 			}
 
+			// "Lower" means strictly lower and at least DropThreshold below.
 			threshold := all[i].price * (1 - DropThreshold)
 			outcome := false
 			for j := i + 1; j <= i+cfg.LookaheadDays; j++ {
-				if all[j].price <= threshold+1e-9 {
+				if all[j].price < all[i].price-1e-9 && all[j].price <= threshold+1e-9 {
 					outcome = true
 					break
 				}

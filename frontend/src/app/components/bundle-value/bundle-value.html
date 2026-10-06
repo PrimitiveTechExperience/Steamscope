@@ -1,0 +1,104 @@
+<div class="edge-panel p-4">
+    <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Is this bundle worth it?</h2>
+
+    @if (value().at_record_low) {
+        <div class="record-low edge-btn mt-4 flex flex-wrap items-center gap-2 px-3 py-2 text-sm font-bold" style="background: var(--color-discount); color: #fff;">
+            <span class="uppercase">Record low</span>
+            <span class="font-normal">
+                The lowest price recorded for this bundle ({{ value().record_low | currency }}, from {{ historyDays() }} {{ historyDays() === 1 ? 'day' : 'days' }} of history).
+            </span>
+        </div>
+    }
+
+    <div class="mt-4 flex flex-wrap items-center gap-3">
+        <span class="verdict edge-btn px-4 py-2 text-lg font-black uppercase" [style.background]="background()" [style.color]="color()">{{ label() }}</span>
+        @if (judged()) {
+            <span class="score text-sm text-[var(--color-text-muted)]">Score {{ value().score }}/100</span>
+        }
+    </div>
+
+    @if (judged()) {
+        <table class="comparison mt-4 w-full text-sm">
+            <tbody>
+                <tr class="border-t border-[var(--color-border)]">
+                    <td class="py-1.5 text-[var(--color-text-muted)]">Games at their regular prices</td>
+                    <td class="regular py-1.5 text-right text-[var(--color-text)]">{{ value().totals.regular | currency }}</td>
+                    <td class="vs-regular py-1.5 pl-3 text-right font-bold" [style.color]="vsRegular().good ? 'var(--color-discount)' : 'var(--color-accent)'">{{ vsRegular().text }}</td>
+                </tr>
+                <tr class="border-t border-[var(--color-border)]">
+                    <td class="py-1.5 text-[var(--color-text-muted)]">Buying the games separately today</td>
+                    <td class="separate py-1.5 text-right text-[var(--color-text)]">{{ value().totals.separate | currency }}</td>
+                    <td class="vs-separate py-1.5 pl-3 text-right font-bold" [style.color]="vsSeparate().good ? 'var(--color-discount)' : 'var(--color-accent)'">{{ vsSeparate().text }}</td>
+                </tr>
+                <tr class="border-t border-[var(--color-border)]">
+                    <td class="py-1.5 font-bold text-[var(--color-text)]">This bundle</td>
+                    <td class="bundle py-1.5 text-right font-bold text-[var(--color-text)]">{{ value().totals.bundle | currency }}</td>
+                    <td></td>
+                </tr>
+            </tbody>
+        </table>
+
+        @if (value().reasons.length > 0) {
+            <ul class="reasons mt-4 flex flex-col gap-1 text-sm">
+                @for (r of value().reasons; track r.code) {
+                    <li class="flex items-start gap-2">
+                        <span class="impact shrink-0 font-bold" [style.color]="r.impact >= 0 ? 'var(--color-discount)' : 'var(--color-accent)'">{{ impact(r.impact) }}</span>
+                        <span class="text-[var(--color-text)]">{{ r.text }}</span>
+                    </li>
+                }
+            </ul>
+        }
+    } @else {
+        <p class="no-data mt-4 text-sm text-[var(--color-text-muted)]">
+            There isn't enough price information about the games in this bundle to judge it yet.
+        </p>
+    }
+
+    @if (value().items.length > 0 && judged()) {
+        <table class="games mt-5 w-full text-sm">
+            <thead>
+                <tr class="text-left text-xs uppercase text-[var(--color-text-muted)]">
+                    <th class="pb-1 font-bold">Game</th>
+                    <th class="pb-1 text-right font-bold">Today</th>
+                    <th class="pb-1 text-right font-bold">Regular</th>
+                    <th class="pb-1 text-right font-bold">Its share of the bundle</th>
+                </tr>
+            </thead>
+            <tbody>
+                @for (i of value().items; track i.app_id) {
+                    <tr class="border-t border-[var(--color-border)]">
+                        <td class="py-1.5 text-[var(--color-text)]">
+                            {{ i.name }}
+                            @if (i.cheaper_alone) {
+                                <span class="cheaper-alone edge-btn ml-2 bg-[var(--color-accent-soft)] px-1.5 py-0.5 text-[10px] font-bold uppercase text-[var(--color-accent)]">Cheaper alone</span>
+                            }
+                        </td>
+                        @if (i.priced) {
+                            <td class="py-1.5 text-right text-[var(--color-text)]">
+                                {{ i.price | currency }}
+                                @if (i.discount_percent > 0) {
+                                    <span class="text-xs text-[var(--color-discount)]">-{{ i.discount_percent }}%</span>
+                                }
+                            </td>
+                            <td class="py-1.5 text-right text-[var(--color-text-muted)]">{{ i.regular_price | currency }}</td>
+                            <td class="py-1.5 text-right text-[var(--color-text)]">{{ i.bundle_share | currency }}</td>
+                        } @else {
+                            <td class="unknown py-1.5 text-right text-[var(--color-text-muted)]" colspan="3">price unknown</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+        @if (value().cheaper_alone_count > 0) {
+            <p class="cheaper-note mt-2 text-xs text-[var(--color-text-muted)]">
+                A game marked "Cheaper alone" costs less on its own today than its share of the bundle price. If you only want some of the games, check those first.
+            </p>
+        }
+    }
+
+    @if (unpriced() > 0 && judged()) {
+        <p class="incomplete mt-3 text-xs text-[var(--color-text-muted)]">
+            Prices for {{ unpriced() }} of {{ value().items.length }} games aren't available, so this only covers part of the bundle.
+        </p>
+    }
+</div>

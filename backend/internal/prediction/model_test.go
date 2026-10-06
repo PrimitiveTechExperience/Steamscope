@@ -330,20 +330,20 @@ func TestRenewalFit(t *testing.T) {
 		}
 		return eps
 	}
-	if r := fitRenewal(mk(), 400); r.model != ModelPoisson {
+	if r := fitRenewal(mk(), 400, 5); r.model != ModelPoisson {
 		t.Errorf("one sale: model %s, want poisson", r.model)
 	}
-	if r := fitRenewal(nil, 400); r.model != ModelNoSales {
+	if r := fitRenewal(nil, 400, 0); r.model != ModelNoSales {
 		t.Errorf("no sales: model %s", r.model)
 	}
-	regular := fitRenewal(mk(60, 60, 60, 60), 400)
+	regular := fitRenewal(mk(60, 60, 60, 60), 400, 245)
 	if regular.model != ModelWeibull || regular.shape < 3.9 {
 		t.Errorf("regular spacing: %+v, want a high Weibull shape", regular)
 	}
 	if math.Abs(regular.scale-60/math.Gamma(1+1/regular.shape)) > 1e-9 {
 		t.Errorf("scale = %v", regular.scale)
 	}
-	erratic := fitRenewal(mk(10, 100, 20, 150, 15, 200), 600)
+	erratic := fitRenewal(mk(10, 100, 20, 150, 15, 200), 600, 500)
 	if erratic.shape > 1.4 {
 		t.Errorf("erratic spacing: shape %.2f, want near 1 (memoryless)", erratic.shape)
 	}
@@ -410,4 +410,282 @@ func deref(p *int) int {
 		return -1
 	}
 	return *p
+}
+
+// regimes builds `total` days with a 10-day sale every 60 days from day 30,
+// whose depth is chosen per sale by the day it starts. It returns the points
+// and a "today" on the given day.
+func regimes(total, todayIdx int, depthOf func(startDay int) float64) ([]Point, time.Time) {
+	var pts []Point
+	for i := 0; i < total; i++ {
+		price := 20.0
+		if i >= 30 && (i-30)%60 < 10 {
+			price = 20 * (1 - depthOf(i-(i-30)%60))
+		}
+		pts = append(pts, Point{Date: epoch.AddDate(0, 0, i), Price: price, Regular: 20})
+	}
+	return pts[:todayIdx+1], epoch.AddDate(0, 0, todayIdx)
+}
+
+func TestRecentSalesCountForMoreThanOldOnes(t *testing.T) {
+	// Both games are on a 30%-off sale today. In A the only deeper (70%) sales
+	// were years ago (7 of 25); in B they were all within the last year (5 of
+	// 25). Counted equally, A has the higher share of deep sales and would be
+	// rated likelier to see another; weighted by recency, B should be.
+	const todayIdx = 1415 // inside the sale that began on day 1410
+	a, today := regimes(1460, todayIdx, func(d int) float64 {
+		if d < 400 {
+			return 0.7
+		}
+		return 0.3
+	})
+	b, _ := regimes(1460, todayIdx, func(d int) float64 {
+		if d >= 1100 && d < 1410 {
+			return 0.7
+		}
+		return 0.3
+	})
+
+	fa, fb := predict(t, a, today), predict(t, b, today)
+	if !fa.OnSale || !fb.OnSale || fa.CurrentDisc != 30 || fb.CurrentDisc != 30 {
+		t.Fatalf("setup: on sale %v/%v, discounts %d/%d", fa.OnSale, fb.OnSale, fa.CurrentDisc, fb.CurrentDisc)
+	}
+	pa, pb := curveByDay(fa)[91].PLowerBy, curveByDay(fb)[91].PLowerBy
+	if pa <= 0 {
+		t.Errorf("old deep sales still count a little: chance of a deeper sale = %.3f, want above 0", pa)
+	}
+	if pb < pa+0.1 {
+		t.Errorf("chance of a deeper sale within 91 days: old deep sales %.3f, recent deep sales %.3f; recent should be clearly higher", pa, pb)
+	}
+}
+
+func TestFreePromotionsAreNotSalesOrRecordLows(t *testing.T) {
+	// A $10 game with a free weekend (price $0) every 30 days, and no real sales.
+	var pts []Point
+	for i := 0; i < 200; i++ {
+		price := 10.0
+		if i%30 < 3 {
+			price = 0
+		}
+		pts = append(pts, Point{Date: epoch.AddDate(0, 0, i), Price: price, Regular: 10})
+	}
+	days := buildDays(pts, epoch.AddDate(0, 0, 199))
+	if eps := findEpisodes(days); len(eps) != 0 {
+		t.Errorf("found %d sales in a game that only has free weekends: %+v", len(eps), eps)
+	}
+	f := predict(t, pts, epoch.AddDate(0, 0, 199))
+	if f.HistoricLow != 10 {
+		t.Errorf("historic low = %v, want $10: a free weekend is not a price anyone paid", f.HistoricLow)
+	}
+	if f.Model != ModelNoSales {
+		t.Errorf("model = %s, want %s", f.Model, ModelNoSales)
+	}
+	// A game that is free all the time is unaffected.
+	free := []Point{{Date: epoch, Price: 0, Regular: 0}, {Date: epoch.AddDate(0, 0, 1), Price: 0, Regular: 0}}
+	if d := buildDays(free, epoch.AddDate(0, 0, 1)); d[0].price != 0 {
+		t.Errorf("a free-to-play game's price = %v, want 0", d[0].price)
+	}
+}
+
+func TestAllTimeLowFromALongerRecordIsUsed(t *testing.T) {
+	pts, today := cyclic(730, 30, 60, 10, 0.5, 20) // lowest price in this window: $10
+	f := Predict(1, pts, "v", Options{Now: today, AllTimeLow: 4})
+	if f.HistoricLow != 4 {
+		t.Errorf("historic low = %v, want $4 from the longer record", f.HistoricLow)
+	}
+	// A "low" that is higher than what the data shows must not raise it.
+	if f := Predict(1, pts, "v", Options{Now: today, AllTimeLow: 15}); f.HistoricLow != 10 {
+		t.Errorf("historic low = %v, want it to stay at $10", f.HistoricLow)
+	}
+	if f := Predict(1, pts, "v", Options{Now: today}); f.HistoricLow != 10 {
+		t.Errorf("without a known low: %v, want $10", f.HistoricLow)
+	}
+}
+
+func TestRecencyWeights(t *testing.T) {
+	if recency(0) != 1 || recency(-5) != 1 {
+		t.Error("something that just happened has full weight")
+	}
+	if got := recency(730); got < 0.4999 || got > 0.5001 {
+		t.Errorf("recency(730) = %v, want 0.5", got)
+	}
+	if recency(100) <= recency(1000) {
+		t.Error("newer should weigh more than older")
+	}
+	mean, _ := weightedMeanStd([]float64{10, 100}, []float64{3, 1})
+	if mean != 32.5 {
+		t.Errorf("weighted mean = %v, want 32.5", mean)
+	}
+}
+
+func TestAFreeGameHasNothingCheaperThanFree(t *testing.T) {
+	var pts []Point
+	for i := 0; i < 300; i++ {
+		pts = append(pts, Point{Date: epoch.AddDate(0, 0, i), Price: 0, Regular: 0})
+	}
+	f := predict(t, pts, epoch.AddDate(0, 0, 299))
+	if f.Model != ModelFree || f.CurrentPrice != 0 || f.Score != 0 {
+		t.Errorf("model=%s price=%v score=%d", f.Model, f.CurrentPrice, f.Score)
+	}
+	if len(f.Curve) != 0 {
+		t.Errorf("a free game gets no price curve, got %d points", len(f.Curve))
+	}
+	// Even a brand-new free game is recognised, whatever the history length.
+	if f := predict(t, pts[:5], epoch.AddDate(0, 0, 4)); f.Model != ModelFree {
+		t.Errorf("a new free game: model %s", f.Model)
+	}
+	// A game that went free-to-play after years of being paid is free now.
+	paid := []Point{{Date: epoch, Price: 20, Regular: 20}, {Date: epoch.AddDate(0, 0, 100), Price: 0, Regular: 0}}
+	if f := predict(t, paid, epoch.AddDate(0, 0, 200)); f.Model != ModelFree {
+		t.Errorf("went free-to-play: model %s", f.Model)
+	}
+}
+
+func TestALongSilenceIsNotReadAsASaleBeingDue(t *testing.T) {
+	// Sales every 30 days for a year, then nothing for 600 days. A model that
+	// treats the gap as "overdue" would put a sale within days; the game has
+	// more likely stopped discounting.
+	var pts []Point
+	for i := 0; i < 1000; i++ {
+		price := 20.0
+		if i < 400 && i%30 < 5 {
+			price = 10
+		}
+		pts = append(pts, Point{Date: epoch.AddDate(0, 0, i), Price: price, Regular: 20})
+	}
+	f := predict(t, pts, epoch.AddDate(0, 0, 999))
+
+	p90 := curveByDay(f)[91].PLowerBy
+	if p90 > 0.6 {
+		t.Errorf("chance of a sale within 91 days after 600 silent days = %.2f, want well below certainty", p90)
+	}
+	if p90 < 0.05 {
+		t.Errorf("chance of a sale within 91 days = %.2f, want it to stay possible", p90)
+	}
+	if f.Next.MedianDays != nil && *f.Next.MedianDays < 20 {
+		t.Errorf("median days to the next sale = %d, want it far off after a long silence", *f.Next.MedianDays)
+	}
+}
+
+func TestSilenceAdjustment(t *testing.T) {
+	regular := renewal{ModelWeibull, 4, 66} // mean gap about 60 days
+	if got := regular.adjustedForSilence(100); got != regular {
+		t.Errorf("a normal wait must not change the fit: %+v", got)
+	}
+	got := regular.adjustedForSilence(600)
+	if got.shape != 1 || got.scale != 300 || got.model != ModelWeibull {
+		t.Errorf("after 600 silent days: %+v, want a memoryless fit with scale 300", got)
+	}
+	if r := (renewal{ModelPoisson, 1, 90}).adjustedForSilence(100); r.scale != 90 {
+		t.Errorf("a short wait for a constant-rate game: %+v", r)
+	}
+}
+
+func TestFreeRunsAreResolvedByLength(t *testing.T) {
+	build := func(prices ...float64) []day {
+		var d []day
+		for i, p := range prices {
+			d = append(d, day{date: epoch.AddDate(0, 0, i), price: p, regular: 10})
+		}
+		resolveFreeRuns(d)
+		return d
+	}
+	got := func(d []day) []float64 {
+		var out []float64
+		for _, x := range d {
+			out = append(out, x.price)
+		}
+		return out
+	}
+
+	if g := got(build(10, 0, 0, 10, 5)); !reflect.DeepEqual(g, []float64{10, 10, 10, 10, 5}) {
+		t.Errorf("a free weekend in the middle: %v", g)
+	}
+	if g := got(build(0, 0, 8, 8)); !reflect.DeepEqual(g, []float64{8, 8, 8, 8}) {
+		t.Errorf("a free run at the very start takes the next paid price: %v", g)
+	}
+	if g := got(build(10, 10, 0, 0)); !reflect.DeepEqual(g, []float64{10, 10, 10, 10}) {
+		t.Errorf("a short free run ending today is a promotion that has not ended yet: %v", g)
+	}
+	long := append([]float64{10}, make([]float64, freeToPlayDays)...)
+	if g := got(build(long...)); g[len(g)-1] != 0 {
+		t.Errorf("free for %d days up to today means free to play: %v", freeToPlayDays, g[len(g)-3:])
+	}
+	if g := got(build(0, 0, 0)); !reflect.DeepEqual(g, []float64{0, 0, 0}) {
+		t.Errorf("a game that never cost anything stays free: %v", g)
+	}
+}
+
+func TestIsRecordLow(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		price    float64
+		discount int
+		low      float64
+		want     bool
+	}{
+		{"on sale at the lowest price", 4.99, 50, 4.99, true},
+		{"within half a cent of it", 4.994, 50, 4.99, true},
+		{"cheaper than any recorded price", 3.99, 60, 4.99, true},
+		{"on sale but not the lowest", 7.49, 25, 4.99, false},
+		{"full price that equals the low (never discounted)", 9.99, 0, 9.99, false},
+		{"free", 0, 0, 0, false},
+		{"unknown low", 4.99, 50, 0, false},
+	} {
+		if got := isRecordLow(tc.price, tc.discount, tc.low); got != tc.want {
+			t.Errorf("%s: isRecordLow(%v, %d%%, %v) = %v, want %v", tc.name, tc.price, tc.discount, tc.low, got, tc.want)
+		}
+	}
+}
+
+func TestForecastFlagsARecordLow(t *testing.T) {
+	// Sales every 60 days to $10; day 695 is mid-sale at the lowest price the game has had.
+	pts, today := cyclic(696, 30, 60, 10, 0.5, 20)
+	f := predict(t, pts, today)
+	if !f.AtRecordLow || f.CurrentPrice != 10 || f.HistoricLow != 10 {
+		t.Errorf("mid-sale at the usual low: at_record_low=%v price=%v low=%v", f.AtRecordLow, f.CurrentPrice, f.HistoricLow)
+	}
+
+	// The same game at full price is not at a record low.
+	full, today := cyclic(730, 30, 60, 10, 0.5, 20)
+	if f := predict(t, full, today); f.AtRecordLow {
+		t.Error("a full-price day is not a record low")
+	}
+
+	// A sale that is shallower than an earlier one is not a record low.
+	shallow, today := regimes(1415+1, 1415, func(d int) float64 {
+		if d < 700 {
+			return 0.7
+		}
+		return 0.3
+	})
+	if f := predict(t, shallow, today); f.AtRecordLow || !f.OnSale {
+		t.Errorf("on sale at 30%% after 70%% sales: at_record_low=%v on_sale=%v", f.AtRecordLow, f.OnSale)
+	}
+
+	// A game whose price never moves has no record low to speak of.
+	flat, today := cyclic(300, 0, 0, 0, 0, 20)
+	if f := predict(t, flat, today); f.AtRecordLow {
+		t.Error("a game that never changes price is not at a record low")
+	}
+	// A known all-time low from a longer record can rule it out.
+	if f := Predict(1, pts, "v", Options{Now: epoch.AddDate(0, 0, 695), AllTimeLow: 4}); f.AtRecordLow {
+		t.Error("$10 is not a record low when the game once cost $4")
+	}
+}
+
+func TestRecordLowIsFlaggedEvenWithLittleHistory(t *testing.T) {
+	// 40 days: too short to forecast, but the price facts are still known.
+	var pts []Point
+	for i := 0; i < 40; i++ {
+		price := 20.0
+		if i >= 30 {
+			price = 8
+		}
+		pts = append(pts, Point{Date: epoch.AddDate(0, 0, i), Price: price, Regular: 20})
+	}
+	f := predict(t, pts, epoch.AddDate(0, 0, 39))
+	if f.Model != ModelInsufficient || !f.AtRecordLow {
+		t.Errorf("model=%s at_record_low=%v, want an insufficient forecast that still flags the record low", f.Model, f.AtRecordLow)
+	}
 }

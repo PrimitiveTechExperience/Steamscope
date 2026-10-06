@@ -11,7 +11,13 @@ import (
 	"time"
 )
 
-const baseURL = "https://api.isthereanydeal.com"
+// baseURL is a variable so tests can point the client at a local server.
+var baseURL = "https://api.isthereanydeal.com"
+
+// allHistorySince asks ITAD for its entire log. Without a "since" date its
+// history endpoint returns only roughly the last three months, which silently
+// truncates every history built from it.
+const allHistorySince = "2000-01-01T00:00:00Z"
 
 // steamShopID is IsThereAnyDeal's internal id for the Steam shop.
 const steamShopID = 61
@@ -82,13 +88,14 @@ type historyEntry struct {
 	} `json:"deal"`
 }
 
-// GetHistory fetches the full Steam price-change log for an ITAD game id.
+// GetHistory fetches the entire Steam price-change log for an ITAD game id.
 func (c *Client) GetHistory(itadID string) ([]HistoryEvent, error) {
 	q := url.Values{}
 	q.Set("key", c.apiKey)
 	q.Set("id", itadID)
 	q.Set("shops", fmt.Sprintf("%d", steamShopID))
 	q.Set("country", "US") // must match the scraper's store region (USD)
+	q.Set("since", allHistorySince)
 
 	resp, err := c.httpClient.Get(baseURL + "/games/history/v2?" + q.Encode())
 	if err != nil {

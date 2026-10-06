@@ -75,7 +75,7 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handler = h.Sessions.Middleware(h.DB.GetUserByID)(handler)
 	handler = withOriginCheck(handler, frontendURL)
 	handler = withCORS(handler, frontendURL)
-	handler = observability.Middleware(slog.New(slog.NewJSONHandler(os.Stdout, nil)))(handler)
+	handler = observability.Middleware(slog.New(slog.NewJSONHandler(os.Stdout, nil)), h.Config.AccessLog)(handler)
 	return handler
 }
 

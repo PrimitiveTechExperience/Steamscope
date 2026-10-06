@@ -35,7 +35,15 @@ journalctl -u steamscope-api | grep 3f9c1e0a7b2d4c11
 
 ## Access log
 
-One JSON line per request is written to stdout. `/metrics` scrapes are not logged.
+By default only server errors (status 500 and up) are logged, plus recovered panics. One line per request would bury
+real problems, since a single page makes dozens of calls. Set `ACCESS_LOG=true` to log every request; `/metrics`
+scrapes are never logged. Request IDs and metrics do not depend on this setting.
+
+Requests the client abandons (the browser navigates away or cancels) are recorded as status 499 rather than 500, so
+they are not logged as errors and do not appear as server failures in the metrics. A request that exceeds its own
+deadline is still a real error and is logged.
+
+A logged line looks like this:
 
 ```json
 {"time":"2026-10-05T04:15:02Z","level":"INFO","msg":"request","request_id":"3f9c1e0a7b2d4c11",

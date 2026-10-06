@@ -29,7 +29,7 @@ export interface NextSale {
     p75_days: number | null;
 }
 
-export type ForecastModel = 'weibull_renewal' | 'poisson' | 'no_sales_seen' | 'insufficient';
+export type ForecastModel = 'weibull_renewal' | 'poisson' | 'no_sales_seen' | 'insufficient' | 'free';
 
 export interface Forecast {
     app_id: number;
@@ -41,6 +41,8 @@ export interface Forecast {
     on_sale: boolean;
     history_days: number;
     historic_low: number;
+    /** On sale at the lowest price on record. */
+    at_record_low: boolean;
     used_extended_history: boolean;
     typical_sale: TypicalSale;
     next_sale: NextSale;
@@ -52,7 +54,7 @@ export interface Forecast {
     cached: boolean;
 }
 
-export type Verdict = 'buy_now' | 'wait' | 'toss_up' | 'not_enough_data';
+export type Verdict = 'buy_now' | 'wait' | 'toss_up' | 'not_enough_data' | 'free';
 
 export interface AdviceReason {
     code: string;
@@ -70,6 +72,7 @@ export interface Advice {
     patience_days: number;
     chance_of_lower: number;
     expected_saving_percent: number;
+    at_record_low: boolean;
     wait_until: string | null;
     personalized: boolean;
     generated_at: string;

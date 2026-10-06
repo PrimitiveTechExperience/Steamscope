@@ -25,7 +25,7 @@ func (c *Client) History(ctx context.Context, appID int) ([]HistoryEvent, error)
 		return nil, fmt.Errorf("no ITAD game found for appID %d", appID)
 	}
 
-	q = url.Values{"key": {c.apiKey}, "id": {lookup.Game.ID}, "shops": {fmt.Sprint(steamShopID)}, "country": {"US"}}
+	q = url.Values{"key": {c.apiKey}, "id": {lookup.Game.ID}, "shops": {fmt.Sprint(steamShopID)}, "country": {"US"}, "since": {allHistorySince}}
 	var entries []historyEntry
 	if err := c.getJSON(ctx, "/games/history/v2?"+q.Encode(), &entries); err != nil {
 		return nil, fmt.Errorf("ITAD history for appID %d: %w", appID, err)

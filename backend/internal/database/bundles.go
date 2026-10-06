@@ -42,8 +42,8 @@ func (db *DB) UpsertBundle(ctx context.Context, b models.Bundle, recordedDate ti
 	}
 	for _, g := range b.Games {
 		if _, err := tx.Exec(ctx,
-			`INSERT INTO bundle_games (bundle_id, app_id, name) VALUES ($1, $2, $3) ON CONFLICT DO NOTHING`,
-			b.BundleID, g.AppID, g.Name); err != nil {
+			`INSERT INTO bundle_games (bundle_id, app_id, name, price, regular_price) VALUES ($1, $2, $3, $4, $5) ON CONFLICT DO NOTHING`,
+			b.BundleID, g.AppID, g.Name, g.Price, g.RegularPrice); err != nil {
 			return fmt.Errorf("failed to add bundle game: %w", err)
 		}
 	}
@@ -125,12 +125,17 @@ func (db *DB) GetBundleName(ctx context.Context, bundleID int) (string, error) {
 
 const bundleColumns = `b.bundle_id, b.name, b.url, b.header_image, b.price, b.original_price,
 	b.discount_percentage, b.status, b.updated_at,
-	(SELECT count(*) FROM bundle_games bg WHERE bg.bundle_id = b.bundle_id)`
+	(SELECT count(*) FROM bundle_games bg WHERE bg.bundle_id = b.bundle_id),
+	-- At a record low: discounted, at the lowest price recorded, and the price has
+	-- actually changed before (a bundle that never moves is not a "record").
+	(b.discount_percentage > 0 AND b.price > 0
+		AND b.price <= (SELECT min(h.price) FROM bundle_price_history h WHERE h.bundle_id = b.bundle_id) + 0.005
+		AND (SELECT count(DISTINCT h.price) FROM bundle_price_history h WHERE h.bundle_id = b.bundle_id) >= 2)`
 
 func scanBundle(row pgx.Row) (models.Bundle, error) {
 	var b models.Bundle
 	err := row.Scan(&b.BundleID, &b.Name, &b.URL, &b.HeaderImage, &b.Price, &b.OriginalPrice,
-		&b.DiscountPercentage, &b.Status, &b.UpdatedAt, &b.GameCount)
+		&b.DiscountPercentage, &b.Status, &b.UpdatedAt, &b.GameCount, &b.AtRecordLow)
 	b.Games = []models.BundleGame{}
 	return b, err
 }
@@ -219,7 +224,10 @@ func (db *DB) GetBundle(ctx context.Context, bundleID int) (*models.BundleDetail
 
 	gameRows, err := db.Pool.Query(ctx, `
 		SELECT bg.app_id, COALESCE(NULLIF(g.name, ''), bg.name), (g.app_id IS NOT NULL),
-			CASE WHEN g.app_id IS NULL THEN COALESCE(t.status, '') ELSE '' END
+			CASE WHEN g.app_id IS NULL THEN COALESCE(t.status, '') ELSE '' END,
+			-- Our own scraped prices for tracked games, otherwise what the bundle page showed.
+			CASE WHEN g.app_id IS NOT NULL THEN g.price ELSE bg.price END,
+			CASE WHEN g.app_id IS NOT NULL THEN g.original_price ELSE bg.regular_price END
 		FROM bundle_games bg
 		LEFT JOIN games g ON g.app_id = bg.app_id
 		LEFT JOIN tracked_games t ON t.app_id = bg.app_id
@@ -231,7 +239,7 @@ func (db *DB) GetBundle(ctx context.Context, bundleID int) (*models.BundleDetail
 	defer gameRows.Close()
 	for gameRows.Next() {
 		var g models.BundleGame
-		if err := gameRows.Scan(&g.AppID, &g.Name, &g.Tracked, &g.TrackStatus); err != nil {
+		if err := gameRows.Scan(&g.AppID, &g.Name, &g.Tracked, &g.TrackStatus, &g.Price, &g.RegularPrice); err != nil {
 			return nil, fmt.Errorf("failed to scan bundle game: %w", err)
 		}
 		b.Games = append(b.Games, g)
@@ -255,5 +263,17 @@ func (db *DB) GetBundle(ctx context.Context, bundleID int) (*models.BundleDetail
 		}
 		history = append(history, p)
 	}
-	return &models.BundleDetail{Bundle: b, PriceHistory: history}, historyRows.Err()
+	if err := historyRows.Err(); err != nil {
+		return nil, err
+	}
+
+	detail := &models.BundleDetail{Bundle: b, PriceHistory: history}
+	if len(history) > 0 {
+		detail.RecordLow = history[0].Price
+		for _, p := range history {
+			detail.RecordLow = min(detail.RecordLow, p.Price)
+		}
+		detail.HistoryDays = int(history[len(history)-1].Date.Sub(history[0].Date).Hours()/24) + 1
+	}
+	return detail, nil
 }

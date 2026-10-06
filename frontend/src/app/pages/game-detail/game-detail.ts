@@ -42,6 +42,8 @@ export class GameDetailComponent {
 
   /** null until known (or when logged out). */
   protected watchState = signal<{ watched: boolean; pinned: boolean } | null>(null);
+  /** Set by the price-prediction panel once it knows the lowest price on record. */
+  protected isRecordLow = signal(false);
   protected targetPriceInput: number | null = null;
   protected watchError = signal<string | null>(null);
 

@@ -1,4 +1,4 @@
-import { Component, input } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
@@ -24,6 +24,7 @@ class StubPriceChart {
 class StubPrediction {
   appId = input<number>();
   refreshKey = input<unknown>();
+  recordLowChange = output<boolean>();
 }
 
 async function render(game: Game, bundles: Bundle[] = []) {
@@ -89,6 +90,20 @@ describe('GameDetailComponent', () => {
   it('shows the buy-now-or-wait panel for the game', async () => {
     const { el } = await render(makeGame({ app_id: 730 }));
     expect(textOf(el.querySelector('app-price-prediction .prediction-stub'))).toBe('730');
+  });
+
+  it('shows a "Record low" badge by the price once the panel reports one', async () => {
+    const { harness, el } = await render(makeGame());
+    expect(el.querySelector('.record-low-badge')).toBeNull();
+
+    const panel = harness.fixture.debugElement.query((d) => d.name === 'app-price-prediction');
+    panel.injector.get(StubPrediction).recordLowChange.emit(true);
+    harness.detectChanges();
+    expect(textOf(el.querySelector('.record-low-badge'))).toBe('Record low');
+
+    panel.injector.get(StubPrediction).recordLowChange.emit(false);
+    harness.detectChanges();
+    expect(el.querySelector('.record-low-badge')).toBeNull();
   });
 
   it('shows the name, price, discount, developer and release date', async () => {

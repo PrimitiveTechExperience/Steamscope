@@ -6,7 +6,9 @@ import (
 	"net/http"
 	"strconv"
 
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/bundlevalue"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 )
 
 // GetBundles lists tracked bundles, biggest discount first. ?app_id=N limits
@@ -56,5 +58,23 @@ func (h *Handler) GetBundle(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load bundle")
 		return
 	}
-	writeJSON(w, http.StatusOK, bundle)
+	writeJSON(w, http.StatusOK, bundleResponse{BundleDetail: *bundle, Value: bundlevalue.Evaluate(bundleValueInput(bundle))})
+}
+
+// bundleResponse is a bundle plus the verdict on whether it is worth buying.
+type bundleResponse struct {
+	models.BundleDetail
+	Value bundlevalue.Value `json:"value"`
+}
+
+// bundleValueInput gathers what the valuation needs from a loaded bundle.
+func bundleValueInput(b *models.BundleDetail) bundlevalue.Input {
+	in := bundlevalue.Input{BundlePrice: b.Price, DiscountPercent: b.DiscountPercentage}
+	for _, g := range b.Games {
+		in.Items = append(in.Items, bundlevalue.Item{AppID: g.AppID, Name: g.Name, Price: g.Price, Regular: g.RegularPrice})
+	}
+	for _, p := range b.PriceHistory {
+		in.Prices = append(in.Prices, p.Price)
+	}
+	return in
 }

@@ -22,6 +22,15 @@ describe('BundleCardComponent', () => {
     expect(text).toContain('-50%');
   });
 
+  it('flags a bundle that is at its lowest recorded price', () => {
+    const el = render({ at_record_low: true });
+    expect(textOf(el.querySelector('.record-low-badge'))).toBe('Record low');
+  });
+
+  it('shows no record-low badge otherwise', () => {
+    expect(render({ at_record_low: false }).querySelector('.record-low-badge')).toBeNull();
+  });
+
   it('links to the bundle page', () => {
     expect(render().querySelector('a')?.getAttribute('href')).toBe('/bundles/5001');
   });

@@ -4,6 +4,11 @@
 >
     <div class="relative aspect-video w-full overflow-hidden border-b-2 border-[var(--color-border)] bg-[var(--color-surface-alt)]">
         <app-bundle-art [bundle]="bundle()" class="block h-full w-full transition duration-500 ease-out group-hover:scale-110" />
+        @if (bundle().at_record_low) {
+            <span class="record-low-badge edge-btn absolute left-2 top-2 -rotate-2 bg-[var(--color-discount)] px-2 py-1 text-xs font-black uppercase text-white" title="The lowest price recorded for this bundle">
+                Record low
+            </span>
+        }
         @if (bundle().discount_percentage > 0) {
             <span class="edge-btn absolute right-2 top-2 -rotate-2 bg-[var(--color-discount)] px-2 py-1 text-xs text-white">
                 -{{ bundle().discount_percentage }}%

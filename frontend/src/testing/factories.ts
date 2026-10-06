@@ -1,7 +1,7 @@
 import { computed, signal } from '@angular/core';
 
 import { Game } from '../app/models/game';
-import { Bundle, BundleDetail } from '../app/models/bundle';
+import { Bundle, BundleDetail, BundleValue } from '../app/models/bundle';
 import { User } from '../app/models/user';
 import { AdminUser } from '../app/models/admin';
 
@@ -41,14 +41,44 @@ export function makeBundle(over: Partial<BundleDetail> = {}): BundleDetail {
     original_price: 40,
     discount_percentage: 50,
     status: 'tracked',
+    at_record_low: false,
     game_count: 3,
     games: [
-      { app_id: 1, name: 'On The Site', tracked: true, track_status: '' },
-      { app_id: 2, name: 'Not On The Site', tracked: false, track_status: '' },
-      { app_id: 3, name: 'Already Requested', tracked: false, track_status: 'awaiting_approval' },
+      { app_id: 1, name: 'On The Site', tracked: true, track_status: '', price: 12, regular_price: 20 },
+      { app_id: 2, name: 'Not On The Site', tracked: false, track_status: '', price: 12, regular_price: 20 },
+      { app_id: 3, name: 'Already Requested', tracked: false, track_status: 'awaiting_approval', price: 12, regular_price: 20 },
     ],
     updated_at: '2026-10-01T00:00:00Z',
     price_history: [],
+    record_low: 0,
+    history_days: 0,
+    value: makeBundleValue(),
+    ...over,
+  };
+}
+
+/** A realistic assessment: $20 bundle of three $20 games on sale to $12 each. */
+export function makeBundleValue(over: Partial<BundleValue> = {}): BundleValue {
+  return {
+    verdict: 'great_deal',
+    score: 85,
+    reasons: [
+      { code: 'cheaper_than_separate', text: 'Buying these games separately today costs $36.00; the bundle is $20.00, saving $16.00 (44%)', impact: 30 },
+      { code: 'deep_vs_regular', text: '67% below the games\' regular prices ($60.00)', impact: 15 },
+      { code: 'above_bundle_record_low', text: '25% above the lowest price recorded for this bundle ($16.00)', impact: -10 },
+    ],
+    totals: { regular: 60, separate: 36, bundle: 20, priced_items: 3, items: 3 },
+    savings_vs_separate: 16,
+    savings_vs_separate_percent: 44.44,
+    savings_vs_regular: 40,
+    savings_vs_regular_percent: 66.67,
+    completeness: 1,
+    at_record_low: false,
+    record_low: 16,
+    cheaper_alone_count: 0,
+    items: [1, 2, 3].map((id) => ({
+      app_id: id, name: `Game ${id}`, price: 12, regular_price: 20, discount_percent: 40, bundle_share: 6.67, cheaper_alone: false, priced: true,
+    })),
     ...over,
   };
 }

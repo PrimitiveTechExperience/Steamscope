@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -27,6 +28,10 @@ var startedAt = time.Now()
 func Uptime() time.Duration { return time.Since(startedAt) }
 
 const RequestIDHeader = "X-Request-ID"
+
+// StatusClientClosedRequest is recorded (never sent) for requests the client
+// abandoned before the server finished.
+const StatusClientClosedRequest = 499
 
 type ctxKey int
 
@@ -199,9 +204,13 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // Middleware assigns each request an ID (honouring a well-formed incoming
-// X-Request-ID), recovers panics into a JSON 500, records metrics and writes
-// one structured access-log line per request.
-func Middleware(logger *slog.Logger) func(http.Handler) http.Handler {
+// X-Request-ID), recovers panics into a JSON 500 and records metrics.
+//
+// It writes a structured log line only for server errors (status 500 and up),
+// which are always worth seeing. With logAll it writes one line per request,
+// which is far too noisy to leave on (a busy page makes dozens of calls), so it
+// is opt-in; see ACCESS_LOG.
+func Middleware(logger *slog.Logger, logAll bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -220,7 +229,9 @@ func Middleware(logger *slog.Logger) func(http.Handler) http.Handler {
 			httpInFlight.Inc()
 			defer func() {
 				httpInFlight.Dec()
+				panicked := false
 				if rec := recover(); rec != nil {
+					panicked = true
 					httpPanics.Inc()
 					logger.Error("panic recovered", "request_id", id, "panic", rec, "stack", string(debug.Stack()))
 					if sw.status == 0 {
@@ -237,10 +248,17 @@ func Middleware(logger *slog.Logger) func(http.Handler) http.Handler {
 				if status == 0 {
 					status = http.StatusOK
 				}
+				// When the browser gave up on the request (navigated away, closed the
+				// tab), whatever the handler wrote went nowhere and its "error" is not
+				// a server fault. Record it as 499, nginx's "client closed request",
+				// instead of a 5xx that would be logged and alert-worthy.
+				if !panicked && status >= http.StatusInternalServerError && errors.Is(r.Context().Err(), context.Canceled) {
+					status = StatusClientClosedRequest
+				}
 				elapsed := time.Since(start)
 				httpRequests.WithLabelValues(r.Method, route, strconv.Itoa(status)).Inc()
 				httpDuration.WithLabelValues(r.Method, route).Observe(elapsed.Seconds())
-				if route != "GET /metrics" {
+				if route != "GET /metrics" && (logAll || status >= http.StatusInternalServerError) {
 					logger.Info("request",
 						"request_id", id,
 						"method", r.Method,

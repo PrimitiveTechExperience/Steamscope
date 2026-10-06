@@ -1,6 +1,7 @@
 package prediction
 
 import (
+	"math"
 	"strings"
 	"testing"
 	"time"
@@ -333,5 +334,53 @@ func TestInterpolation(t *testing.T) {
 	}
 	if interpolate(Forecast{}, 30, get) != 0 || interpolateHorizon(Forecast{}, 30) != 0 {
 		t.Error("an empty forecast interpolates to zero")
+	}
+}
+
+func TestConfidenceKeepsFourDecimals(t *testing.T) {
+	// The interface shows confidence as a percentage to two decimals, so the
+	// value must carry that precision rather than being rounded to a hundredth.
+	fourDecimals := func(v float64) bool { return math.Abs(v*10000-math.Round(v*10000)) < 1e-6 }
+
+	f := fc(fcOpts{price: 20, low: 10, disc: 0, typicalDepth: 50, pLower: 0.9, expLow: 11, confidence: 0.4375})
+	if a := Advise(f, AdviceInput{}); !fourDecimals(a.Confidence) {
+		t.Errorf("advice confidence %v has more than four decimals", a.Confidence)
+	}
+	// 0.6*5/8 + 0.3*400/730 + 0.1 = 0.63938...; rounding to a hundredth would give 0.64.
+	got := confidence(ModelWeibull, 5, 400)
+	if got != 0.6394 {
+		t.Errorf("forecast confidence = %v, want 0.6394", got)
+	}
+}
+
+func TestAdviceNamesARecordLow(t *testing.T) {
+	f := fc(fcOpts{price: 10, low: 10, disc: 50, typicalDepth: 50, pLower: 0.05, expLow: 9.9})
+	f.AtRecordLow = true
+	a := Advise(f, AdviceInput{})
+
+	if !a.AtRecordLow {
+		t.Error("the advice must carry the record-low flag")
+	}
+	if !has(a, "record_low") || has(a, "at_historic_low") {
+		t.Errorf("reasons = %v, want record_low in place of at_historic_low", reasonCodes(a))
+	}
+	if !strings.Contains(a.Reasons[0].Text, "lowest price on record") || !strings.Contains(a.Reasons[0].Text, "$10.00") {
+		t.Errorf("reason text = %q", a.Reasons[0].Text)
+	}
+	if impact(a, "record_low") != 30 {
+		t.Errorf("record_low impact = %d, want 30", impact(a, "record_low"))
+	}
+
+	// Within 2% of the low, but not at it: the softer reason.
+	near := fc(fcOpts{price: 10.1, low: 10, disc: 49, typicalDepth: 50, pLower: 0.05, expLow: 9.9})
+	if n := Advise(near, AdviceInput{}); n.AtRecordLow || !has(n, "at_historic_low") || has(n, "record_low") {
+		t.Errorf("near the low: %v", reasonCodes(n))
+	}
+}
+
+func TestAdviceKeepsTheRecordLowFlagWithoutAForecast(t *testing.T) {
+	a := Advise(Forecast{Model: ModelInsufficient, CurrentPrice: 8, HistoricLow: 8, AtRecordLow: true}, AdviceInput{})
+	if !a.AtRecordLow || a.Verdict != VerdictNoData {
+		t.Errorf("at_record_low=%v verdict=%s", a.AtRecordLow, a.Verdict)
 	}
 }

@@ -7,6 +7,7 @@
 // time?).
 //
 //	go run ./backend/cmd/backtest [-days 90] [-min 180] [-step 30] [-itad]
+//	go run ./backend/cmd/backtest -audit
 //
 // Run it from the repository root so .env is found.
 package main
@@ -30,6 +31,7 @@ func main() {
 	lookahead := flag.Int("days", 90, "forecast window to score: 30, 90, 180, 365 or 730")
 	minHistory := flag.Int("min", 180, "days of history required before a cut-off is scored")
 	step := flag.Int("step", 30, "days between cut-offs")
+	runAudit := flag.Bool("audit", false, "compare the model's chance of a lower price with ITAD's own record (needs ITAD_API_KEY)")
 	useITAD := flag.Bool("itad", false, "extend each history with ITAD's longer log (needs ITAD_API_KEY)")
 	flag.Parse()
 
@@ -43,7 +45,7 @@ func main() {
 	cfg := config.LoadConfig()
 
 	var client *itad.Client
-	if *useITAD {
+	if *useITAD || *runAudit {
 		if cfg.ITADAPIKey == "" {
 			log.Fatal("-itad needs ITAD_API_KEY")
 		}
@@ -53,6 +55,10 @@ func main() {
 	ids, err := db.GetTrackedAppIDs(ctx)
 	if err != nil {
 		log.Fatalf("tracked games: %v", err)
+	}
+	if *runAudit {
+		audit(ctx, db, client, ids)
+		return
 	}
 	series := map[int][]prediction.Point{}
 	for _, id := range ids {

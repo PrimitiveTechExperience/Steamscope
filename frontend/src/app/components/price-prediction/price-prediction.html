@@ -2,7 +2,7 @@
     <div class="flex flex-wrap items-center justify-between gap-2">
         <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Buy now or wait?</h2>
         @if (hasForecast()) {
-            <span class="text-xs text-[var(--color-text-muted)]">Forecast confidence: {{ forecastConfidence() }}</span>
+            <span class="forecast-confidence text-xs text-[var(--color-text-muted)]">Forecast confidence: {{ forecastConfidence() }}</span>
         }
     </div>
 
@@ -11,14 +11,22 @@
     } @else if (failed()) {
         <p class="mt-4 text-sm text-[var(--color-text-muted)]">The price forecast isn't available right now. Try again in a moment.</p>
     } @else {
+        @if (atRecordLow()) {
+            <div class="record-low edge-btn mt-4 flex flex-wrap items-center gap-2 px-3 py-2 text-sm font-bold" style="background: var(--color-discount); color: #fff;">
+                <span class="uppercase">Record low</span>
+                <span class="font-normal">
+                    This is the lowest price on record ({{ forecast()!.historic_low | currency }}, from {{ forecast()!.history_days }} days of history).
+                </span>
+            </div>
+        }
         @if (advice(); as a) {
             <div class="mt-4 flex flex-wrap items-center gap-3">
                 <span class="verdict edge-btn px-4 py-2 text-lg font-black uppercase" [style.background]="verdictBackground()" [style.color]="verdictColor()">
                     {{ verdictLabel() }}
                 </span>
-                @if (a.verdict !== 'not_enough_data') {
-                    <span class="text-sm text-[var(--color-text-muted)]">
-                        Score {{ a.score }}/100 &middot; {{ adviceConfidence() }} confidence
+                @if (a.verdict !== 'not_enough_data' && a.verdict !== 'free') {
+                    <span class="advice-confidence text-sm text-[var(--color-text-muted)]">
+                        Score {{ a.score }}/100 &middot; Confidence: {{ adviceConfidence() }}
                     </span>
                 }
             </div>
@@ -28,7 +36,7 @@
                     A sale is likely around <strong>{{ a.wait_until | date:'mediumDate':'UTC' }}</strong>.
                 </p>
             }
-            @if (a.verdict !== 'not_enough_data' && a.expected_saving_percent > 0) {
+            @if (a.verdict !== 'not_enough_data' && a.verdict !== 'free' && a.expected_saving_percent > 0) {
                 <p class="mt-1 text-sm text-[var(--color-text-muted)]">
                     Waiting up to {{ a.patience_days }} days saves about {{ a.expected_saving_percent | number:'1.0-0' }}% on average.
                 </p>
@@ -44,7 +52,7 @@
                     }
                 </ul>
             }
-            @if (!a.personalized) {
+            @if (!a.personalized && a.verdict !== 'free') {
                 <p class="generic-note mt-3 text-xs text-[var(--color-text-muted)]">
                     This is a general call. Watch this game (and set a target price) to factor in how long you've been waiting.
                 </p>
@@ -97,7 +105,9 @@
             }
         } @else {
             <p class="no-forecast mt-4 text-sm text-[var(--color-text-muted)]">
-                @if (forecast(); as f) {
+                @if (isFree()) {
+                    This game is free to play, so there is no price to wait for.
+                } @else if (forecast(); as f) {
                     We need about two months of price history before we can forecast this game. It has {{ f.history_days }}
                     {{ f.history_days === 1 ? 'day' : 'days' }} so far.
                 } @else {

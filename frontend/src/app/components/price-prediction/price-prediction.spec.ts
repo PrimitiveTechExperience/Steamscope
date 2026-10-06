@@ -28,6 +28,7 @@ function makeForecast(over: Partial<Forecast> = {}): Forecast {
     on_sale: false,
     history_days: 730,
     historic_low: 10,
+    at_record_low: false,
     used_extended_history: false,
     typical_sale: { count: 12, median_depth_percent: 50, median_price: 10, median_duration_days: 10, median_interval_days: 60 },
     next_sale: { p25_days: 15, median_days: 21, p75_days: 28 },
@@ -64,6 +65,7 @@ function makeAdvice(over: Partial<Advice> = {}): Advice {
     chance_of_lower: 0.99,
     expected_saving_percent: 45,
     wait_until: '2026-10-26',
+    at_record_low: false,
     personalized: false,
     generated_at: '2026-10-05T00:00:00Z',
     cached: false,
@@ -138,20 +140,31 @@ describe('PricePredictionComponent', () => {
       expect(badge.style.background).toContain(background);
     });
 
-    it('shows the score and how confident the call is', () => {
-      const { el } = render({ advice: makeAdvice({ score: 12, confidence: 0.8 }) });
-      expect(textOf(el)).toContain('Score 12/100');
-      expect(textOf(el)).toContain('High confidence');
+    it('shows the score and how confident the call is, as a word and an exact percentage', () => {
+      const { q } = render({ advice: makeAdvice({ score: 12, confidence: 0.8125 }) });
+      expect(textOf(q('.advice-confidence'))).toBe('Score 12/100 · Confidence: Very high (81.25%)');
     });
 
     it.each([
-      [0.9, 'High'],
-      [0.66, 'High'],
-      [0.5, 'Medium'],
-      [0.33, 'Medium'],
-      [0.1, 'Low'],
-    ])('labels a confidence of %s as %s', (confidence, label) => {
-      expect(textOf(render({ advice: makeAdvice({ confidence }) }).el)).toContain(`${label} confidence`);
+      [0.9, 'Very high (90.00%)'],
+      [0.6, 'High (60.00%)'],
+      [0.5437, 'High-medium (54.37%)'],
+      [0.39, 'Low-medium (39.00%)'],
+      [0.2, 'Low (20.00%)'],
+      [0.0123, 'Very low (1.23%)'],
+    ])('shows a confidence of %s as "%s"', (confidence, text) => {
+      expect(textOf(render({ advice: makeAdvice({ confidence }) }).q('.advice-confidence'))).toContain(`Confidence: ${text}`);
+    });
+
+    it('tells a good medium from a bad medium: a 90/100 call and a 21/100 call no longer read the same', () => {
+      const strong = render({ advice: makeAdvice({ verdict: 'buy_now', score: 90, confidence: 0.54 }) });
+      const strongText = textOf(strong.q('.advice-confidence'));
+      TestBed.resetTestingModule();
+      const weak = render({ advice: makeAdvice({ verdict: 'wait', score: 21, confidence: 0.39 }) });
+      const weakText = textOf(weak.q('.advice-confidence'));
+
+      expect(strongText).toContain('High-medium');
+      expect(weakText).toContain('Low-medium');
     });
 
     it('names when to expect a sale only for a "wait" verdict', () => {
@@ -169,6 +182,61 @@ describe('PricePredictionComponent', () => {
       );
       TestBed.resetTestingModule();
       expect(textOf(render({ advice: makeAdvice({ expected_saving_percent: 0 }) }).el)).not.toContain('saves about');
+    });
+  });
+
+  describe('the record-low note', () => {
+    const atLow = makeForecast({ at_record_low: true, current_price: 10, current_discount_percent: 50, on_sale: true, historic_low: 10, history_days: 2190 });
+
+    it('tells the user straight away when the price is the lowest on record', () => {
+      const { q } = render({ forecast: atLow, advice: makeAdvice({ verdict: 'buy_now', at_record_low: true }) });
+      const note = textOf(q('.record-low'));
+      expect(note).toContain('Record low');
+      expect(note).toContain('This is the lowest price on record ($10.00, from 2190 days of history)');
+    });
+
+    it('puts the note above the verdict, where it is seen first', () => {
+      const { q } = render({ forecast: atLow });
+      const note = q('.record-low')!;
+      const verdict = q('.verdict')!;
+      expect(note.compareDocumentPosition(verdict) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    });
+
+    it('is absent when the price is not a record low', () => {
+      expect(render().q('.record-low')).toBeNull();
+    });
+
+    it('is also shown when there is too little history for a forecast', () => {
+      const thin = makeForecast({ model: 'insufficient', at_record_low: true, history_days: 40, curve: [], horizons: [] });
+      expect(textOf(render({ forecast: thin, advice: makeAdvice({ verdict: 'not_enough_data', reasons: [] }) }).q('.record-low'))).toContain('lowest price on record');
+    });
+
+    it('is absent for a free game', () => {
+      const free = makeForecast({ model: 'free', at_record_low: false, current_price: 0, historic_low: 0, curve: [], horizons: [] });
+      expect(render({ forecast: free, advice: makeAdvice({ verdict: 'free', reasons: [] }) }).q('.record-low')).toBeNull();
+    });
+
+    function emitted(forecast: Forecast): boolean[] {
+      const seen: boolean[] = [];
+      TestBed.configureTestingModule({
+        imports: [PricePredictionComponent],
+        providers: [{ provide: GamesService, useValue: { getPrediction: () => of(forecast), getAdvice: () => of(makeAdvice()) } }],
+      });
+      TestBed.overrideComponent(PricePredictionComponent, { remove: { imports: [BaseChartDirective] }, add: { imports: [FakeChartDirective] } });
+      const fixture = TestBed.createComponent(PricePredictionComponent);
+      fixture.componentRef.setInput('appId', 730);
+      fixture.componentInstance.recordLowChange.subscribe((v) => seen.push(v));
+      fixture.detectChanges();
+      TestBed.tick();
+      return seen;
+    }
+
+    it('tells the page about it, so the header can show a badge', () => {
+      expect(emitted(atLow).at(-1)).toBe(true);
+    });
+
+    it('tells the page when it is not a record low', () => {
+      expect(emitted(makeForecast()).at(-1)).toBe(false);
     });
   });
 
@@ -228,7 +296,15 @@ describe('PricePredictionComponent', () => {
       const { el, q } = render({ forecast: f });
       expect(textOf(q('.typical-sale'))).toBe('No past sales seen');
       expect(textOf(el)).not.toContain('Typically');
-      expect(textOf(el)).toContain('Forecast confidence: Low');
+      expect(textOf(el)).toContain('Forecast confidence: Low (15.00%)');
+    });
+
+    it('shows the forecast confidence with its exact percentage', () => {
+      expect(textOf(render({ forecast: makeForecast({ confidence: 0.4375 }) }).q('.forecast-confidence'))).toBe(
+        'Forecast confidence: Low-medium (43.75%)'
+      );
+      TestBed.resetTestingModule();
+      expect(textOf(render().q('.forecast-confidence'))).toBe('Forecast confidence: Very high (100.00%)');
     });
 
     it('shows one row per horizon with the chance of a lower price and the expected low', () => {
@@ -258,6 +334,28 @@ describe('PricePredictionComponent', () => {
     it('labels the axis by month, in UTC so no label is a day early', () => {
       const { fixture } = render();
       expect(chartOf(fixture).data()!.labels).toEqual(["Oct '26", "Mar '27", "Oct '28"]);
+    });
+  });
+
+  describe('a free game', () => {
+    const free = makeForecast({ model: 'free', current_price: 0, regular_price: 0, historic_low: 0, curve: [], horizons: [], score: 0 });
+    const advice = makeAdvice({ verdict: 'free', score: 100, confidence: 1, reasons: [{ code: 'free', text: 'This game is free, so there is nothing to wait for', impact: 0 }], expected_saving_percent: 0, wait_until: null });
+
+    it('says there is nothing to wait for instead of showing a forecast', () => {
+      const { el, q } = render({ forecast: free, advice });
+      expect(textOf(q('.verdict'))).toBe('Free');
+      expect(textOf(q('.no-forecast'))).toContain('free to play');
+      expect(textOf(el)).toContain('nothing to wait for');
+      expect(q('table.horizons')).toBeNull();
+      expect(q('canvas')).toBeNull();
+    });
+
+    it('shows no score, confidence, saving or "general call" note', () => {
+      const { el, q } = render({ forecast: free, advice });
+      expect(q('.advice-confidence')).toBeNull();
+      expect(q('.forecast-confidence')).toBeNull();
+      expect(q('.generic-note')).toBeNull();
+      expect(textOf(el)).not.toContain('saves about');
     });
   });
 

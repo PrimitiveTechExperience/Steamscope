@@ -100,3 +100,32 @@ func TestBacktestIsDeterministic(t *testing.T) {
 		t.Error("the same data produced different backtests")
 	}
 }
+
+func TestBacktestSkipsFreeGames(t *testing.T) {
+	// For a $0 game "a price at least 5% below $0" is trivially true, which once
+	// made free games look like perfect misses. They must be left out entirely.
+	var free []Point
+	for i := 0; i < 600; i++ {
+		free = append(free, Point{Date: epoch.AddDate(0, 0, i), Price: 0, Regular: 0})
+	}
+	if r := Backtest(map[int][]Point{1: free}, BacktestConfig{}); len(r.Samples) != 0 {
+		t.Errorf("a free game produced %d samples", len(r.Samples))
+	}
+}
+
+func TestBacktestOutcomeNeedsAStrictlyLowerPrice(t *testing.T) {
+	// A game that never changes price never gets a lower one: every outcome is false.
+	var flat []Point
+	for i := 0; i < 700; i++ {
+		flat = append(flat, Point{Date: epoch.AddDate(0, 0, i), Price: 20, Regular: 20})
+	}
+	r := Backtest(map[int][]Point{1: flat}, BacktestConfig{LookaheadDays: 30})
+	if len(r.Samples) == 0 {
+		t.Fatal("no samples")
+	}
+	for _, s := range r.Samples {
+		if s.Outcome {
+			t.Fatalf("a flat-priced game cannot see a lower price, but %v was scored as one", s.Cutoff)
+		}
+	}
+}

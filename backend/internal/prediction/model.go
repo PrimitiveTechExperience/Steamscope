@@ -20,6 +20,12 @@ import (
 	"time"
 )
 
+// ModelVersion identifies the forecasting logic. It is part of the cache key,
+// so a forecast computed by an older version of the model is never served by a
+// newer one (or the other way round during a rolling deploy). Bump it whenever
+// a change can alter the numbers a game produces.
+const ModelVersion = "2"
+
 const (
 	// MinHistoryDays is the history needed before any forecast is made.
 	MinHistoryDays = 60
@@ -34,6 +40,11 @@ const (
 	// DefaultPaths is the number of simulated futures.
 	DefaultPaths = 1500
 
+	// recencyHalfLifeDays is how fast old sales lose influence: a sale this many
+	// days old counts half as much as one that just ended. Stores change how they
+	// discount over the years, so recent behaviour is the better guide.
+	recencyHalfLifeDays = 730.0
+
 	maxDailyHazard = 0.35
 	defaultDepth   = 0.30
 	defaultLength  = 7
@@ -45,6 +56,7 @@ const (
 	ModelPoisson      = "poisson"
 	ModelNoSales      = "no_sales_seen"
 	ModelInsufficient = "insufficient"
+	ModelFree         = "free" // a free game: there is no price to wait for
 )
 
 // Point is one recorded day. Regular is the undiscounted price; 0 means unknown.
@@ -59,6 +71,9 @@ type Options struct {
 	Now   time.Time // the forecast's "today"; defaults to the current UTC day
 	Paths int       // simulated futures; defaults to DefaultPaths
 	Seed  uint64    // 0 derives the seed from the data
+	// AllTimeLow is the lowest price ever paid, when known from a longer record
+	// than the one passed in (for example ITAD's full log). 0 means unknown.
+	AllTimeLow float64
 }
 
 // CurvePoint is the forecast for one future date.
@@ -103,16 +118,19 @@ type NextSale struct {
 
 // Forecast is the result for one game.
 type Forecast struct {
-	AppID        int         `json:"app_id"`
-	GeneratedAt  time.Time   `json:"generated_at"`
-	DataVersion  string      `json:"data_version"`
-	Model        string      `json:"model"`
-	CurrentPrice float64     `json:"current_price"`
-	RegularPrice float64     `json:"regular_price"`
-	CurrentDisc  int         `json:"current_discount_percent"`
-	OnSale       bool        `json:"on_sale"`
-	HistoryDays  int         `json:"history_days"`
-	HistoricLow  float64     `json:"historic_low"`
+	AppID        int       `json:"app_id"`
+	GeneratedAt  time.Time `json:"generated_at"`
+	DataVersion  string    `json:"data_version"`
+	Model        string    `json:"model"`
+	CurrentPrice float64   `json:"current_price"`
+	RegularPrice float64   `json:"regular_price"`
+	CurrentDisc  int       `json:"current_discount_percent"`
+	OnSale       bool      `json:"on_sale"`
+	HistoryDays  int       `json:"history_days"`
+	HistoricLow  float64   `json:"historic_low"`
+	// AtRecordLow is true when the game is on sale at (or below) the lowest
+	// price on record. A game that has never changed price is not a record low.
+	AtRecordLow  bool        `json:"at_record_low"`
 	UsedExtended bool        `json:"used_extended_history"`
 	Typical      TypicalSale `json:"typical_sale"`
 	Next         NextSale    `json:"next_sale"`
@@ -165,7 +183,17 @@ func Predict(appID int, points []Point, dataVersion string, opt Options) Forecas
 	f.CurrentPrice, f.RegularPrice = round2(last.price), round2(last.regular)
 	f.HistoryDays = len(days)
 	f.HistoricLow = round2(minPrice(days))
+	if opt.AllTimeLow > 0 && opt.AllTimeLow < f.HistoricLow {
+		f.HistoricLow = round2(opt.AllTimeLow)
+	}
 	f.CurrentDisc = int(math.Round(100 * discount(last)))
+	f.AtRecordLow = isRecordLow(last.price, f.CurrentDisc, f.HistoricLow)
+	if last.price == 0 {
+		// Free to play. (A free promotion on a paid game carries its last paid
+		// price instead, see buildDays.) Nothing can be cheaper than free.
+		f.Model = ModelFree
+		return f
+	}
 
 	real := 0
 	for _, d := range days {
@@ -180,7 +208,7 @@ func Predict(appID int, points []Point, dataVersion string, opt Options) Forecas
 	episodes := findEpisodes(days)
 	f.OnSale = len(episodes) > 0 && episodes[len(episodes)-1].end == len(days)-1
 	f.Typical = typicalSale(episodes, last.regular)
-	fit := fitRenewal(episodes, len(days))
+	fit := fitRenewal(episodes, len(days), len(days)-1)
 	f.Model = fit.model
 
 	years := float64(len(days)) / 365
@@ -197,6 +225,13 @@ func Predict(appID int, points []Point, dataVersion string, opt Options) Forecas
 	f.Score = int(math.Round(100 * sim.pLowerBy[180]))
 	f.Confidence = confidence(fit.model, len(episodes), len(days))
 	return f
+}
+
+// isRecordLow reports whether a price is the lowest ever recorded. It has to be
+// a real discount: a game that has always cost the same is trivially at its
+// lowest price, which says nothing.
+func isRecordLow(price float64, discountPercent int, low float64) bool {
+	return price > 0 && discountPercent > 0 && low > 0 && price <= low+0.005
 }
 
 // ---- preparing the series ----
@@ -239,6 +274,7 @@ func buildDays(points []Point, today time.Time) []day {
 		prev = p
 		days = append(days, day{date: d, price: p.Price, regular: p.Regular, real: ok})
 	}
+	resolveFreeRuns(days)
 
 	// A day without a recorded regular price uses the highest price of the
 	// trailing year as its reference.
@@ -254,6 +290,51 @@ func buildDays(points []Point, today time.Time) []day {
 		days[i].regular = math.Max(days[i].regular, days[i].price)
 	}
 	return days
+}
+
+// freeToPlayDays is how long a game must have been free, up to today, to count
+// as free to play rather than as being in a free promotion.
+const freeToPlayDays = 30
+
+// resolveFreeRuns replaces runs of $0 prices that are free promotions (a free
+// weekend, say) with the price around them: nobody could buy at $0, so such a
+// run is neither a sale nor a record low. A run that lasts to today and has
+// gone on for at least freeToPlayDays is the game's real price, as is a game
+// that has never cost anything.
+func resolveFreeRuns(days []day) {
+	paidSomewhere := false
+	for _, d := range days {
+		if d.price > 0 {
+			paidSomewhere = true
+			break
+		}
+	}
+	if !paidSomewhere {
+		return
+	}
+	lastPaid := math.NaN()
+	for i := 0; i < len(days); {
+		if days[i].price != 0 {
+			lastPaid = days[i].price
+			i++
+			continue
+		}
+		j := i
+		for j < len(days) && days[j].price == 0 {
+			j++
+		}
+		if j == len(days) && j-i >= freeToPlayDays {
+			return // free to play now
+		}
+		fill := lastPaid
+		if math.IsNaN(fill) && j < len(days) {
+			fill = days[j].price
+		}
+		for k := i; k < j; k++ {
+			days[k].price = fill
+		}
+		i = j
+	}
 }
 
 func discount(d day) float64 {
@@ -354,7 +435,7 @@ type renewal struct {
 // fitRenewal fits the time between sale starts. With regular spacing (low
 // variation) the Weibull shape is large, so a sale becomes more likely the
 // longer it has been since the last one. With erratic spacing the shape is 1.
-func fitRenewal(eps []episode, spanDays int) renewal {
+func fitRenewal(eps []episode, spanDays, lastIdx int) renewal {
 	span := float64(spanDays)
 	switch {
 	case len(eps) == 0:
@@ -362,27 +443,66 @@ func fitRenewal(eps []episode, spanDays int) renewal {
 	case len(eps) < 3:
 		return renewal{ModelPoisson, 1, math.Max(30, span/float64(len(eps)))}
 	}
-	var gaps []float64
+	var gaps, weights []float64
 	for i := 1; i < len(eps); i++ {
 		gaps = append(gaps, float64(eps[i].start-eps[i-1].start))
+		weights = append(weights, recency(lastIdx-eps[i].end))
 	}
-	mean, sd := meanStd(gaps)
+	mean, sd := weightedMeanStd(gaps, weights)
 	cv := math.Max(0.05, sd/mean)
 	k := math.Min(4, math.Max(0.8, math.Pow(cv, -1.086)))
 	return renewal{ModelWeibull, k, mean / math.Gamma(1+1/k)}
 }
 
-func meanStd(xs []float64) (float64, float64) {
-	var sum float64
-	for _, x := range xs {
-		sum += x
+// recency is the weight of something that happened ageDays ago.
+func recency(ageDays int) float64 {
+	return math.Pow(0.5, math.Max(0, float64(ageDays))/recencyHalfLifeDays)
+}
+
+func weightedMeanStd(xs, ws []float64) (float64, float64) {
+	var sw, sum float64
+	for i, x := range xs {
+		sw += ws[i]
+		sum += ws[i] * x
 	}
-	mean := sum / float64(len(xs))
+	mean := sum / sw
 	var ss float64
-	for _, x := range xs {
-		ss += (x - mean) * (x - mean)
+	for i, x := range xs {
+		ss += ws[i] * (x - mean) * (x - mean)
 	}
-	return mean, math.Sqrt(ss / float64(len(xs)))
+	return mean, math.Sqrt(ss / sw)
+}
+
+// weighted draws values with probability proportional to their weights.
+type weighted struct{ values, cum []float64 }
+
+func newWeighted(values, weights []float64) weighted {
+	w := weighted{values: values, cum: make([]float64, len(values))}
+	total := 0.0
+	for i := range values {
+		total += weights[i]
+		w.cum[i] = total
+	}
+	return w
+}
+
+func (w weighted) pick(rng *rand.Rand) float64 {
+	i := sort.SearchFloat64s(w.cum, rng.Float64()*w.cum[len(w.cum)-1])
+	return w.values[min(i, len(w.values)-1)]
+}
+
+// adjustedForSilence stops a long gap from being read as a sale being "due".
+// A Weibull fitted to regular sales says a sale becomes ever likelier the longer
+// it has been since the last, so a game that stopped discounting years ago
+// would be forecast to go on sale tomorrow. A gap much longer than the usual
+// one is better read as a change in behaviour: the process becomes memoryless,
+// with an expected wait that grows with the silence.
+func (r renewal) adjustedForSilence(daysSinceLastStart int) renewal {
+	mean := r.scale * math.Gamma(1+1/r.shape)
+	if float64(daysSinceLastStart) > 2*mean {
+		return renewal{r.model, 1, float64(daysSinceLastStart) / 2}
+	}
+	return r
 }
 
 // hazardTable[a] is the chance a sale starts tomorrow given the last one
@@ -486,24 +606,28 @@ func simulate(days []day, eps []episode, fit renewal, season [seasonDays]float64
 	regular := last.regular
 	current := last.price
 
-	// Sale depths and durations are drawn from the game's own past sales.
-	depths := make([]float64, 0, len(eps))
-	lengths := make([]int, 0, len(eps))
+	// Sale depths and durations are drawn from the game's own past sales, with
+	// recent sales counting for more than old ones.
+	var depthVals, depthW, lenVals, lenW []float64
+	var lengths []int
 	for i, e := range eps {
-		depths = append(depths, e.depth)
+		w := recency(len(days) - 1 - e.end)
+		depthVals, depthW = append(depthVals, e.depth), append(depthW, w)
 		ongoing := i == len(eps)-1 && e.end == len(days)-1
 		if !ongoing {
 			lengths = append(lengths, e.length())
+			lenVals, lenW = append(lenVals, float64(e.length())), append(lenW, w)
 		}
 	}
-	if len(depths) == 0 {
-		depths = []float64{defaultDepth}
+	if len(depthVals) == 0 {
+		depthVals, depthW = []float64{defaultDepth}, []float64{1}
 	}
-	if len(lengths) == 0 {
-		lengths = []int{defaultLength}
+	if len(lenVals) == 0 {
+		lengths, lenVals, lenW = []int{defaultLength}, []float64{defaultLength}, []float64{1}
 	}
 	sort.Ints(lengths)
 	medLen := lengths[len(lengths)/2]
+	depthDist, lengthDist := newWeighted(depthVals, depthW), newWeighted(lenVals, lenW)
 
 	// Where the game stands today.
 	onLeft, sinceStart, curDepth := 0, len(days), 0.0
@@ -515,6 +639,7 @@ func simulate(days []day, eps []episode, fit renewal, season [seasonDays]float64
 		}
 	}
 
+	fit = fit.adjustedForSilence(sinceStart)
 	hazard := fit.hazardTable(sinceStart + HorizonDays + 2)
 	rng := rand.New(rand.NewPCG(seed, seed^0x9E3779B97F4A7C15))
 	threshold := current * (1 - DropThreshold)
@@ -542,8 +667,8 @@ func simulate(days []day, eps []episode, fit renewal, season [seasonDays]float64
 				price = regular * (1 - depth)
 			default:
 				if rng.Float64() < math.Min(maxDailyHazard, hazard[min(since, len(hazard)-1)]*season[doy]) {
-					depth = depths[rng.IntN(len(depths))]
-					left = lengths[rng.IntN(len(lengths))] - 1
+					depth = depthDist.pick(rng)
+					left = int(lengthDist.pick(rng)) - 1
 					since = 0
 					price = regular * (1 - depth)
 					if s.firstStart[p] < 0 {
@@ -633,5 +758,5 @@ func confidence(model string, sales, historyDays int) float64 {
 	if model == ModelWeibull {
 		c += 0.1
 	}
-	return round2(math.Min(1, c))
+	return round4(math.Min(1, c))
 }
