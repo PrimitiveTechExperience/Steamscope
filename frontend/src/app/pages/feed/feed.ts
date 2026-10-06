@@ -2,12 +2,13 @@ import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
 import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { toSignal } from '@angular/core/rxjs-interop';
-import { catchError, map, of } from 'rxjs';
+import { toObservable, toSignal } from '@angular/core/rxjs-interop';
+import { catchError, map, of, switchMap } from 'rxjs';
 
 import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
 import { GameCardComponent } from '../../components/game-card/game-card';
+import { WishlistImportComponent } from '../../components/wishlist-import/wishlist-import';
 import { RevealOnScrollDirective } from '../../directives/reveal-on-scroll';
 import { AppNotification, Feed, NotificationKind, SteamPlayedGame, SteamProfile, SubmissionStatus } from '../../models/user';
 import { apiErrorMessage } from '../../api';
@@ -29,7 +30,7 @@ function greetingFor(hour: number): string {
 
 @Component({
   selector: 'app-feed',
-  imports: [RouterLink, CurrencyPipe, DatePipe, DecimalPipe, GameCardComponent, RevealOnScrollDirective],
+  imports: [RouterLink, CurrencyPipe, DatePipe, DecimalPipe, GameCardComponent, RevealOnScrollDirective, WishlistImportComponent],
   templateUrl: './feed.html',
 })
 export class FeedComponent {
@@ -104,8 +105,16 @@ export class FeedComponent {
     this.account.markAllRead().subscribe();
   }
 
+  /** Bumped to load the feed again, e.g. after a wishlist import adds games to the watchlist. */
+  private feedReload = signal(0);
+  protected reloadFeed() {
+    this.feedReload.update((n) => n + 1);
+  }
+
   private feedState = toSignal(
-    withLoading(this.account.getFeed().pipe(catchError(() => of(EMPTY_FEED))), EMPTY_FEED),
+    toObservable(this.feedReload).pipe(
+      switchMap(() => withLoading(this.account.getFeed().pipe(catchError(() => of(EMPTY_FEED))), EMPTY_FEED))
+    ),
     { initialValue: { data: EMPTY_FEED, loading: true } }
   );
   protected feed = computed(() => this.feedState().data);

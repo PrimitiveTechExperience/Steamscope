@@ -21,7 +21,7 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
 **For signed-in users**
 - Email-and-password accounts, plus "Sign in through Steam" (OpenID) and Steam profile cards.
 - A personal feed: watchlist (with pinning and target prices), games below their usual price, suggestions, recently
-  played games from a linked Steam account (with a one-click "Track price" request) and in-app notifications.
+  played games from a linked Steam account (with a one-click "Track price" request) and a wishlist import (see below) and in-app notifications.
 - Suggest games or bundles for tracking by pasting a Steam store link. Suggestions go through admin approval
   before anything is scraped.
 
@@ -35,6 +35,18 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
 - Liveness and readiness probes, Prometheus metrics, request IDs on every response and structured JSON access logs.
 - Automated tests, a GitHub Actions pipeline, Dockerfiles and a ready-made daily scrape job (cron, systemd or
   Windows Task Scheduler).
+
+## Wishlist import
+
+On the feed page, just under the Steam profile card, **Import wishlist** reads the linked account's Steam wishlist and starts watching every game on
+it that Steamscope already has (games already watched keep their pin and target price). Games it does not have are listed
+in a dialog, where the user can pick which ones to request; requests go through the normal submission queue, so an admin
+approves them first (admins' own requests are scraped straight away).
+
+- The wishlist must be public. Steam reports a private wishlist as empty, so the two look the same.
+- Importing is limited to 6 times an hour per user and requesting to 3, since each call reaches Steam or an admin queue.
+  A request takes at most 100 games and only accepts games that really are on the user's wishlist.
+- Games already requested, turned down by an admin or blocked by the blacklist are counted but not offered again.
 
 ## Architecture
 
@@ -161,7 +173,7 @@ Environment variables (see `.env.example` for the full annotated list):
 | `STEAM_COOKIE_FILE_PATH` | Cookies sent when scraping Steam |
 | `TRACKED_APP_IDS` | Comma-separated app IDs tracked from the start |
 | `ITAD_API_KEY` | Enables price-history backfills |
-| `STEAM_WEB_API_KEY` | Enables Steam profile cards |
+| `STEAM_WEB_API_KEY` | Enables Steam profile cards and wishlist import |
 | `REVIEW_FILTER`, `REVIEW_MAX_REVIEWS`, `REVIEW_LANGUAGE` | Review scraping options |
 | `METRICS_TOKEN` | If set, `/metrics` requires this bearer token |
 | `DISABLE_SCHEDULER` | `true` when an external job runs the scrape |
@@ -175,7 +187,7 @@ All endpoints are under `/api`. Responses are JSON; errors have the form `{"erro
 | --- | --- |
 | Public data | `GET /games`, `/games/{id}`, `/games/{id}/reviews`, `/games/{id}/price-history`, `/games/{id}/prediction`, `/games/{id}/advice`, `/filters`, `/bundles`, `/bundles/{id}` |
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/logout`; `GET /auth/me`; `GET /auth/steam/login`, `/auth/steam/link`, `/auth/steam/callback` |
-| Signed-in user | `/me/preferences`, `/me/watchlist`, `/me/notifications`, `/me/recent-searches`, `/me/steam-profile`, `/me/feed`, `/me/submissions`; `POST /submissions` |
+| Signed-in user | `/me/preferences`, `/me/watchlist`, `/me/notifications`, `/me/recent-searches`, `/me/steam-profile`, `/me/feed`, `/me/submissions`; `POST /me/wishlist/import`, `POST /me/wishlist/request`; `POST /submissions` |
 | Admin | `/admin/stats`, `/admin/users`, `/admin/items`, `/admin/blacklist` (requires an admin session) |
 | Operations | `GET /api/health`, `GET /api/ready`, `GET /metrics` |
 

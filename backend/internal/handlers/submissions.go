@@ -37,6 +37,9 @@ func NewSubmissionQueue(size int) *SubmissionQueue {
 	return &SubmissionQueue{jobs: make(chan submissionJob, size)}
 }
 
+// Len is how many submissions are waiting to be scraped.
+func (q *SubmissionQueue) Len() int { return len(q.jobs) }
+
 func (q *SubmissionQueue) enqueue(job submissionJob) bool {
 	select {
 	case q.jobs <- job:

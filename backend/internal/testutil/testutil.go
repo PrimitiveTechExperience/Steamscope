@@ -49,7 +49,9 @@ type App struct {
 	Mini    *miniredis.Miniredis
 	Handler http.Handler
 	Queue   *handlers.SubmissionQueue
-	nextIP  int
+	// H is the handler behind Handler, for tests that swap a dependency.
+	H      *handlers.Handler
+	nextIP int
 }
 
 // NewApp starts an isolated API. It skips the test when no database is
@@ -112,7 +114,7 @@ func NewApp(t *testing.T) *App {
 		DB: db, Redis: rdb, Sessions: sessions, Submissions: queue,
 		Config: &config.Config{FrontendURL: FrontendURL, BackendURL: BackendURL, MetricsToken: "test-token"},
 	})
-	return &App{T: t, DB: db, Pool: pool, Redis: rdb, Mini: mini, Queue: queue, Handler: router.New(h, FrontendURL)}
+	return &App{T: t, DB: db, Pool: pool, Redis: rdb, Mini: mini, Queue: queue, H: h, Handler: router.New(h, FrontendURL)}
 }
 
 // schemaSQL returns setup.sql without its trailing row-level-security block,

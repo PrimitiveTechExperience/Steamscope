@@ -62,6 +62,7 @@
                     </div>
                 </div>
             </div>
+            <app-wishlist-import class="wishlist-strip mt-3 block" (imported)="reloadFeed()" />
         } @else if (profileUnavailable(); as reason) {
             <div class="edge-panel p-5 text-sm text-[var(--color-text-muted)]">{{ reason }}</div>
         } @else {

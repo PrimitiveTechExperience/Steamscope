@@ -45,6 +45,7 @@ function render(opts: { profile?: SteamProfile | null; profileError?: number; no
       opts.profileError ? throwError(() => new HttpErrorResponse({ status: opts.profileError })) : of({ profile: opts.profile === undefined ? null : opts.profile })
     ),
     submitGame: opts.submitGame ?? vi.fn().mockReturnValue(of({ kind: 'app', id: 2, status: 'awaiting_approval' })),
+    importWishlist: vi.fn(),
   };
   TestBed.configureTestingModule({
     imports: [FeedComponent],
@@ -109,6 +110,45 @@ describe('FeedComponent: Steam profile', () => {
     fixture.detectChanges();
     expect(textOf(el)).toContain("You're not able to submit games");
     expect(tile('New Game').querySelector('button')).not.toBeNull();
+  });
+
+  describe('wishlist import', () => {
+    const imported = { wishlist_size: 4, watched: 2, already_watched: 0, requestable: [], awaiting_review: 0, unavailable: 0 };
+
+    it('puts the Import wishlist button in its own strip under the profile card, leaving the card as it was', () => {
+      const { el } = render({ profile: profile() });
+      const strip = el.querySelector('.wishlist-strip')!;
+      expect(textOf(strip.querySelector('.import-button'))).toBe('Import wishlist');
+      const card = strip.previousElementSibling!;
+      expect(card.classList.contains('edge-panel')).toBe(true);
+      expect(card.contains(strip)).toBe(false);
+      expect(card.querySelector('.import-button')).toBeNull();
+      expect(card.querySelectorAll(':scope > div > div')).toHaveLength(2); // avatar and recently played only
+    });
+
+    it('does not show it to someone who has not linked Steam', () => {
+      const { el } = render({ profile: null });
+      expect(el.querySelector('.wishlist-strip')).toBeNull();
+      expect(el.querySelector('app-wishlist-import')).toBeNull();
+    });
+
+    it('reloads the feed after games were added to the watchlist', () => {
+      const { fixture, el, account } = render({ profile: profile() });
+      account.importWishlist.mockReturnValue(of(imported));
+      expect(account.getFeed).toHaveBeenCalledTimes(1);
+      (el.querySelector('.import-button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(account.importWishlist).toHaveBeenCalled();
+      expect(account.getFeed).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not reload the feed when nothing was added', () => {
+      const { fixture, el, account } = render({ profile: profile() });
+      account.importWishlist.mockReturnValue(of({ ...imported, watched: 0, already_watched: 4 }));
+      (el.querySelector('.import-button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(account.getFeed).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('explains when nothing was played recently', () => {
