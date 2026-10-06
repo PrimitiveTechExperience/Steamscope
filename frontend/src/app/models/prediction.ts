@@ -33,6 +33,8 @@ export type ForecastModel = 'weibull_renewal' | 'poisson' | 'no_sales_seen' | 'i
 
 export interface Forecast {
     app_id: number;
+    /** Set (and app_id is 0) when the forecast is for a bundle. */
+    bundle_id?: number;
     generated_at: string;
     model: ForecastModel;
     current_price: number;

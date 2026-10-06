@@ -248,22 +248,8 @@ func (db *DB) GetBundle(ctx context.Context, bundleID int) (*models.BundleDetail
 		return nil, err
 	}
 
-	historyRows, err := db.Pool.Query(ctx, `
-		SELECT recorded_date, price, original_price, discount_percentage
-		FROM bundle_price_history WHERE bundle_id = $1 ORDER BY recorded_date`, bundleID)
+	history, err := db.GetBundlePriceHistory(ctx, bundleID)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get bundle price history: %w", err)
-	}
-	defer historyRows.Close()
-	history := []models.PricePoint{}
-	for historyRows.Next() {
-		var p models.PricePoint
-		if err := historyRows.Scan(&p.Date, &p.Price, &p.OriginalPrice, &p.DiscountPercentage); err != nil {
-			return nil, fmt.Errorf("failed to scan bundle price point: %w", err)
-		}
-		history = append(history, p)
-	}
-	if err := historyRows.Err(); err != nil {
 		return nil, err
 	}
 

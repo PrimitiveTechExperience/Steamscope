@@ -15,7 +15,8 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
   next sale is likely) and a verdict with the reasons behind it. Watchers get advice that also weighs their target price
   and how long they have been waiting. See [docs/PREDICTIONS.md](docs/PREDICTIONS.md).
 - Bundle tracking: bundles are discovered from tracked games' store pages (and can be submitted by link), with
-  their own price history and a cover collage built from the games they contain.
+  years of price history imported from ITAD, the same forecast and buy-now-or-wait advice as games, a verdict on
+  whether the bundle beats buying its games separately, and a cover collage built from the games they contain.
 
 **For signed-in users**
 - Email-and-password accounts, plus "Sign in through Steam" (OpenID) and Steam profile cards.
@@ -211,4 +212,4 @@ docs/                  CI/CD and operations guides
 - Steamscope reads public Steam store pages. Keep the scrape rate modest, respect Steam's terms of service, and
   do not put real account cookies in the repository.
 - Price history older than the first ITAD record is never invented: a recent release shows only the days that exist.
-- Bundle history starts when a bundle is first discovered, because ITAD has no history for Steam bundles.
+- Bundles have no list price of their own, so their forecast treats the highest price of the past year as the regular price.

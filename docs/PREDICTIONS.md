@@ -120,9 +120,29 @@ the bundle price against:
 
 The result is a score and a verdict (`great_deal` 75+, `good_deal` 60+, `fair` 40+, otherwise `poor_value`), with
 signed reasons. Games with no known price lower the `completeness` and are listed as unknown; with nothing priced the
-verdict is `not_enough_data`. Bundle history only starts when the bundle was first tracked, so a bundle's record low
-means the lowest price since tracking began. Per-game prices are collected by the scraper, so a bundle shows
-`not_enough_data` until it has been scraped once after this was introduced.
+verdict is `not_enough_data`. Per-game prices are collected by the scraper, so a bundle shows `not_enough_data`
+until it has been scraped once. The bundle's own record low comes from its price history (see below).
+
+## Bundle history and forecasts
+
+IsThereAnyDeal tracks Steam bundles as items of their own, with a price log reaching back years. A bundle's Steam id
+is looked up as `bundle/<id>` and its log is read through the same history endpoint as games. Those prices are
+imported into `bundle_price_history` (up to six years) when a bundle is first scraped, when it is submitted, and
+whenever a scheduled run finds a tracked bundle with under two months of history. The import only fills days that
+have no row, so prices scraped from Steam are never overwritten. To import all tracked bundles by hand, run
+`go run ./backend/cmd/backfill-history -bundles-only`.
+
+Bundles get the same forecast and buy-now-or-wait advice as games, from `GET /api/bundles/{id}/prediction` and
+`GET /api/bundles/{id}/advice`, using the same model, caching and rate limit (a bundle's cache key is the negative of
+its id, so it cannot clash with a game that has the same number). Differences:
+
+- A bundle has no list price. Steam's "original price" is the games added up and ITAD's is something else, so the
+  regular price is taken as the highest price in the preceding year, and a sale is a dip of at least 5% below it.
+- There is no watchlist for bundles, so the advice is always the general call.
+
+The two panels answer different questions. The value verdict says whether today's price is good compared with the
+games and the bundle's history; the forecast says whether a better price is likely to come. A bundle can be a good
+deal now and still have a sale due soon.
 
 ## API
 

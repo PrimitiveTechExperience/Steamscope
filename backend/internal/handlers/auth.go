@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"net/mail"
 	"strings"
@@ -70,8 +69,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 
 	hash, err := auth.HashPassword(req.Password)
 	if err != nil {
-		log.Printf("register: hash failed: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to create account")
+		serverError(w, r, "register: hash failed", err, "failed to create account")
 		return
 	}
 	user, err := h.DB.CreateUser(r.Context(), req.Username, req.Email, hash)
@@ -80,14 +78,12 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	case err != nil:
-		log.Printf("register: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to create account")
+		serverError(w, r, "register", err, "failed to create account")
 		return
 	}
 
 	if err := h.Sessions.Create(r.Context(), w, user.UserID); err != nil {
-		log.Printf("register: session: %v", err)
-		writeError(w, http.StatusInternalServerError, "account created, but failed to log in")
+		serverError(w, r, "register: session", err, "account created, but failed to log in")
 		return
 	}
 	writeJSON(w, http.StatusCreated, map[string]any{"user": user})
@@ -119,8 +115,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 
 	user, err := h.DB.GetUserByLogin(r.Context(), req.Login)
 	if err != nil && !errors.Is(err, database.ErrNotFound) {
-		log.Printf("login: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to log in")
+		serverError(w, r, "login", err, "failed to log in")
 		return
 	}
 
@@ -142,8 +137,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err := h.Sessions.Create(r.Context(), w, user.UserID); err != nil {
-		log.Printf("login: session: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to log in")
+		serverError(w, r, "login: session", err, "failed to log in")
 		return
 	}
 	observability.LoginAttempts.WithLabelValues("success").Inc()

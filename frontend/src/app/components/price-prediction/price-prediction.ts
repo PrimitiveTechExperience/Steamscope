@@ -3,7 +3,7 @@ import { CurrencyPipe, DatePipe, DecimalPipe, isPlatformBrowser } from '@angular
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { ChartConfiguration } from 'chart.js';
 import { BaseChartDirective } from 'ng2-charts';
-import { Observable, catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
+import { EMPTY, Observable, catchError, combineLatest, map, of, startWith, switchMap } from 'rxjs';
 
 import { GamesService } from '../../services/games';
 import { ThemeService } from '../../services/theme';
@@ -44,14 +44,17 @@ const VERDICT_BACKGROUNDS: Record<Verdict, string> = {
 
 const HORIZON_LABELS: Record<number, string> = { 30: '1 month', 90: '3 months', 180: '6 months', 365: '1 year', 730: '2 years' };
 
-/** "Buy now or wait?": the verdict for a game, why, and the two-year price outlook. */
+/** "Buy now or wait?": the verdict for a game or bundle, why, and the two-year price outlook. */
 @Component({
   selector: 'app-price-prediction',
   imports: [BaseChartDirective, CurrencyPipe, DatePipe, DecimalPipe],
   templateUrl: './price-prediction.html',
 })
 export class PricePredictionComponent {
-  appId = input.required<number>();
+  /** The game to forecast. Give either this or `bundleId`. */
+  appId = input<number | null>(null);
+  /** The bundle to forecast instead of a game. */
+  bundleId = input<number | null>(null);
   /** Change this to refetch, e.g. after the user starts watching or sets a target price. */
   refreshKey = input<unknown>(null);
 
@@ -63,15 +66,23 @@ export class PricePredictionComponent {
   protected isBrowser = isPlatformBrowser(inject(PLATFORM_ID));
 
   private state = toSignal(
-    combineLatest([toObservable(this.appId), toObservable(this.refreshKey)]).pipe(
-      switchMap(([id]) =>
-        combineLatest([load(this.games.getPrediction(id)), load(this.games.getAdvice(id))]).pipe(
-          map(([forecast, advice]) => ({ forecast, advice }))
-        )
-      )
+    combineLatest([toObservable(this.appId), toObservable(this.bundleId), toObservable(this.refreshKey)]).pipe(
+      switchMap(([appId, bundleId]) => {
+        const [prediction, advice] =
+          bundleId != null
+            ? [this.games.getBundlePrediction(bundleId), this.games.getBundleAdvice(bundleId)]
+            : appId != null
+              ? [this.games.getPrediction(appId), this.games.getAdvice(appId)]
+              : [EMPTY as Observable<Forecast>, EMPTY as Observable<Advice>];
+        return combineLatest([load(prediction), load(advice)]).pipe(map(([forecast, advice]) => ({ forecast, advice })));
+      })
     ),
     { initialValue: { forecast: LOADING as Load<Forecast>, advice: LOADING as Load<Advice> } }
   );
+
+  protected isBundle = computed(() => this.bundleId() != null);
+  /** What the forecast is about, for the wording in the template. */
+  protected subject = computed(() => (this.isBundle() ? 'bundle' : 'game'));
 
   protected forecast = computed(() => this.state().forecast.data);
   protected advice = computed(() => this.state().advice.data);

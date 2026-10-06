@@ -83,7 +83,7 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 
 	games, err := h.DB.GetGames(r.Context(), filters)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to retrieve games")
+		serverError(w, r, "get games", err, "Failed to retrieve games")
 		return
 	}
 	response := GameResponse{
@@ -94,7 +94,7 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	}
 	encoded, err := json.Marshal(response)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to encode games")
+		serverError(w, r, "encode games", err, "Failed to encode games")
 		return
 	}
 	if len(encoded) <= maxCachedSearchBytes {
@@ -168,13 +168,13 @@ func (h *Handler) GetGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to retrieve game")
+		serverError(w, r, "get game", err, "Failed to retrieve game")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(game); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to encode game")
+		serverError(w, r, "encode game", err, "Failed to encode game")
 		return
 	}
 }
@@ -190,13 +190,13 @@ func (h *Handler) GetPriceHistory(w http.ResponseWriter, r *http.Request) {
 
 	history, err := h.DB.GetPriceHistory(r.Context(), appID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to retrieve price history")
+		serverError(w, r, "get price history", err, "Failed to retrieve price history")
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(history); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to encode price history")
+		serverError(w, r, "encode price history", err, "Failed to encode price history")
 		return
 	}
 }

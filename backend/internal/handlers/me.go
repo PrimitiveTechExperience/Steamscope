@@ -21,8 +21,7 @@ func (h *Handler) GetPreferences(w http.ResponseWriter, r *http.Request) {
 	user := auth.CurrentUser(r.Context())
 	prefs, err := h.DB.GetPreferences(r.Context(), user.UserID)
 	if err != nil {
-		log.Printf("get preferences: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load preferences")
+		serverError(w, r, "get preferences", err, "failed to load preferences")
 		return
 	}
 	writeJSON(w, http.StatusOK, prefs)
@@ -54,8 +53,7 @@ func (h *Handler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	if err := h.DB.UpdatePreferences(r.Context(), user.UserID, prefs); err != nil {
-		log.Printf("update preferences: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to save preferences")
+		serverError(w, r, "update preferences", err, "failed to save preferences")
 		return
 	}
 	writeJSON(w, http.StatusOK, prefs)
@@ -65,8 +63,7 @@ func (h *Handler) GetWatchlist(w http.ResponseWriter, r *http.Request) {
 	user := auth.CurrentUser(r.Context())
 	watchlist, err := h.DB.GetWatchlist(r.Context(), user.UserID)
 	if err != nil {
-		log.Printf("get watchlist: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load watchlist")
+		serverError(w, r, "get watchlist", err, "failed to load watchlist")
 		return
 	}
 	writeJSON(w, http.StatusOK, watchlist)
@@ -98,8 +95,7 @@ func (h *Handler) WatchGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("watch game: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to watch game")
+		serverError(w, r, "watch game", err, "failed to watch game")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -113,8 +109,7 @@ func (h *Handler) UnwatchGame(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err := h.DB.DeleteWatchedGame(r.Context(), user.UserID, appID); err != nil {
-		log.Printf("unwatch game: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to unwatch game")
+		serverError(w, r, "unwatch game", err, "failed to unwatch game")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -124,8 +119,7 @@ func (h *Handler) GetNotifications(w http.ResponseWriter, r *http.Request) {
 	user := auth.CurrentUser(r.Context())
 	notifications, err := h.DB.GetNotifications(r.Context(), user.UserID)
 	if err != nil {
-		log.Printf("get notifications: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load notifications")
+		serverError(w, r, "get notifications", err, "failed to load notifications")
 		return
 	}
 	writeJSON(w, http.StatusOK, notifications)
@@ -142,8 +136,7 @@ func (h *Handler) MarkNotificationsRead(w http.ResponseWriter, r *http.Request) 
 		return
 	}
 	if err := h.DB.MarkNotificationsRead(r.Context(), user.UserID, req.IDs); err != nil {
-		log.Printf("mark notifications read: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to update notifications")
+		serverError(w, r, "mark notifications read", err, "failed to update notifications")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -196,8 +189,7 @@ func (h *Handler) steamProfile(r *http.Request, steamID string) (*models.SteamPr
 func (h *Handler) UnlinkSteam(w http.ResponseWriter, r *http.Request) {
 	user := auth.CurrentUser(r.Context())
 	if err := h.DB.SetSteamID(r.Context(), user.UserID, nil); err != nil {
-		log.Printf("unlink steam: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to unlink steam")
+		serverError(w, r, "unlink steam", err, "failed to unlink steam")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)
@@ -222,8 +214,7 @@ func (h *Handler) GetFeed(w http.ResponseWriter, r *http.Request) {
 		return err
 	})
 	if err := g.Wait(); err != nil {
-		log.Printf("get feed: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load feed")
+		serverError(w, r, "get feed", err, "failed to load feed")
 		return
 	}
 	writeJSON(w, http.StatusOK, feed)
@@ -279,8 +270,7 @@ func (h *Handler) GetRecentSearches(w http.ResponseWriter, r *http.Request) {
 	user := auth.CurrentUser(r.Context())
 	values, err := h.Redis.LRange(r.Context(), recentSearchesKey(user.UserID), 0, recentSearchesMax-1).Result()
 	if err != nil {
-		log.Printf("get recent searches: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load recent searches")
+		serverError(w, r, "get recent searches", err, "failed to load recent searches")
 		return
 	}
 	searches := make([]recentSearch, 0, len(values))
@@ -317,8 +307,7 @@ func (h *Handler) AddRecentSearch(w http.ResponseWriter, r *http.Request) {
 	pipe.LTrim(r.Context(), key, 0, recentSearchesMax-1)
 	pipe.Expire(r.Context(), key, recentSearchesTTL)
 	if _, err := pipe.Exec(r.Context()); err != nil {
-		log.Printf("add recent search: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to save search")
+		serverError(w, r, "add recent search", err, "failed to save search")
 		return
 	}
 	w.WriteHeader(http.StatusNoContent)

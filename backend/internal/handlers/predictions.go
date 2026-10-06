@@ -39,8 +39,7 @@ func (h *Handler) GetPrediction(w http.ResponseWriter, r *http.Request) {
 		if r.Context().Err() != nil {
 			return // the client went away; nobody is waiting for an answer
 		}
-		log.Printf("prediction for %d: %v", appID, err)
-		writeError(w, http.StatusInternalServerError, "failed to compute the forecast")
+		serverError(w, r, "compute forecast", err, "failed to compute the forecast", "app_id", appID)
 		return
 	}
 	writeJSON(w, http.StatusOK, f)
@@ -65,8 +64,7 @@ func (h *Handler) GetAdvice(w http.ResponseWriter, r *http.Request) {
 		if r.Context().Err() != nil {
 			return
 		}
-		log.Printf("advice for %d: %v", appID, err)
-		writeError(w, http.StatusInternalServerError, "failed to compute the advice")
+		serverError(w, r, "compute advice", err, "failed to compute the advice", "app_id", appID)
 		return
 	}
 
@@ -109,39 +107,64 @@ func (h *Handler) predictionRequest(w http.ResponseWriter, r *http.Request) (int
 		if r.Context().Err() != nil {
 			return 0, false // the client went away
 		}
-		log.Printf("prediction: game lookup %d: %v", appID, err)
-		writeError(w, http.StatusInternalServerError, "failed to load the game")
+		serverError(w, r, "forecast: load game", err, "failed to load the game", "app_id", appID)
 		return 0, false
 	}
 	return appID, true
 }
 
-// forecast returns the cached forecast when the price history hasn't changed
-// since it was built, and otherwise computes (and caches) a new one. Requests
-// for the same game that arrive together share one computation.
+// forecastSource is what a forecast is built for: a game or a bundle.
+type forecastSource struct {
+	appID    int    // 0 for a bundle
+	bundleID int    // 0 for a game
+	version  string // identifies the history the forecast is built from
+	load     func(ctx context.Context) (points []prediction.Point, allTimeLow float64, extended bool, err error)
+}
+
+func (s forecastSource) key() int {
+	if s.bundleID > 0 {
+		return prediction.BundleKey(s.bundleID)
+	}
+	return s.appID
+}
+
+// forecast returns the cached forecast for a game when the price history hasn't
+// changed since it was built, and otherwise computes (and caches) a new one.
 func (h *Handler) forecast(ctx context.Context, appID int) (prediction.Forecast, error) {
 	summary, err := h.DB.GetPriceHistorySummary(ctx, appID)
 	if err != nil {
 		return prediction.Forecast{}, err
 	}
-	version := fmt.Sprintf("m%s|%d|%s|%.2f|itad=%t", prediction.ModelVersion, summary.Rows, summary.LastDate.Format("2006-01-02"), summary.LastPrice, h.ITAD != nil)
+	return h.cachedForecast(ctx, forecastSource{
+		appID:   appID,
+		version: fmt.Sprintf("m%s|%d|%s|%.2f|itad=%t", prediction.ModelVersion, summary.Rows, summary.LastDate.Format("2006-01-02"), summary.LastPrice, h.ITAD != nil),
+		load: func(ctx context.Context) ([]prediction.Point, float64, bool, error) {
+			return h.historyPoints(ctx, appID)
+		},
+	})
+}
 
-	if f, ok := h.Predictions.Get(ctx, appID, version); ok {
+// cachedForecast serves the cached forecast while its version still matches,
+// and otherwise computes and caches a new one. Requests for the same subject
+// that arrive together share one computation.
+func (h *Handler) cachedForecast(ctx context.Context, src forecastSource) (prediction.Forecast, error) {
+	if f, ok := h.Predictions.Get(ctx, src.key(), src.version); ok {
 		observability.PredictionRequests.WithLabelValues("hit").Inc()
 		return *f, nil
 	}
 
-	v, err, _ := h.predictFlight.Do(strconv.Itoa(appID)+"|"+version, func() (any, error) {
+	v, err, _ := h.predictFlight.Do(strconv.Itoa(src.key())+"|"+src.version, func() (any, error) {
 		start := time.Now()
 		// The shared computation must not die with the first caller's request.
 		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*itadTimeout)
 		defer cancel()
 
-		points, allTimeLow, extended, err := h.historyPoints(cctx, appID)
+		points, allTimeLow, extended, err := src.load(cctx)
 		if err != nil {
 			return nil, err
 		}
-		f := prediction.Predict(appID, points, version, prediction.Options{AllTimeLow: allTimeLow})
+		f := prediction.Predict(src.appID, points, src.version, prediction.Options{AllTimeLow: allTimeLow})
+		f.BundleID = src.bundleID
 		f.UsedExtended = extended
 		observability.PredictionCompute.Observe(time.Since(start).Seconds())
 
@@ -151,7 +174,7 @@ func (h *Handler) forecast(ctx context.Context, appID int) (prediction.Forecast,
 		}
 		observability.PredictionRequests.WithLabelValues("miss").Inc()
 		if err := h.Predictions.Put(cctx, f); err != nil {
-			log.Printf("prediction: cache put %d: %v", appID, err)
+			log.Printf("prediction: cache put %d: %v", src.key(), err)
 		}
 		return f, nil
 	})

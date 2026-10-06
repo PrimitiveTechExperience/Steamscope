@@ -72,6 +72,16 @@ export class GamesService {
     return this.http.get<Advice>(`${this.apiUrl}/games/${id}/advice`);
   }
 
+  /** Price forecast for a bundle; same shape as a game's. */
+  getBundlePrediction(id: number): Observable<Forecast> {
+    return this.http.get<Forecast>(`${this.apiUrl}/bundles/${id}/prediction`);
+  }
+
+  /** Buy-now-or-wait advice for a bundle (always the general call). */
+  getBundleAdvice(id: number): Observable<Advice> {
+    return this.http.get<Advice>(`${this.apiUrl}/bundles/${id}/advice`);
+  }
+
   getFilterOptions(): Observable<FilterOptions> {
     return this.http.get<FilterOptions>(`${this.apiUrl}/filters`);
   }

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -38,6 +39,7 @@ type ctxKey int
 const (
 	requestIDKey ctxKey = iota
 	routeKey
+	failureKey
 )
 
 // A client-supplied request ID is only trusted if it looks like an ID, so a
@@ -56,6 +58,46 @@ func newRequestID() string {
 func RequestID(ctx context.Context) string {
 	id, _ := ctx.Value(requestIDKey).(string)
 	return id
+}
+
+// failure is what a handler reports about a request that ended in a server
+// error, so the one log line written for it can say why.
+type failure struct {
+	op    string
+	err   error
+	attrs []any
+}
+
+// RecordError tells the middleware why the request is about to fail with a
+// 5xx: op names what was being attempted, err is the underlying cause and
+// attrs are extra key/value pairs (ids, codes) worth having in the log. The
+// middleware then writes a single structured line with all of it, tagged with
+// the request ID the client also receives. Only the first report for a request
+// is kept.
+func RecordError(ctx context.Context, op string, err error, attrs ...any) {
+	if f, ok := ctx.Value(failureKey).(*failureHolder); ok && f.failure == nil {
+		f.failure = &failure{op: op, err: err, attrs: attrs}
+	}
+}
+
+type failureHolder struct{ failure *failure }
+
+// logAttrs turns a recorded failure into log attributes: the message, its
+// Go type, and the chain of wrapped errors, which is what usually points at
+// the real cause (a database error under two layers of "failed to ...").
+func (f *failure) logAttrs() []any {
+	out := []any{"op", f.op}
+	if f.err != nil {
+		out = append(out, "error", f.err.Error(), "error_type", fmt.Sprintf("%T", f.err))
+		var chain []string
+		for e := errors.Unwrap(f.err); e != nil; e = errors.Unwrap(e) {
+			chain = append(chain, fmt.Sprintf("%T: %s", e, e.Error()))
+		}
+		if len(chain) > 0 {
+			out = append(out, "error_chain", chain)
+		}
+	}
+	return append(out, f.attrs...)
 }
 
 // Registry holds every metric the API exposes.
@@ -221,8 +263,10 @@ func Middleware(logger *slog.Logger, logAll bool) func(http.Handler) http.Handle
 			w.Header().Set(RequestIDHeader, id)
 
 			holder := &routeHolder{}
+			failed := &failureHolder{}
 			ctx := context.WithValue(r.Context(), requestIDKey, id)
 			ctx = context.WithValue(ctx, routeKey, holder)
+			ctx = context.WithValue(ctx, failureKey, failed)
 			r = r.WithContext(ctx)
 
 			sw := &statusWriter{ResponseWriter: w}
@@ -233,11 +277,12 @@ func Middleware(logger *slog.Logger, logAll bool) func(http.Handler) http.Handle
 				if rec := recover(); rec != nil {
 					panicked = true
 					httpPanics.Inc()
-					logger.Error("panic recovered", "request_id", id, "panic", rec, "stack", string(debug.Stack()))
+					logger.Error("panic recovered", "request_id", id, "method", r.Method, "path", r.URL.Path,
+						"panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
 					if sw.status == 0 {
 						sw.Header().Set("Content-Type", "application/json")
 						sw.WriteHeader(http.StatusInternalServerError)
-						sw.Write([]byte(`{"error":"internal server error"}`))
+						sw.Write([]byte(`{"error":"internal server error","request_id":"` + id + `"}`))
 					}
 				}
 				route := holder.pattern
@@ -259,16 +304,26 @@ func Middleware(logger *slog.Logger, logAll bool) func(http.Handler) http.Handle
 				httpRequests.WithLabelValues(r.Method, route, strconv.Itoa(status)).Inc()
 				httpDuration.WithLabelValues(r.Method, route).Observe(elapsed.Seconds())
 				if route != "GET /metrics" && (logAll || status >= http.StatusInternalServerError) {
-					logger.Info("request",
+					attrs := []any{
 						"request_id", id,
 						"method", r.Method,
 						"route", route,
 						"path", r.URL.Path,
+						"query", r.URL.RawQuery,
 						"status", status,
-						"duration_ms", float64(elapsed.Microseconds())/1000,
+						"duration_ms", float64(elapsed.Microseconds()) / 1000,
 						"bytes", sw.bytes,
 						"remote", r.RemoteAddr,
-					)
+					}
+					// A server error is logged at error level with its cause, on the
+					// same line, so one grep for the request ID explains the failure.
+					if status >= http.StatusInternalServerError && failed.failure != nil {
+						logger.Error("request failed", append(attrs, failed.failure.logAttrs()...)...)
+					} else if status >= http.StatusInternalServerError {
+						logger.Error("request failed", append(attrs, "op", "unknown", "error", "no cause was recorded for this status")...)
+					} else {
+						logger.Info("request", attrs...)
+					}
 				}
 			}()
 			next.ServeHTTP(sw, r)

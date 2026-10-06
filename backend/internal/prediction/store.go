@@ -61,10 +61,22 @@ redis.call('EXPIRE', KEYS[1], ARGV[3])
 return redis.call('ZCARD', KEYS[1])
 `)
 
-// Get returns the cached forecast for a game if one exists and was built from
-// the history identified by dataVersion.
-func (s *Store) Get(ctx context.Context, appID int, dataVersion string) (*Forecast, bool) {
-	raw, err := s.rdb.Get(ctx, keyPrefix+strconv.Itoa(appID)).Bytes()
+// Key is the cache key of a forecast: the app id for a game, and the negated
+// bundle id for a bundle, since both are plain integers that could collide.
+func (f Forecast) Key() int {
+	if f.BundleID > 0 {
+		return BundleKey(f.BundleID)
+	}
+	return f.AppID
+}
+
+// BundleKey is the cache key of a bundle's forecast.
+func BundleKey(bundleID int) int { return -bundleID }
+
+// Get returns the cached forecast stored under key (see Forecast.Key) if one
+// exists and was built from the history identified by dataVersion.
+func (s *Store) Get(ctx context.Context, key int, dataVersion string) (*Forecast, bool) {
+	raw, err := s.rdb.Get(ctx, keyPrefix+strconv.Itoa(key)).Bytes()
 	if err != nil {
 		return nil, false
 	}
@@ -84,11 +96,11 @@ func (s *Store) Put(ctx context.Context, f Forecast) error {
 		return err
 	}
 	return putScript.Run(ctx, s.rdb, []string{indexKey},
-		string(payload), time.Now().UnixMilli(), int(s.ttl.Seconds()), f.AppID, s.max, keyPrefix,
+		string(payload), time.Now().UnixMilli(), int(s.ttl.Seconds()), f.Key(), s.max, keyPrefix,
 	).Err()
 }
 
-// Cached lists the app IDs currently held, oldest first.
+// Cached lists the keys currently held (see Forecast.Key), oldest first.
 func (s *Store) Cached(ctx context.Context) []int {
 	ids, err := s.rdb.ZRange(ctx, indexKey, 0, -1).Result()
 	if err != nil {

@@ -3,6 +3,8 @@ package observability
 import (
 	"bytes"
 	"context"
+	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"log/slog"
@@ -289,5 +291,84 @@ func TestATimeoutIsStillAServerError(t *testing.T) {
 	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/timeout", nil).WithContext(ctx))
 	if !strings.Contains(logs.String(), `"status":504`) {
 		t.Errorf("a deadline expiry should still be logged as an error: %q", logs.String())
+	}
+}
+
+func logLine(t *testing.T, buf *bytes.Buffer) map[string]any {
+	t.Helper()
+	var line map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &line); err != nil {
+		t.Fatalf("log output is not one JSON object: %v\n%s", err, buf.String())
+	}
+	return line
+}
+
+func TestServerErrorLogExplainsTheCause(t *testing.T) {
+	logger, logs := quietLogger()
+	cause := fmt.Errorf("failed to get bundle: %w", fmt.Errorf("scan: %w", errors.New("column \"x\" does not exist")))
+	h := Middleware(logger, false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		RecordError(r.Context(), "get bundle", cause, "bundle_id", 233)
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/api/bundles/233?x=1", nil))
+
+	line := logLine(t, logs) // exactly one line, not a raw log plus an access line
+	if line["level"] != "ERROR" || line["msg"] != "request failed" {
+		t.Errorf("level/msg = %v/%v", line["level"], line["msg"])
+	}
+	if line["request_id"] != rec.Header().Get(RequestIDHeader) {
+		t.Errorf("log request_id %v does not match the one sent to the client %q", line["request_id"], rec.Header().Get(RequestIDHeader))
+	}
+	if line["op"] != "get bundle" || line["bundle_id"] != float64(233) || line["status"] != float64(500) || line["query"] != "x=1" {
+		t.Errorf("fields = %v", line)
+	}
+	if !strings.Contains(fmt.Sprint(line["error"]), "failed to get bundle: scan:") {
+		t.Errorf("error = %v", line["error"])
+	}
+	chain, _ := line["error_chain"].([]any)
+	if len(chain) != 2 || !strings.Contains(fmt.Sprint(chain[1]), `column "x" does not exist`) {
+		t.Errorf("error_chain = %v, want the wrapped causes", line["error_chain"])
+	}
+}
+
+func TestServerErrorWithoutARecordedCauseSaysSo(t *testing.T) {
+	logger, logs := quietLogger()
+	h := Middleware(logger, false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(502) }))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/x", nil))
+	line := logLine(t, logs)
+	if line["level"] != "ERROR" || line["op"] != "unknown" || !strings.Contains(fmt.Sprint(line["error"]), "no cause was recorded") {
+		t.Errorf("line = %v", line)
+	}
+}
+
+func TestOnlyTheFirstReportedCauseIsKept(t *testing.T) {
+	logger, logs := quietLogger()
+	h := Middleware(logger, false)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		RecordError(r.Context(), "first", errors.New("root cause"))
+		RecordError(r.Context(), "second", errors.New("follow-on"))
+		w.WriteHeader(500)
+	}))
+	h.ServeHTTP(httptest.NewRecorder(), httptest.NewRequest("GET", "/x", nil))
+	if line := logLine(t, logs); line["op"] != "first" {
+		t.Errorf("op = %v, want the first failure", line["op"])
+	}
+}
+
+func TestRecordErrorOutsideARequestIsHarmless(t *testing.T) {
+	RecordError(context.Background(), "op", errors.New("x")) // must not panic
+}
+
+func TestPanicResponseCarriesTheRequestID(t *testing.T) {
+	logger, logs := quietLogger()
+	rec := httptest.NewRecorder()
+	Middleware(logger, false)(http.HandlerFunc(func(http.ResponseWriter, *http.Request) { panic("boom") })).
+		ServeHTTP(rec, httptest.NewRequest("GET", "/x", nil))
+	var body map[string]string
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil || body["request_id"] != rec.Header().Get(RequestIDHeader) {
+		t.Errorf("body = %s, want JSON with the request id", rec.Body.String())
+	}
+	if !strings.Contains(logs.String(), `"path":"/x"`) {
+		t.Errorf("panic log lacks the path: %s", logs.String())
 	}
 }

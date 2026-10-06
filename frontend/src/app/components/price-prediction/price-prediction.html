@@ -54,7 +54,11 @@
             }
             @if (!a.personalized && a.verdict !== 'free') {
                 <p class="generic-note mt-3 text-xs text-[var(--color-text-muted)]">
-                    This is a general call. Watch this game (and set a target price) to factor in how long you've been waiting.
+                    @if (isBundle()) {
+                        This is a general call, based on this bundle's price history.
+                    } @else {
+                        This is a general call. Watch this game (and set a target price) to factor in how long you've been waiting.
+                    }
                 </p>
             }
         }
@@ -108,16 +112,16 @@
                 @if (isFree()) {
                     This game is free to play, so there is no price to wait for.
                 } @else if (forecast(); as f) {
-                    We need about two months of price history before we can forecast this game. It has {{ f.history_days }}
+                    We need about two months of price history before we can forecast this {{ subject() }}. It has {{ f.history_days }}
                     {{ f.history_days === 1 ? 'day' : 'days' }} so far.
                 } @else {
-                    There isn't enough price history to forecast this game yet.
+                    There isn't enough price history to forecast this {{ subject() }} yet.
                 }
             </p>
         }
 
         <p class="disclaimer mt-4 text-xs text-[var(--color-text-muted)]">
-            An estimate based on this game's past sales, not a guarantee. Publishers can change prices at any time.
+            An estimate based on this {{ subject() }}'s past sales, not a guarantee. Publishers can change prices at any time.
         </p>
     }
 </div>

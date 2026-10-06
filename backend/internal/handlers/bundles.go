@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"errors"
-	"log"
 	"net/http"
 	"strconv"
 
@@ -35,8 +34,7 @@ func (h *Handler) GetBundles(w http.ResponseWriter, r *http.Request) {
 
 	bundles, err := h.DB.GetBundles(r.Context(), appID, limit)
 	if err != nil {
-		log.Printf("get bundles: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load bundles")
+		serverError(w, r, "get bundles", err, "failed to load bundles")
 		return
 	}
 	writeJSON(w, http.StatusOK, bundles)
@@ -54,8 +52,7 @@ func (h *Handler) GetBundle(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("get bundle: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load bundle")
+		serverError(w, r, "get bundle", err, "failed to load bundle", "bundle_id", id)
 		return
 	}
 	writeJSON(w, http.StatusOK, bundleResponse{BundleDetail: *bundle, Value: bundlevalue.Evaluate(bundleValueInput(bundle))})

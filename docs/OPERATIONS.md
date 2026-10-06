@@ -43,6 +43,29 @@ Requests the client abandons (the browser navigates away or cancels) are recorde
 they are not logged as errors and do not appear as server failures in the metrics. A request that exceeds its own
 deadline is still a real error and is logged.
 
+### Server errors
+
+Every 500 is logged as a single structured line at error level, with the cause on the same line, so one search for
+the request ID explains it:
+
+```json
+{"level":"ERROR","msg":"request failed","request_id":"a8f41ca8efafde2a","method":"GET","route":"GET /api/bundles/{bundleID}",
+ "path":"/api/bundles/233","status":500,"duration_ms":12.4,"op":"get bundle","bundle_id":233,
+ "error":"failed to get bundle: ...","error_type":"*fmt.wrapError","error_chain":["*pgconn.PgError: ..."],
+ "pg_code":"42703","pg_table":"bundles","pg_constraint":""}
+```
+
+- `op` names what was being attempted, `error` is the full message, and `error_chain` lists each wrapped cause, which
+  usually points at the real problem. Database errors add the Postgres code, table and constraint, and `user_id` is
+  included for signed-in requests.
+- The client gets only a short message and the same `request_id` (also in the `X-Request-ID` header). The site shows
+  it as "(reference ...)" so a report can be matched to its log line. Internals are never sent to the client.
+- Recovered panics are logged with the request ID, path and stack trace.
+- A 5xx with no recorded cause is logged with `op":"unknown"`; that means a handler wrote the status without going
+  through `serverError`, and is worth fixing.
+
+In handler code, report a failure with `serverError(w, r, "operation", err, "message for the user", "key", value...)`.
+
 A logged line looks like this:
 
 ```json

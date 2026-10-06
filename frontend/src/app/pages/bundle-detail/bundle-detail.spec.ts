@@ -7,6 +7,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { BundleDetailComponent } from './bundle-detail';
 import { PriceChartComponent } from '../../components/price-chart/price-chart';
+import { PricePredictionComponent } from '../../components/price-prediction/price-prediction';
 import { GamesService } from '../../services/games';
 import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
@@ -17,6 +18,12 @@ import { BundleDetail } from '../../models/bundle';
 class StubPriceChart {
   points = input<unknown[]>([]);
   emptyMessage = input('');
+}
+
+@Component({ selector: 'app-price-prediction', template: '<p class="prediction-stub">bundle {{ bundleId() }}</p>' })
+class StubPricePrediction {
+  bundleId = input<number | null>(null);
+  appId = input<number | null>(null);
 }
 
 async function render(opts: { bundle?: BundleDetail | null; loggedIn?: boolean; submitGame?: ReturnType<typeof vi.fn> } = {}) {
@@ -34,8 +41,8 @@ async function render(opts: { bundle?: BundleDetail | null; loggedIn?: boolean; 
     ],
   });
   TestBed.overrideComponent(BundleDetailComponent, {
-    remove: { imports: [PriceChartComponent] },
-    add: { imports: [StubPriceChart] },
+    remove: { imports: [PriceChartComponent, PricePredictionComponent] },
+    add: { imports: [StubPriceChart, StubPricePrediction] },
   });
   const harness = await RouterTestingHarness.create();
   await harness.navigateByUrl('/bundles/5001', BundleDetailComponent);
@@ -58,6 +65,18 @@ describe('BundleDetailComponent', () => {
     const steam = Array.from(el.querySelectorAll('a')).find((a) => textOf(a) === 'View on Steam')!;
     expect(steam.getAttribute('href')).toBe('https://store.steampowered.com/bundle/5001');
     expect(steam.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('shows the buy-now-or-wait forecast for the bundle, not for a game', async () => {
+    const { el } = await render();
+    expect(textOf(el.querySelector('.prediction-stub'))).toBe('bundle 5001');
+  });
+
+  it('still renders when the server sends no value verdict (an older API)', async () => {
+    const bundle = { ...makeBundle(), value: undefined } as unknown as BundleDetail;
+    const { el } = await render({ bundle });
+    expect(textOf(el.querySelector('h1'))).toBe('Starter Pack');
+    expect(el.querySelector('app-bundle-value')).toBeNull();
   });
 
   it('shows whether the bundle is worth buying', async () => {

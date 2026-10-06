@@ -74,6 +74,7 @@ function makeAdvice(over: Partial<Advice> = {}): Advice {
 }
 
 interface Setup {
+  bundle?: boolean;
   forecast?: Forecast | 'loading' | HttpErrorResponse;
   advice?: Advice | 'loading' | HttpErrorResponse;
 }
@@ -84,11 +85,14 @@ function render(setup: Setup = {}) {
   const service = {
     getPrediction: vi.fn().mockReturnValue(pick(setup.forecast, makeForecast())),
     getAdvice: vi.fn().mockReturnValue(pick(setup.advice, makeAdvice())),
+    getBundlePrediction: vi.fn().mockReturnValue(pick(setup.forecast, makeForecast({ app_id: 0, bundle_id: 233 }))),
+    getBundleAdvice: vi.fn().mockReturnValue(pick(setup.advice, makeAdvice())),
   };
   TestBed.configureTestingModule({ imports: [PricePredictionComponent], providers: [{ provide: GamesService, useValue: service }] });
   TestBed.overrideComponent(PricePredictionComponent, { remove: { imports: [BaseChartDirective] }, add: { imports: [FakeChartDirective] } });
   const fixture = TestBed.createComponent(PricePredictionComponent);
-  fixture.componentRef.setInput('appId', 730);
+  if (setup.bundle) fixture.componentRef.setInput('bundleId', 233);
+  else fixture.componentRef.setInput('appId', 730);
   fixture.detectChanges();
   const el = fixture.nativeElement as HTMLElement;
   const q = (selector: string) => el.querySelector(selector);
@@ -334,6 +338,46 @@ describe('PricePredictionComponent', () => {
     it('labels the axis by month, in UTC so no label is a day early', () => {
       const { fixture } = render();
       expect(chartOf(fixture).data()!.labels).toEqual(["Oct '26", "Mar '27", "Oct '28"]);
+    });
+  });
+
+  describe('for a bundle', () => {
+    it('asks for the bundle forecast and advice, not the game ones', () => {
+      const { service } = render({ bundle: true });
+      expect(service.getBundlePrediction).toHaveBeenCalledWith(233);
+      expect(service.getBundleAdvice).toHaveBeenCalledWith(233);
+      expect(service.getPrediction).not.toHaveBeenCalled();
+      expect(service.getAdvice).not.toHaveBeenCalled();
+    });
+
+    it('shows the same verdict, reasons and outlook', () => {
+      const { q } = render({ bundle: true });
+      expect(textOf(q('.verdict'))).toBe('Wait');
+      expect(q('table.horizons')).not.toBeNull();
+      expect(q('ul')).not.toBeNull();
+    });
+
+    it('talks about the bundle, not a game, in the general-call note and disclaimer', () => {
+      const { q } = render({ bundle: true });
+      expect(textOf(q('.generic-note'))).toBe("This is a general call, based on this bundle's price history.");
+      expect(textOf(q('.generic-note'))).not.toContain('Watch this game');
+      expect(textOf(q('.disclaimer'))).toContain("this bundle's past sales");
+    });
+
+    it('says "bundle" when there is too little history', () => {
+      const thin = makeForecast({ model: 'insufficient', history_days: 12, curve: [], horizons: [], bundle_id: 233 });
+      expect(textOf(render({ bundle: true, forecast: thin }).q('.no-forecast'))).toContain('forecast this bundle. It has 12 days so far');
+    });
+
+    it('flags a record low like a game', () => {
+      const low = makeForecast({ bundle_id: 233, at_record_low: true });
+      expect(render({ bundle: true, forecast: low }).q('.record-low')).not.toBeNull();
+    });
+
+    it('keeps the game wording for games', () => {
+      const { q } = render();
+      expect(textOf(q('.generic-note'))).toContain('Watch this game');
+      expect(textOf(q('.disclaimer'))).toContain("this game's past sales");
     });
   });
 

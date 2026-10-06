@@ -27,6 +27,8 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handle("GET /api/filters", h.GetFilterOptions)
 	handle("GET /api/bundles", h.GetBundles)
 	handle("GET /api/bundles/{bundleID}", h.GetBundle)
+	handle("GET /api/bundles/{bundleID}/prediction", h.GetBundlePrediction)
+	handle("GET /api/bundles/{bundleID}/advice", h.GetBundleAdvice)
 	handle("GET /api/health", h.Health)
 	handle("GET /api/ready", h.Ready)
 	handle("GET /metrics", observability.MetricsHandler(h.Config.MetricsToken).ServeHTTP)

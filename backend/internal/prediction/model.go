@@ -116,9 +116,11 @@ type NextSale struct {
 	P75Days    *int `json:"p75_days"`
 }
 
-// Forecast is the result for one game.
+// Forecast is the result for one game or bundle.
 type Forecast struct {
-	AppID        int       `json:"app_id"`
+	AppID int `json:"app_id"`
+	// BundleID is set (and AppID is 0) when the forecast is for a Steam bundle.
+	BundleID     int       `json:"bundle_id,omitempty"`
 	GeneratedAt  time.Time `json:"generated_at"`
 	DataVersion  string    `json:"data_version"`
 	Model        string    `json:"model"`

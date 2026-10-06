@@ -72,3 +72,64 @@ func TestMergeHistoryWithNoEventsKeepsRecorded(t *testing.T) {
 		t.Errorf("got %d points, want the recorded one untouched", len(got))
 	}
 }
+
+func TestTrailingRegularIsTheHighestRecentPrice(t *testing.T) {
+	pts := []prediction.Point{
+		{Date: day(2026, 1, 1), Price: 20, Regular: 3},
+		{Date: day(2026, 1, 2), Price: 10, Regular: 3}, // a sale
+		{Date: day(2026, 1, 3), Price: 12, Regular: 3},
+		{Date: day(2026, 1, 10), Price: 8, Regular: 3},
+	}
+	got := trailingRegular(pts, 365)
+	want := []float64{20, 20, 20, 20}
+	for i, p := range got {
+		if p.Regular != want[i] {
+			t.Errorf("point %d: regular = %v, want %v", i, p.Regular, want[i])
+		}
+		if p.Price != pts[i].Price || !p.Date.Equal(pts[i].Date) {
+			t.Errorf("point %d changed its price or date", i)
+		}
+	}
+	if pts[0].Regular != 3 {
+		t.Error("the input was modified")
+	}
+}
+
+func TestTrailingRegularForgetsOldPrices(t *testing.T) {
+	pts := []prediction.Point{
+		{Date: day(2025, 1, 1), Price: 50},
+		{Date: day(2026, 6, 1), Price: 20},
+		{Date: day(2026, 6, 2), Price: 15},
+	}
+	got := trailingRegular(pts, 365)
+	// The $50 is 17 months old, so $20 is the price a bundle normally has now.
+	if got[0].Regular != 50 || got[1].Regular != 20 || got[2].Regular != 20 {
+		t.Errorf("regulars = %v %v %v, want 50 20 20", got[0].Regular, got[1].Regular, got[2].Regular)
+	}
+	if len(trailingRegular(nil, 365)) != 0 {
+		t.Error("empty input should give empty output")
+	}
+}
+
+func TestTrailingRegularWindowIsInclusive(t *testing.T) {
+	pts := []prediction.Point{
+		{Date: day(2026, 1, 1), Price: 40},
+		{Date: day(2026, 1, 31), Price: 10}, // 30 days later
+	}
+	if got := trailingRegular(pts, 30); got[1].Regular != 10 {
+		t.Errorf("a 30-day window ending day 30 should exclude day 0, regular = %v", got[1].Regular)
+	}
+	if got := trailingRegular(pts, 31); got[1].Regular != 40 {
+		t.Errorf("a 31-day window should include day 0, regular = %v", got[1].Regular)
+	}
+}
+
+func TestLowestPointIgnoresFreeAndEmpty(t *testing.T) {
+	if lowestPoint(nil) != 0 {
+		t.Error("no points should give 0")
+	}
+	pts := []prediction.Point{{Price: 0}, {Price: 9.5}, {Price: 4.25}, {Price: 7}}
+	if got := lowestPoint(pts); got != 4.25 {
+		t.Errorf("lowest = %v, want 4.25", got)
+	}
+}

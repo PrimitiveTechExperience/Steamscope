@@ -38,12 +38,12 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	}
 	reviews, err := h.DB.GetReviews(context.Background(), appID, limit, offset)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to retrieve reviews")
+		serverError(w, r, "get reviews", err, "Failed to retrieve reviews")
 		return
 	}
 	total, err := h.DB.GetCountOfReviews(context.Background(), appID)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to count reviews")
+		serverError(w, r, "count reviews", err, "Failed to count reviews")
 		return
 	}
 	response := ReviewResponse{
@@ -54,7 +54,7 @@ func (h *Handler) GetReviews(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Header().Set("Content-Type", "application/json")
 	if err := json.NewEncoder(w).Encode(response); err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to encode reviews")
+		serverError(w, r, "encode reviews", err, "Failed to encode reviews")
 		return
 	}
 }

@@ -11,13 +11,14 @@ import { apiErrorMessage } from '../../api';
 import { BundleArtComponent } from '../../components/bundle-art/bundle-art';
 import { BundleValueComponent } from '../../components/bundle-value/bundle-value';
 import { PriceChartComponent } from '../../components/price-chart/price-chart';
+import { PricePredictionComponent } from '../../components/price-prediction/price-prediction';
 import { BundleDetail, BundleGame } from '../../models/bundle';
 import { SubmissionStatus } from '../../models/user';
 import { withLoading } from '../../utils/with-loading';
 
 @Component({
   selector: 'app-bundle-detail',
-  imports: [CurrencyPipe, RouterLink, PriceChartComponent, BundleArtComponent, BundleValueComponent],
+  imports: [CurrencyPipe, RouterLink, PriceChartComponent, PricePredictionComponent, BundleArtComponent, BundleValueComponent],
   templateUrl: './bundle-detail.html',
 })
 export class BundleDetailComponent {
