@@ -54,6 +54,7 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handle("POST /api/me/recent-searches", auth.RequireAuth(h.AddRecentSearch))
 	handle("GET /api/me/steam-profile", auth.RequireAuth(h.GetSteamProfile))
 	handle("DELETE /api/me/steam", auth.RequireAuth(h.UnlinkSteam))
+	handle("GET /api/me/wishlist/status", auth.RequireAuth(h.GetWishlistStatus))
 	handle("POST /api/me/wishlist/import", auth.RequireAuth(h.ImportWishlist))
 	handle("POST /api/me/wishlist/request", auth.RequireAuth(h.RequestWishlistGames))
 	handle("GET /api/me/feed", auth.RequireAuth(h.GetFeed))

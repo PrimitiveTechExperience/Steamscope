@@ -77,6 +77,11 @@ func (h *Handler) AdminDeleteItem(w http.ResponseWriter, r *http.Request) {
 	case err != nil:
 		serverError(w, r, "admin delete item", err, "failed to delete")
 	default:
+		if kind == "app" {
+			if err := h.DB.DeleteWishlistRequests(r.Context(), id); err != nil {
+				log.Printf("admin delete item: %v", err)
+			}
+		}
 		h.InvalidateCaches(r.Context())
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -122,6 +127,11 @@ func (h *Handler) AdminRejectItem(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		serverError(w, r, "admin reject", err, "failed to reject")
 		return
+	}
+	if kind == "app" {
+		if err := h.DB.DeleteWishlistRequests(r.Context(), id); err != nil {
+			log.Printf("admin reject: %v", err)
+		}
 	}
 	if submitter != nil {
 		what := fmt.Sprintf("game %d", id)

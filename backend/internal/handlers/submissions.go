@@ -76,6 +76,9 @@ func processSubmission(ctx context.Context, db *database.DB, cfg *config.Config,
 		if err := db.RejectGame(ctx, appID); err != nil {
 			log.Printf("submission %d: %v", appID, err)
 		}
+		if err := db.DeleteWishlistRequests(ctx, appID); err != nil {
+			log.Printf("submission %d: %v", appID, err)
+		}
 		db.CreateNotification(ctx, job.userID, nil, "submission_rejected",
 			fmt.Sprintf("Your submission of Steam game %d wasn't approved.", appID))
 		return
@@ -95,11 +98,20 @@ func processSubmission(ctx context.Context, db *database.DB, cfg *config.Config,
 		}
 		db.CreateNotification(ctx, job.userID, &appID, "submission_tracked",
 			fmt.Sprintf("%s is now being tracked. Thanks for the submission!", name))
+		// Users who asked for it from their wishlist now watch it, pinned if they chose that.
+		if n, err := db.ApplyWishlistRequests(ctx, appID); err != nil {
+			log.Printf("submission %d: wishlist requests: %v", appID, err)
+		} else if n > 0 {
+			log.Printf("submission %d: %d wishlist request(s) now watching", appID, n)
+		}
 		onTracked()
 		return
 	}
 
 	if err := db.SetTrackedGameStatus(ctx, appID, "failed"); err != nil {
+		log.Printf("submission %d: %v", appID, err)
+	}
+	if err := db.DeleteWishlistRequests(ctx, appID); err != nil {
 		log.Printf("submission %d: %v", appID, err)
 	}
 	db.CreateNotification(ctx, job.userID, nil, "submission_failed",

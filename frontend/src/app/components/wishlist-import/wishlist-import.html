@@ -2,16 +2,35 @@
     <div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div class="min-w-0">
             <h3 class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Wishlist</h3>
-            <p class="text-sm text-[var(--color-text)]">Track every game on your Steam wishlist.</p>
+            @if (checking()) {
+                <p class="checking text-sm text-[var(--color-text-muted)]">Checking your wishlist...</p>
+            } @else if (state() === 'complete') {
+                <p class="all-imported text-sm font-bold text-[var(--color-text)]">
+                    <span class="text-[var(--color-discount)]" aria-hidden="true">&#10003;</span>
+                    All your wishlist games are imported.
+                    @if (unavailable() > 0) {
+                        <span class="unavailable-note font-normal text-[var(--color-text-muted)]">({{ unavailable() }} can't be added.)</span>
+                    }
+                </p>
+            } @else if (state() === 'waiting') {
+                <p class="waiting-note text-sm text-[var(--color-text)]">
+                    {{ waiting() }} {{ waiting() === 1 ? 'wishlist game is' : 'wishlist games are' }} waiting to be added.
+                    They'll be tracked automatically.
+                </p>
+            } @else {
+                <p class="text-sm text-[var(--color-text)]">Track every game on your Steam wishlist.</p>
+            }
         </div>
-        <button
-            type="button"
-            class="import-button edge-btn shrink-0 bg-[var(--color-accent)] px-4 py-2 text-xs text-white disabled:opacity-60"
-            [disabled]="importing()"
-            (click)="importWishlist()"
-        >
-            {{ importing() ? 'Importing...' : 'Import wishlist' }}
-        </button>
+        @if (showButton()) {
+            <button
+                type="button"
+                class="import-button edge-btn shrink-0 bg-[var(--color-accent)] px-4 py-2 text-xs text-white disabled:opacity-60"
+                [disabled]="importing()"
+                (click)="importWishlist()"
+            >
+                {{ importing() ? 'Importing...' : 'Import wishlist' }}
+            </button>
+        }
     </div>
 
     @if (error(); as e) {
@@ -23,7 +42,7 @@
     @if (requestNote(); as n) {
         <p class="request-note text-xs font-bold text-[var(--color-text)]">{{ n }}</p>
     }
-    @if (requestable().length > 0 && !dialogOpen() && !requestNote()) {
+    @if (requestable().length > 0 && !dialogOpen() && !requestNote() && state() === 'incomplete') {
         <button type="button" class="reopen w-fit text-left text-xs font-bold text-[var(--color-accent)] hover:underline" (click)="dialogOpen.set(true)">
             {{ requestable().length }} {{ requestable().length === 1 ? 'game isn' : 'games aren' }}'t on Steamscope yet. Request them
         </button>
@@ -53,32 +72,61 @@
                 } @else {
                     These wishlist games aren't on Steamscope. Want to ask for them to be added? An admin reviews each request first.
                 }
+                Once added they go on your watchlist; tick Pin to put one at the top of your feed.
             </p>
 
-            <div class="mt-3 flex gap-3 text-xs">
-                <button type="button" class="select-all font-bold text-[var(--color-accent)] hover:underline" (click)="setAll(true)">Select all</button>
-                <button type="button" class="select-none font-bold text-[var(--color-accent)] hover:underline" (click)="setAll(false)">Select none</button>
+            <div class="mt-3 flex items-center justify-between gap-3 text-xs">
+                <div class="flex gap-3">
+                    <button type="button" class="select-all font-bold text-[var(--color-accent)] hover:underline" (click)="setAll(true)">Select all</button>
+                    <button type="button" class="select-none font-bold text-[var(--color-accent)] hover:underline" (click)="setAll(false)">Select none</button>
+                </div>
+                <button
+                    type="button"
+                    class="pin-all font-bold text-[var(--color-accent)] hover:underline disabled:opacity-50 disabled:no-underline"
+                    [disabled]="selectedIds().length === 0"
+                    (click)="togglePinAll()"
+                >
+                    {{ allPinned() ? 'Unpin all' : 'Pin all' }}
+                </button>
             </div>
 
             <ul class="games mt-2 min-h-0 flex-1 overflow-y-auto border-2 border-[var(--color-border)]">
                 @for (g of requestable(); track g.app_id) {
                     <li class="flex items-center gap-3 border-b border-[var(--color-border)] px-3 py-2 text-sm last:border-b-0">
-                        <input type="checkbox" class="h-4 w-4 shrink-0" [checked]="isTicked(g)" [attr.aria-label]="'Request ' + label(g)" (change)="toggle(g)" />
+                        <input type="checkbox" class="request-box h-4 w-4 shrink-0" [checked]="isTicked(g)" [attr.aria-label]="'Request ' + label(g)" (change)="toggle(g)" />
                         <a [href]="storeUrl(g)" target="_blank" rel="noopener noreferrer" class="min-w-0 flex-1 truncate text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ label(g) }}</a>
+                        <label class="flex shrink-0 items-center gap-1 text-xs text-[var(--color-text-muted)]" [class.opacity-50]="!isTicked(g)">
+                            <input
+                                type="checkbox"
+                                class="pin-box h-4 w-4"
+                                [checked]="isPinned(g)"
+                                [disabled]="!isTicked(g)"
+                                [attr.aria-label]="'Pin ' + label(g) + ' to my feed'"
+                                (change)="togglePin(g)"
+                            />
+                            Pin
+                        </label>
                     </li>
                 }
             </ul>
 
-            <div class="mt-4 flex justify-end gap-2">
-                <button type="button" class="decline edge-btn bg-[var(--color-surface)] px-4 py-2 text-xs" [disabled]="requesting()" (click)="closeDialog()">No thanks</button>
-                <button
-                    type="button"
-                    class="confirm edge-btn bg-[var(--color-accent)] px-4 py-2 text-xs text-white disabled:opacity-60"
-                    [disabled]="requesting() || selectedIds().length === 0"
-                    (click)="request()"
-                >
-                    {{ requesting() ? 'Requesting...' : 'Request ' + selectedIds().length + (selectedIds().length === 1 ? ' game' : ' games') }}
-                </button>
+            <div class="mt-4 flex items-center justify-between gap-2">
+                <span class="pin-count text-xs text-[var(--color-text-muted)]">
+                    @if (pinnedIds().length > 0) {
+                        {{ pinnedIds().length }} will be pinned
+                    }
+                </span>
+                <div class="flex gap-2">
+                    <button type="button" class="decline edge-btn bg-[var(--color-surface)] px-4 py-2 text-xs" [disabled]="requesting()" (click)="closeDialog()">No thanks</button>
+                    <button
+                        type="button"
+                        class="confirm edge-btn bg-[var(--color-accent)] px-4 py-2 text-xs text-white disabled:opacity-60"
+                        [disabled]="requesting() || selectedIds().length === 0"
+                        (click)="request()"
+                    >
+                        {{ requesting() ? 'Requesting...' : 'Request ' + selectedIds().length + (selectedIds().length === 1 ? ' game' : ' games') }}
+                    </button>
+                </div>
             </div>
         </div>
     </div>

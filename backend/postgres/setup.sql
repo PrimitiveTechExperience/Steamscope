@@ -165,6 +165,20 @@ create table watched_games (
 
 create index idx_watched_games_app_id on watched_games(app_id);
 
+-- A wishlist game the user asked us to add that is not tracked yet. Once it is
+-- tracked, it is added to their watchlist (pinned if they chose that) and the
+-- row is removed. No foreign key to games: the game does not exist yet.
+create table wishlist_requests (
+    user_id bigint not null references users(user_id) on delete cascade,
+    app_id integer not null,
+    pinned boolean not null default false,
+    created_at timestamptz not null default now(),
+
+    primary key (user_id, app_id)
+);
+
+create index idx_wishlist_requests_app_id on wishlist_requests(app_id);
+
 create table notifications (
     notification_id bigint generated always as identity primary key,
     user_id bigint not null references users(user_id) on delete cascade,

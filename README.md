@@ -38,15 +38,29 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
 
 ## Wishlist import
 
-On the feed page, just under the Steam profile card, **Import wishlist** reads the linked account's Steam wishlist and starts watching every game on
-it that Steamscope already has (games already watched keep their pin and target price). Games it does not have are listed
-in a dialog, where the user can pick which ones to request; requests go through the normal submission queue, so an admin
-approves them first (admins' own requests are scraped straight away).
+On the feed page, just under the Steam profile card, **Import wishlist** reads the linked account's Steam wishlist and starts
+watching every game on it that Steamscope already has (games already watched keep their pin and target price).
+
+Games Steamscope does not have are listed in a dialog. The user chooses which to request and, for each, whether to **pin** it
+to the top of their feed. Requests go through the normal submission queue, so an admin approves them first (admins' own
+requests are scraped straight away). The choice is remembered in `wishlist_requests`; when a requested game is added, the user
+starts watching it automatically, pinned if they chose that. If the game is turned down, deleted or not found, the request is
+dropped. Games someone else has already requested are followed the same way, without asking an admin again.
+
+Once every game on the wishlist is imported the button is replaced by "All your wishlist games are imported", and while
+requested games are still being added it says how many are waiting, and checks again every 20 seconds so it flips to "all
+imported" by itself once they are added. `GET /me/wishlist/status` answers this without changing anything. Only Steam's list of
+wishlist games is cached (for five minutes); how those games stand against Steamscope's data and the user's watchlist is worked
+out on every call, so a deleted, added or newly watched game shows at once. A game added to the wishlist later brings the button
+back.
 
 - The wishlist must be public. Steam reports a private wishlist as empty, so the two look the same.
-- Importing is limited to 6 times an hour per user and requesting to 3, since each call reaches Steam or an admin queue.
-  A request takes at most 100 games and only accepts games that really are on the user's wishlist.
-- Games already requested, turned down by an admin or blocked by the blacklist are counted but not offered again.
+- Importing is limited to 6 times an hour per user and requesting to 3 (checking the status, 60), since each call reaches Steam or
+  an admin queue. A request takes at most 100 games and only accepts games that really are on the user's wishlist.
+- Games turned down by an admin or blocked by the blacklist are counted but never offered again, and do not stop the wishlist
+  counting as imported.
+- A game deleted from the database by hand leaves a "tracked" row behind. It is treated as missing, offered again, and can be
+  requested again (by import or by submitting its link).
 
 ## Architecture
 
@@ -187,7 +201,7 @@ All endpoints are under `/api`. Responses are JSON; errors have the form `{"erro
 | --- | --- |
 | Public data | `GET /games`, `/games/{id}`, `/games/{id}/reviews`, `/games/{id}/price-history`, `/games/{id}/prediction`, `/games/{id}/advice`, `/filters`, `/bundles`, `/bundles/{id}` |
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/logout`; `GET /auth/me`; `GET /auth/steam/login`, `/auth/steam/link`, `/auth/steam/callback` |
-| Signed-in user | `/me/preferences`, `/me/watchlist`, `/me/notifications`, `/me/recent-searches`, `/me/steam-profile`, `/me/feed`, `/me/submissions`; `POST /me/wishlist/import`, `POST /me/wishlist/request`; `POST /submissions` |
+| Signed-in user | `/me/preferences`, `/me/watchlist`, `/me/notifications`, `/me/recent-searches`, `/me/steam-profile`, `/me/feed`, `/me/submissions`; `GET /me/wishlist/status`, `POST /me/wishlist/import`, `POST /me/wishlist/request`; `POST /submissions` |
 | Admin | `/admin/stats`, `/admin/users`, `/admin/items`, `/admin/blacklist` (requires an admin session) |
 | Operations | `GET /api/health`, `GET /api/ready`, `GET /metrics` |
 

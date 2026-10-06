@@ -14,6 +14,7 @@ import {
   WatchedGame,
   WishlistImportResult,
   WishlistRequestResult,
+  WishlistStatus,
 } from '../models/user';
 
 @Injectable({ providedIn: 'root' })
@@ -88,9 +89,18 @@ export class AccountService {
     return this.http.post<WishlistImportResult>(`${this.base}/wishlist/import`, {});
   }
 
-  /** Asks for wishlisted games we do not track to be added. */
-  requestWishlistGames(appIds: number[]): Observable<WishlistRequestResult> {
-    return this.http.post<WishlistRequestResult>(`${this.base}/wishlist/request`, { app_ids: appIds });
+  /** Where the wishlist stands, without changing anything. */
+  getWishlistStatus(): Observable<WishlistStatus> {
+    return this.http.get<WishlistStatus>(`${this.base}/wishlist/status`);
+  }
+
+  /**
+   * Asks for wishlisted games we do not track to be added. Once added they are
+   * watched, and pinned to the feed if listed in `pinnedIds`.
+   */
+  requestWishlistGames(appIds: number[], pinnedIds: number[] = []): Observable<WishlistRequestResult> {
+    const body = pinnedIds.length > 0 ? { app_ids: appIds, pinned_app_ids: pinnedIds } : { app_ids: appIds };
+    return this.http.post<WishlistRequestResult>(`${this.base}/wishlist/request`, body);
   }
 
   unlinkSteam(): Observable<void> {

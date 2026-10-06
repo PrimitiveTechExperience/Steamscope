@@ -55,6 +55,7 @@ func (db *DB) SubmitTrackedGame(ctx context.Context, appID int, userID int64, in
 		ON CONFLICT (app_id) DO UPDATE
 			SET status = EXCLUDED.status, submitted_by = EXCLUDED.submitted_by, created_at = now()
 			WHERE tracked_games.status = 'failed'
+			   OR (tracked_games.status = 'tracked' AND NOT EXISTS (SELECT 1 FROM games g WHERE g.app_id = tracked_games.app_id))
 		RETURNING status`, appID, userID, initial,
 	).Scan(&status)
 	if err == nil {

@@ -1,6 +1,6 @@
 import { Component, computed, inject, signal } from '@angular/core';
 import { Router, RouterLink } from '@angular/router';
-import { CurrencyPipe, DatePipe, DecimalPipe } from '@angular/common';
+import { CurrencyPipe, DatePipe, DecimalPipe, DOCUMENT } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { toObservable, toSignal } from '@angular/core/rxjs-interop';
 import { catchError, map, of, switchMap } from 'rxjs';
@@ -37,6 +37,7 @@ export class FeedComponent {
   protected auth = inject(AuthService);
   protected account = inject(AccountService);
   private router = inject(Router);
+  private document = inject(DOCUMENT);
 
   protected greeting = greetingFor(new Date().getHours());
 
@@ -148,6 +149,25 @@ export class FeedComponent {
   protected pinned = computed(() => this.feed().watchlist.filter((w) => w.pinned));
   protected watching = computed(() => this.feed().watchlist.filter((w) => !w.pinned));
   protected watchedDeals = computed(() => this.feed().deals.filter((d) => d.watched).length);
+
+  /** Buttons that scroll to each section that is on the page, in the order they appear. */
+  protected shortcuts = computed(() => {
+    const links: { id: string; label: string; count: number | null }[] = [
+      { id: 'section-notifications', label: 'Notifications', count: this.recentNotifications().length || null },
+    ];
+    if (this.feedLoading()) return links;
+    const feed = this.feed();
+    if (this.pinned().length > 0) links.push({ id: 'section-pinned', label: 'Pinned', count: this.pinned().length });
+    if (this.watching().length > 0) links.push({ id: 'section-watching', label: 'Watching', count: this.watching().length });
+    if (feed.deals.length > 0) links.push({ id: 'section-deals', label: 'Below usual price', count: feed.deals.length });
+    if (feed.suggestions.length > 0) links.push({ id: 'section-suggestions', label: 'Suggested', count: feed.suggestions.length });
+    return links;
+  });
+
+  /** Scrolls to a section, smoothly. Only runs from a click, so only in the browser. */
+  protected jumpTo(id: string) {
+    this.document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
 
   /** A one-liner summarising what's worth looking at right now. */
   protected intro = computed(() => {

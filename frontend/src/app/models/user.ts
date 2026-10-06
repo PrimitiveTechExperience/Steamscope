@@ -91,6 +91,24 @@ export interface WishlistGame {
     name: string;
 }
 
+/**
+ * Where a wishlist stands: "empty" (nothing on it, or private), "incomplete"
+ * (games still to import), "waiting" (everything else is in; requested games are
+ * being added) or "complete" (every game is on the watchlist).
+ */
+export type WishlistState = 'empty' | 'incomplete' | 'waiting' | 'complete';
+
+export interface WishlistStatus {
+    state: WishlistState;
+    wishlist_size: number;
+    /** Games that still need importing or requesting. */
+    remaining: number;
+    /** Requested games still being added. */
+    waiting: number;
+    /** Games that cannot be added (turned down or blocked). */
+    unavailable: number;
+}
+
 export interface WishlistImportResult {
     /** 0 means the wishlist is empty or private. */
     wishlist_size: number;
@@ -100,9 +118,11 @@ export interface WishlistImportResult {
     requestable: WishlistGame[];
     awaiting_review: number;
     unavailable: number;
+    state: WishlistState;
 }
 
 export interface WishlistRequestResult {
+    state: WishlistState;
     requested: number;
     skipped: number;
     /** "pending" when the games are being added straight away (admins), else "awaiting_approval". */
