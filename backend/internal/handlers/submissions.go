@@ -20,6 +20,9 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 )
 
+// scrapeApps scrapes the given apps; tests replace it so no request is made to Steam.
+var scrapeApps = scraper.RunScrape
+
 type submissionJob struct {
 	kind   steam.StoreKind
 	id     int
@@ -67,7 +70,7 @@ func processSubmission(ctx context.Context, db *database.DB, cfg *config.Config,
 		processBundleSubmission(ctx, db, cfg, s, job, onTracked)
 		return
 	}
-	if err := scraper.RunScrape(ctx, db, cfg, s, []int{job.id}); err != nil {
+	if err := scrapeApps(ctx, db, cfg, s, []int{job.id}); err != nil {
 		log.Printf("submission %d: scrape: %v", job.id, err)
 	}
 
