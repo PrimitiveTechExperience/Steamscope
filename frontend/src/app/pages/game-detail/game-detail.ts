@@ -20,6 +20,7 @@ import { Bundle } from '../../models/bundle';
 import { Game, PricePoint, Review } from '../../models/game';
 import { withLoading } from '../../utils/with-loading';
 import { onHeaderImageError } from '../../utils/steam-image';
+import { discountOf } from '../../utils/discount';
 
 type DetailTab = 'description' | 'tags' | 'misc';
 
@@ -44,6 +45,7 @@ export class GameDetailComponent {
   protected watchState = signal<{ watched: boolean; pinned: boolean } | null>(null);
   /** Set by the price-prediction panel once it knows the lowest price on record. */
   protected isRecordLow = signal(false);
+  protected discountOf = discountOf;
   protected targetPriceInput: number | null = null;
   protected watchError = signal<string | null>(null);
 

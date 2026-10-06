@@ -12,6 +12,8 @@ type GameFilters struct {
 	Publishers []string `json:"publishers"`
 	MinPrice   float64  `json:"min_price"`
 	MaxPrice   float64  `json:"max_price"`
-	Limit      int      `json:"limit"`
-	Offset     int      `json:"offset"`
+	// MinDiscount keeps games at least this many percent off (1-100); 0 means any.
+	MinDiscount int `json:"min_discount"`
+	Limit       int `json:"limit"`
+	Offset      int `json:"offset"`
 }

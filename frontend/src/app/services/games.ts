@@ -18,6 +18,8 @@ export interface GamesQueryOptions {
   publishers?: string[];
   minPrice?: number;
   maxPrice?: number;
+  /** Only games at least this many percent off (1-100). */
+  minDiscount?: number;
   limit?: number;
 }
 
@@ -40,6 +42,7 @@ export class GamesService {
     if (opts?.publishers?.length) params = params.set('publishers', opts.publishers.join(','));
     if (opts?.minPrice != null) params = params.set('minPrice', opts.minPrice);
     if (opts?.maxPrice != null) params = params.set('maxPrice', opts.maxPrice);
+    if (opts?.minDiscount != null && opts.minDiscount > 0) params = params.set('minDiscount', opts.minDiscount);
     if (opts?.limit != null) params = params.set('limit', opts.limit);
     return this.http.get<GamesResponse>(`${this.apiUrl}/games`, { params });
   }

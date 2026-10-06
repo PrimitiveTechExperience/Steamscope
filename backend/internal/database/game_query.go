@@ -129,6 +129,9 @@ func buildGameQuery(filters models.GameFilters, countOnly bool) (string, []any) 
 	if filters.MaxPrice > 0 {
 		query = append(query, "AND g.price <= "+addArg(filters.MaxPrice))
 	}
+	if filters.MinDiscount > 0 {
+		query = append(query, "AND g.discount_percentage >= "+addArg(filters.MinDiscount))
+	}
 	if !countOnly {
 		query = append(query, "ORDER BY g.name")
 		if filters.Limit > 0 {

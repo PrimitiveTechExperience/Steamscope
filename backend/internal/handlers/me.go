@@ -237,11 +237,16 @@ type recentSearch struct {
 	Publishers []string `json:"publishers,omitempty"`
 	MinPrice   *float64 `json:"min_price,omitempty"`
 	MaxPrice   *float64 `json:"max_price,omitempty"`
+	// MinDiscount is the "at least this % off" filter, 1-100.
+	MinDiscount *int `json:"min_discount,omitempty"`
 }
 
 // clean strips control characters and bounds every user-supplied string.
 func (s *recentSearch) clean() {
 	s.Search = sanitize.Text(s.Search, 100)
+	if s.MinDiscount != nil && (*s.MinDiscount < 1 || *s.MinDiscount > 100) {
+		s.MinDiscount = nil
+	}
 	for _, list := range []*[]string{&s.Genres, &s.Tags, &s.Languages, &s.Developers, &s.Publishers} {
 		if len(*list) > 30 {
 			*list = (*list)[:30]
@@ -259,7 +264,7 @@ func (s *recentSearch) clean() {
 func (s recentSearch) isEmpty() bool {
 	return strings.TrimSpace(s.Search) == "" && len(s.Genres) == 0 && len(s.Tags) == 0 &&
 		len(s.Languages) == 0 && len(s.Developers) == 0 && len(s.Publishers) == 0 &&
-		s.MinPrice == nil && s.MaxPrice == nil
+		s.MinPrice == nil && s.MaxPrice == nil && s.MinDiscount == nil
 }
 
 func recentSearchesKey(userID int64) string {

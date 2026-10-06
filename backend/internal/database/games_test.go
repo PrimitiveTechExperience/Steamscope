@@ -58,6 +58,7 @@ func TestInsertGame(t *testing.T) {
 			game.WindowsCompatible,
 			game.LinuxCompatible,
 			game.MacCompatible,
+			game.PriceUnknown,
 		).
 		WillReturnResult(pgxmock.NewResult("INSERT", 1))
 	mockPool.ExpectCommit()
@@ -105,6 +106,7 @@ func TestInsertGame_Error(t *testing.T) {
 			game.WindowsCompatible,
 			game.LinuxCompatible,
 			game.MacCompatible,
+			game.PriceUnknown,
 		).
 		WillReturnError(fmt.Errorf("insert error"))
 	mockPool.ExpectRollback()

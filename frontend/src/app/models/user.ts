@@ -94,4 +94,6 @@ export interface RecentSearch {
     publishers?: string[];
     min_price?: number;
     max_price?: number;
+    /** "At least this % off", 1-100. */
+    min_discount?: number;
 }

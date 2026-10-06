@@ -50,6 +50,14 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 		}
 		offset = parsed
 	}
+	if value := r.URL.Query().Get("minDiscount"); value != "" {
+		parsed, err := strconv.Atoi(value)
+		if err != nil || parsed < 0 || parsed > 100 {
+			writeError(w, http.StatusBadRequest, "Invalid minDiscount parameter")
+			return
+		}
+		filters.MinDiscount = parsed
+	}
 	if value := r.URL.Query().Get("minPrice"); value != "" {
 		parsed, err := strconv.ParseFloat(value, 64)
 		if err != nil || parsed < 0 {

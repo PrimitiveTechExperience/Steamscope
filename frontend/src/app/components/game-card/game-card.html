@@ -12,9 +12,9 @@
             decoding="async"
         />
         <div class="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/25 to-transparent opacity-0 transition-opacity duration-300 group-hover:opacity-100"></div>
-        @if (game().discount_percentage > 0) {
+        @if (discount() > 0) {
             <span class="edge-btn absolute right-2 top-2 -rotate-2 bg-[var(--color-discount)] px-2 py-1 text-xs text-white">
-                -{{ game().discount_percentage }}%
+                -{{ discount() }}%
             </span>
         }
     </div>
@@ -26,7 +26,7 @@
             {{ game().description | stripHtml }}
         </p>
         <div class="mt-auto flex items-center justify-between pt-2">
-            @if (game().discount_percentage > 0) {
+            @if (discount() > 0) {
                 <span class="text-xs text-[var(--color-text-muted)] line-through">
                     {{ game().original_price | currency:'USD':'symbol':'1.2-2' }}
                 </span>

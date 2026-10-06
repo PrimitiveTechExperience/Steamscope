@@ -10,7 +10,7 @@
 } @else if (awaiting().length === 0) {
     <p class="text-sm text-[var(--color-text-muted)]">Nothing to review.</p>
 } @else {
-    <ul class="flex flex-col gap-2">
+    <ul class="flex flex-col gap-2" data-list="awaiting">
         @for (i of awaiting(); track i.kind + i.id) {
             <li class="edge-panel-sm flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-sm">
                 <div class="min-w-0">
@@ -30,10 +30,7 @@
     </ul>
 }
 
-<h2 class="mt-10 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
-    Games and bundles ({{ others().length }})
-</h2>
-<div class="mb-3 flex flex-wrap items-center gap-2">
+<div class="mt-10 mb-3 flex flex-wrap items-center gap-2">
     <input
         type="search"
         placeholder="Search name, ID or submitter"
@@ -53,27 +50,46 @@
         </button>
     }
 </div>
-@if (items() === null) {
-    <div class="skeleton h-24"></div>
-} @else if (others().length === 0) {
-    <p class="text-sm text-[var(--color-text-muted)]">Nothing matches.</p>
-} @else {
-    <ul class="flex flex-col gap-2">
-        @for (i of others(); track i.kind + i.id) {
-            <li class="edge-panel-sm flex items-center justify-between gap-3 px-4 py-3 text-sm">
-                <div class="min-w-0">
-                    @if (i.status === 'tracked' && i.name) {
-                        <a [routerLink]="[i.kind === 'bundle' ? '/bundles' : '/games', i.id]" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ i.name }}</a>
-                    } @else {
-                        <span class="font-bold text-[var(--color-text)]">{{ label(i) }}</span>
-                    }
-                    <div class="text-xs text-[var(--color-text-muted)]">
-                        {{ i.kind === 'bundle' ? 'Bundle' : 'Game' }} &middot; {{ i.status }}
-                        @if (i.submitted_by) { &middot; submitted by {{ i.submitted_by }} }
+
+<div class="grid grid-cols-1 gap-x-6 gap-y-2 lg:grid-cols-2">
+    <section class="games-section min-w-0">
+        <h2 class="games-heading mt-6 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+            Games ({{ games().length }})
+        </h2>
+        <ng-container [ngTemplateOutlet]="rows" [ngTemplateOutletContext]="{ list: games(), name: 'games' }" />
+    </section>
+
+    <section class="bundles-section min-w-0">
+        <h2 class="bundles-heading mt-6 mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+            Bundles ({{ bundles().length }})
+        </h2>
+        <ng-container [ngTemplateOutlet]="rows" [ngTemplateOutletContext]="{ list: bundles(), name: 'bundles' }" />
+    </section>
+</div>
+
+<ng-template #rows let-list="list" let-name="name">
+    @if (items() === null) {
+        <div class="skeleton h-24"></div>
+    } @else if (list.length === 0) {
+        <p class="empty text-sm text-[var(--color-text-muted)]">Nothing matches.</p>
+    } @else {
+        <ul class="flex flex-col gap-2" [attr.data-list]="name">
+            @for (i of list; track i.kind + i.id) {
+                <li class="edge-panel-sm flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                    <div class="min-w-0 break-words">
+                        @if (i.status === 'tracked' && i.name) {
+                            <a [routerLink]="[i.kind === 'bundle' ? '/bundles' : '/games', i.id]" class="font-bold text-[var(--color-text)] hover:text-[var(--color-accent)]">{{ i.name }}</a>
+                        } @else {
+                            <span class="font-bold text-[var(--color-text)]">{{ label(i) }}</span>
+                        }
+                        <div class="text-xs text-[var(--color-text-muted)]">
+                            {{ i.kind === 'bundle' ? 'Bundle' : 'Game' }} &middot; {{ i.status }}
+                            @if (i.submitted_by) { &middot; submitted by {{ i.submitted_by }} }
+                        </div>
                     </div>
-                </div>
-                <button (click)="deleteItem(i)" class="edge-btn shrink-0 bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-accent)]">Delete</button>
-            </li>
-        }
-    </ul>
-}
+                    <button (click)="deleteItem(i)" class="edge-btn shrink-0 bg-[var(--color-surface)] px-3 py-1.5 text-xs text-[var(--color-accent)]">Delete</button>
+                </li>
+            }
+        </ul>
+    }
+</ng-template>

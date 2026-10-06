@@ -1,5 +1,5 @@
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
-import { DatePipe } from '@angular/common';
+import { DatePipe, NgTemplateOutlet } from '@angular/common';
 import { RouterLink } from '@angular/router';
 
 import { AdminService } from '../../../services/admin';
@@ -10,7 +10,7 @@ type StatusFilter = 'all' | 'tracked' | 'failed' | 'rejected' | 'pending';
 
 @Component({
   selector: 'app-admin-games',
-  imports: [DatePipe, RouterLink],
+  imports: [DatePipe, NgTemplateOutlet, RouterLink],
   templateUrl: './admin-games.html',
 })
 export class AdminGamesComponent implements OnInit {
@@ -24,7 +24,8 @@ export class AdminGamesComponent implements OnInit {
 
   protected awaiting = computed(() => (this.items() ?? []).filter((i) => i.status === 'awaiting_approval'));
 
-  protected others = computed(() => {
+  /** Everything not awaiting approval that matches the search and status filter. */
+  private matching = computed(() => {
     const term = this.search().trim().toLowerCase();
     const status = this.statusFilter();
     return (this.items() ?? []).filter(
@@ -34,6 +35,9 @@ export class AdminGamesComponent implements OnInit {
         (!term || `${i.name ?? ''} ${i.id} ${i.submitted_by ?? ''}`.toLowerCase().includes(term))
     );
   });
+
+  protected games = computed(() => this.matching().filter((i) => i.kind === 'app'));
+  protected bundles = computed(() => this.matching().filter((i) => i.kind === 'bundle'));
 
   ngOnInit() {
     this.loadItems();

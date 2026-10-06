@@ -11,9 +11,9 @@
                         {{ game.developers.join(', ') }} · {{ game.publishers.join(', ') }}
                     </p>
                     <div class="mt-2 flex items-center gap-2">
-                        @if (game.discount_percentage > 0) {
+                        @if (discountOf(game) > 0) {
                             <span class="edge-btn -rotate-2 bg-[var(--color-discount)] px-2 py-1 text-xs text-white">
-                                -{{ game.discount_percentage }}%
+                                -{{ discountOf(game) }}%
                             </span>
                             <span class="text-sm text-[var(--color-text-muted)] line-through">
                                 {{ game.original_price | currency:'USD':'symbol':'1.2-2' }}

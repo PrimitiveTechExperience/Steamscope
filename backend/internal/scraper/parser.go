@@ -2,6 +2,7 @@ package scraper
 
 import (
 	"fmt"
+	"math"
 	"regexp"
 	"strconv"
 	"strings"
@@ -42,31 +43,19 @@ func parseGamePage(doc *goquery.Selection, appID int, url string) models.Game {
 	// Only real purchasable packages carry an add_to_cart id; the demo
 	// download block above the purchase area (which has no price - Persona 3
 	// Reload scraped as $0 because of it) and the bundle dropdowns do not.
-	purchaseSection := doc.Find(".game_area_purchase_game[id^='game_area_purchase_section_add_to_cart']").First()
-	if purchaseSection.Length() == 0 {
-		purchaseSection = doc.Find(".game_area_purchase_game").Not(".game_area_purchase_game_dropdown_subscription, .demo_above_purchase").First()
+	//
+	// A free-to-play game has a "Free To Play" block first, and its page may
+	// still list paid DLC or upgrade packages (CS2's Prime upgrade, TF2's
+	// items) with add_to_cart ids after it. Taking the first add_to_cart block
+	// outright gave those games the price of the upgrade.
+	purchaseSection, free := findPurchaseSection(doc)
+	if !free && !hasPrice(purchaseSection) {
+		game.PriceUnknown = true
 	}
-	if purchaseSection.Length() == 0 {
-		// No recognizable purchase container (e.g. in tests, or a page layout
-		// change) - fall back to searching the whole document like before.
-		purchaseSection = doc
-	}
-	// Check if game is on discount by basing off the existance of .game_purchas_price or .discount_final_price
-	if purchaseSection.Find(".discount_final_price").Length() > 0 {
-		// Remove currency symbols and convert to float64
-		priceStr := strings.TrimSpace(purchaseSection.Find(".discount_final_price").First().Text())
-		originalPriceStr := strings.TrimSpace(purchaseSection.Find(".discount_original_price").First().Text())
-		discountPrice, _ := parsePrice(priceStr)
-		originalPrice, _ := parsePrice(originalPriceStr)
-		game.Price = discountPrice
-		game.OriginalPrice = originalPrice
-		game.DiscountPercentage = parseDiscountPercentage(purchaseSection.Find(".discount_pct").First().Text())
+	if free {
+		game.Price, game.OriginalPrice, game.DiscountPercentage = 0, 0, 0
 	} else {
-		priceStr := strings.TrimSpace(purchaseSection.Find(".game_purchase_price").First().Text())
-		price, _ := parsePrice(priceStr)
-		game.Price = price
-		game.OriginalPrice = price
-		game.DiscountPercentage = 0
+		game.Price, game.OriginalPrice, game.DiscountPercentage = readPurchasePrices(purchaseSection)
 	}
 	game.Genres = []string{}
 	doc.Find(".details_block a[href*='/genre/']").Each(func(i int, s *goquery.Selection) {
@@ -179,4 +168,96 @@ func parseReleaseDate(raw string) time.Time {
 		}
 	}
 	return time.Time{}
+}
+
+// findPurchaseSection returns the game's own purchase block, and whether it is
+// a "Free To Play" one. Blocks are looked at in page order and the first
+// recognisable one wins: a free block, or a purchasable package.
+func findPurchaseSection(doc *goquery.Selection) (section *goquery.Selection, free bool) {
+	candidates := doc.Find(".game_area_purchase_game").Not(".game_area_purchase_game_dropdown_subscription, .demo_above_purchase")
+	candidates.EachWithBreak(func(_ int, s *goquery.Selection) bool {
+		if isFreeSection(s) {
+			section, free = s, true
+			return false
+		}
+		if id, _ := s.Attr("id"); strings.HasPrefix(id, "game_area_purchase_section_add_to_cart") {
+			section = s
+			return false
+		}
+		return true
+	})
+	if section != nil {
+		return section, free
+	}
+	if first := candidates.First(); first.Length() > 0 {
+		return first, false
+	}
+	// No recognizable purchase container (e.g. in tests, or a page layout
+	// change) - fall back to searching the whole document like before.
+	return doc, false
+}
+
+// hasPrice is true when the block shows a price of any kind.
+func hasPrice(s *goquery.Selection) bool {
+	return s.Find(".discount_final_price, .game_purchase_price").Length() > 0
+}
+
+var freeLabel = regexp.MustCompile(`(?i)^free( to play)?$`)
+
+// isFreeSection is true for the block Steam shows on a free-to-play game. A
+// "free weekend" or a demo is not one: they carry no "Free To Play" price label.
+func isFreeSection(s *goquery.Selection) bool {
+	id, _ := s.Attr("aria-labelledby")
+	if !strings.HasPrefix(id, "game_area_purchase_section_free") {
+		return false
+	}
+	return freeLabel.MatchString(strings.TrimSpace(s.Find(".game_purchase_price").First().Text()))
+}
+
+// readPurchasePrices reads the price, the undiscounted price and the discount
+// percentage from a purchase block.
+//
+// Steam states the discount twice: as text ("-50%") and as data-discount /
+// data-price-final attributes on the same block. The text was the only thing
+// read before, so a block without it stored a discounted game as 0% off and the
+// discount badge vanished. The attributes are preferred, then the text, and if
+// both are missing the percentage is worked out from the two prices.
+func readPurchasePrices(section *goquery.Selection) (price, original float64, discount int) {
+	if final := section.Find(".discount_final_price").First(); final.Length() > 0 {
+		price, _ = parsePrice(strings.TrimSpace(final.Text()))
+		original, _ = parsePrice(strings.TrimSpace(section.Find(".discount_original_price").First().Text()))
+		block := section.Find(".discount_block").First()
+		if price == 0 {
+			if cents, err := strconv.Atoi(block.AttrOr("data-price-final", "")); err == nil {
+				price = float64(cents) / 100
+			}
+		}
+		if d, err := strconv.Atoi(block.AttrOr("data-discount", "")); err == nil {
+			discount = d
+		} else {
+			discount = parseDiscountPercentage(section.Find(".discount_pct").First().Text())
+		}
+	} else {
+		price, _ = parsePrice(strings.TrimSpace(section.Find(".game_purchase_price").First().Text()))
+		original = price
+	}
+	return normalizeDiscount(price, original, discount)
+}
+
+// normalizeDiscount makes the three numbers agree with each other, filling in
+// whichever one is missing from the other two.
+func normalizeDiscount(price, original float64, discount int) (float64, float64, int) {
+	if original < price {
+		original = price
+	}
+	switch {
+	case discount <= 0 && original > price && original > 0:
+		discount = int(math.Round((1 - price/original) * 100))
+	case discount > 0 && discount < 100 && original <= price:
+		original = math.Round(price/(1-float64(discount)/100)*100) / 100
+	}
+	if discount < 0 || discount > 100 {
+		discount = 0
+	}
+	return price, original, discount
 }

@@ -9,6 +9,10 @@ type Game struct {
 	URL         string `json:"url"`
 	Description string `json:"description"`
 	HeaderImage string `json:"header_image"`
+	// PriceUnknown is set when the store page showed no price at all (a delisted
+	// or unreleased game). The scrape must then leave the stored price alone,
+	// instead of recording the absence of a price as a $0 "free" price.
+	PriceUnknown bool `json:"-"`
 	// Sanitized HTML of the store description; only populated on the single-game endpoint.
 	DescriptionHTML string `json:"description_html,omitempty"`
 	// Bundles advertised on the game's store page (scraper-internal).

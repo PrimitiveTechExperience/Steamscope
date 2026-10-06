@@ -9,7 +9,7 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
 ## Features
 
 **For visitors**
-- Browse and search games by name, genre, tag, developer, publisher, language and price range.
+- Browse and search games by name, genre, tag, developer, publisher, language, price range and minimum discount.
 - Game pages with sanitized store descriptions, reviews and a price-history chart (1 week to 2 years).
 - A "Buy now or wait?" call for every game: a two-year price forecast (chance of a lower price, expected prices, when the
   next sale is likely) and a verdict with the reasons behind it. Watchers get advice that also weighs their target price

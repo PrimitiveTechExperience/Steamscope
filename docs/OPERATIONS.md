@@ -84,6 +84,20 @@ journalctl -u steamscope-api -o cat | jq -c 'select(.msg=="request") | {route,du
 journalctl -u steamscope-api -o cat | jq -c 'select(.msg=="request" and .status>=500)'
 ```
 
+## How the scraper reads prices
+
+A store page can list several purchase blocks: the game itself, then DLC, upgrades, editions and bundle upsells. The
+scraper uses the first block that is the game's own, in page order:
+
+- A **"Free To Play"** block means the game is free (price 0), even if paid upgrades are listed after it. Counter-Strike
+  2's Prime upgrade and Team Fortress 2's items were once stored as the game's price this way.
+- Otherwise the first purchasable package (an `add_to_cart` block) is used. Demo blocks and bundle dropdowns are skipped.
+- The discount is read from the block's `data-discount` and `data-price-final` attributes, then from its "-50%" text.
+  If neither is present it is worked out from the price and the undiscounted price, so a discounted game always has a
+  percentage.
+- A page with **no price at all** (a delisted or unreleased game) is not treated as free: the last known price is kept
+  and no price-history row is written for that day. The log line `No price found on the page for ...` marks these.
+
 ## Metrics
 
 | Metric | Type | Labels | Meaning |

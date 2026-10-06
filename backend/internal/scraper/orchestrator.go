@@ -57,7 +57,11 @@ func runScrape(ctx context.Context, db *database.DB, cfg *config.Config, s *Scra
 					log.Printf("Failed to insert game into database: %v", err)
 					continue
 				}
-				if err := db.UpsertPriceHistory(ctx, game.AppID, game.Price, game.OriginalPrice, game.DiscountPercentage, today); err != nil {
+				if game.PriceUnknown {
+					// No price on the page (delisted or unreleased): keep the last known
+					// price rather than recording today as free.
+					log.Printf("No price found on the page for %s (AppID: %d); keeping its last known price", game.Name, game.AppID)
+				} else if err := db.UpsertPriceHistory(ctx, game.AppID, game.Price, game.OriginalPrice, game.DiscountPercentage, today); err != nil {
 					log.Printf("Failed to upsert price history for game %s (AppID: %d): %v", game.Name, game.AppID, err)
 				} else if err := db.CreatePriceDropNotifications(ctx, game.AppID, game.Price, today); err != nil {
 					log.Printf("Failed to create price drop notifications for game %s (AppID: %d): %v", game.Name, game.AppID, err)
