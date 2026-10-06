@@ -39,6 +39,23 @@
                 </div>
             </div>
 
+            <div class="discount-filter">
+                <h3 class="mb-2 text-xs font-bold uppercase text-[var(--color-text-muted)]">Discount</h3>
+                <div class="flex flex-wrap gap-2" role="group" aria-label="Minimum discount">
+                    @for (step of discountSteps; track step.label) {
+                        <button
+                            type="button"
+                            class="discount-step edge-btn px-2 py-1 text-xs normal-case"
+                            [class.selected]="minDiscount() === step.value"
+                            [attr.aria-pressed]="minDiscount() === step.value"
+                            [style.background]="minDiscount() === step.value ? 'var(--color-accent)' : 'var(--color-surface)'"
+                            [style.color]="minDiscount() === step.value ? '#fff' : 'var(--color-text)'"
+                            (click)="setMinDiscount(step.value)"
+                        >{{ step.label }}</button>
+                    }
+                </div>
+            </div>
+
             <app-filter-autocomplete
                 label="Genres"
                 [options]="filterOptions().genres"

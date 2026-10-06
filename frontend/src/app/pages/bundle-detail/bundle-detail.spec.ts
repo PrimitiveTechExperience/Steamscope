@@ -7,16 +7,23 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { BundleDetailComponent } from './bundle-detail';
 import { PriceChartComponent } from '../../components/price-chart/price-chart';
+import { PricePredictionComponent } from '../../components/price-prediction/price-prediction';
 import { GamesService } from '../../services/games';
 import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
-import { fakeAuth, makeBundle, makeUser, textOf } from '../../../testing/factories';
+import { fakeAuth, makeBundle, makeBundleValue, makeUser, textOf } from '../../../testing/factories';
 import { BundleDetail } from '../../models/bundle';
 
 @Component({ selector: 'app-price-chart', template: '<p class="chart-stub">{{ points().length }} points / {{ emptyMessage() }}</p>' })
 class StubPriceChart {
   points = input<unknown[]>([]);
   emptyMessage = input('');
+}
+
+@Component({ selector: 'app-price-prediction', template: '<p class="prediction-stub">bundle {{ bundleId() }}</p>' })
+class StubPricePrediction {
+  bundleId = input<number | null>(null);
+  appId = input<number | null>(null);
 }
 
 async function render(opts: { bundle?: BundleDetail | null; loggedIn?: boolean; submitGame?: ReturnType<typeof vi.fn> } = {}) {
@@ -34,8 +41,8 @@ async function render(opts: { bundle?: BundleDetail | null; loggedIn?: boolean; 
     ],
   });
   TestBed.overrideComponent(BundleDetailComponent, {
-    remove: { imports: [PriceChartComponent] },
-    add: { imports: [StubPriceChart] },
+    remove: { imports: [PriceChartComponent, PricePredictionComponent] },
+    add: { imports: [StubPriceChart, StubPricePrediction] },
   });
   const harness = await RouterTestingHarness.create();
   await harness.navigateByUrl('/bundles/5001', BundleDetailComponent);
@@ -43,7 +50,7 @@ async function render(opts: { bundle?: BundleDetail | null; loggedIn?: boolean; 
   return { harness, el: harness.routeNativeElement as HTMLElement, getBundle, submitGame };
 }
 
-const rows = (el: HTMLElement) => Array.from(el.querySelectorAll('ul li'));
+const rows = (el: HTMLElement) => Array.from(el.querySelectorAll('ul:not(.reasons) li'));
 
 describe('BundleDetailComponent', () => {
   it('loads the bundle from the route id and shows its details', async () => {
@@ -58,6 +65,39 @@ describe('BundleDetailComponent', () => {
     const steam = Array.from(el.querySelectorAll('a')).find((a) => textOf(a) === 'View on Steam')!;
     expect(steam.getAttribute('href')).toBe('https://store.steampowered.com/bundle/5001');
     expect(steam.getAttribute('rel')).toContain('noopener');
+  });
+
+  it('shows the buy-now-or-wait forecast for the bundle, not for a game', async () => {
+    const { el } = await render();
+    expect(textOf(el.querySelector('.prediction-stub'))).toBe('bundle 5001');
+  });
+
+  it('still renders when the server sends no value verdict (an older API)', async () => {
+    const bundle = { ...makeBundle(), value: undefined } as unknown as BundleDetail;
+    const { el } = await render({ bundle });
+    expect(textOf(el.querySelector('h1'))).toBe('Starter Pack');
+    expect(el.querySelector('app-bundle-value')).toBeNull();
+  });
+
+  it('shows whether the bundle is worth buying', async () => {
+    const { el } = await render({ bundle: makeBundle({ value: makeBundleValue({ verdict: 'good_deal', score: 66 }) }) });
+    expect(textOf(el.querySelector('app-bundle-value .verdict'))).toBe('Good deal');
+    expect(textOf(el.querySelector('app-bundle-value .score'))).toBe('Score 66/100');
+    expect(textOf(el.querySelector('app-bundle-value .vs-separate'))).toContain('Saves $16.00');
+  });
+
+  it('flags a record low both beside the price and in the value panel', async () => {
+    const { el } = await render({
+      bundle: makeBundle({ at_record_low: true, record_low: 20, history_days: 45, value: makeBundleValue({ at_record_low: true, record_low: 20 }) }),
+    });
+    expect(textOf(el.querySelector('.record-low-badge'))).toBe('Record low');
+    expect(textOf(el.querySelector('app-bundle-value .record-low'))).toContain('from 45 days of history');
+  });
+
+  it('shows no record-low badge when it is not one', async () => {
+    const { el } = await render();
+    expect(el.querySelector('.record-low-badge')).toBeNull();
+    expect(el.querySelector('app-bundle-value .record-low')).toBeNull();
   });
 
   it('explains that bundle history starts at discovery', async () => {
@@ -125,7 +165,13 @@ describe('BundleDetailComponent', () => {
   });
 
   it('hides the discount badge for a full-price bundle', async () => {
-    const { el } = await render({ bundle: makeBundle({ discount_percentage: 0, original_price: 20 }) });
+    const { el } = await render({
+      bundle: makeBundle({
+        discount_percentage: 0,
+        original_price: 20,
+        value: makeBundleValue({ verdict: 'not_enough_data', reasons: [], items: [] }),
+      }),
+    });
     expect(textOf(el)).not.toContain('%');
     expect(el.querySelector('.line-through')).toBeNull();
   });

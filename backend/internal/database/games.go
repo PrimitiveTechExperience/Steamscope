@@ -142,9 +142,9 @@ func (db *DB) InsertGameDetails(ctx context.Context, tx pgx.Tx, game models.Game
 			description_html = EXCLUDED.description_html,
 			header_image = COALESCE(NULLIF(EXCLUDED.header_image, ''), games.header_image),
 			release_date = EXCLUDED.release_date,
-			price = EXCLUDED.price,
-			original_price = EXCLUDED.original_price,
-			discount_percentage = EXCLUDED.discount_percentage,
+			price = CASE WHEN $16 THEN games.price ELSE EXCLUDED.price END,
+			original_price = CASE WHEN $16 THEN games.original_price ELSE EXCLUDED.original_price END,
+			discount_percentage = CASE WHEN $16 THEN games.discount_percentage ELSE EXCLUDED.discount_percentage END,
 			review_score = EXCLUDED.review_score,
 			review_count = EXCLUDED.review_count,
 			windows_compatible = EXCLUDED.windows_compatible,
@@ -152,6 +152,7 @@ func (db *DB) InsertGameDetails(ctx context.Context, tx pgx.Tx, game models.Game
 			mac_compatible = EXCLUDED.mac_compatible
 		`,
 		game.AppID, game.Name, game.URL, game.Description, game.DescriptionHTML, game.HeaderImage, game.ReleaseDate, game.Price, game.OriginalPrice, game.DiscountPercentage, reviewScore, game.ReviewCount, game.WindowsCompatible, game.LinuxCompatible, game.MacCompatible,
+		game.PriceUnknown,
 	)
 	if err != nil {
 		log.Printf("Failed to insert game into database: %v", err)

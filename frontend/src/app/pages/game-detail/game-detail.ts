@@ -11,6 +11,7 @@ import { AccountService } from '../../services/account';
 import { apiErrorMessage } from '../../api';
 import { PriceChartComponent } from '../../components/price-chart/price-chart';
 import { BundleCardComponent } from '../../components/bundle-card/bundle-card';
+import { PricePredictionComponent } from '../../components/price-prediction/price-prediction';
 import { GameCardComponent } from '../../components/game-card/game-card';
 import { RevealOnScrollDirective } from '../../directives/reveal-on-scroll';
 import { TiltDirective } from '../../directives/tilt';
@@ -19,12 +20,13 @@ import { Bundle } from '../../models/bundle';
 import { Game, PricePoint, Review } from '../../models/game';
 import { withLoading } from '../../utils/with-loading';
 import { onHeaderImageError } from '../../utils/steam-image';
+import { discountOf } from '../../utils/discount';
 
 type DetailTab = 'description' | 'tags' | 'misc';
 
 @Component({
   selector: 'app-game-detail',
-  imports: [CurrencyPipe, DatePipe, DecimalPipe, PriceChartComponent, BundleCardComponent, GameCardComponent, RevealOnScrollDirective, TiltDirective, GrowOnScrollDirective, RouterLink, FormsModule],
+  imports: [CurrencyPipe, DatePipe, DecimalPipe, PriceChartComponent, PricePredictionComponent, BundleCardComponent, GameCardComponent, RevealOnScrollDirective, TiltDirective, GrowOnScrollDirective, RouterLink, FormsModule],
   templateUrl: './game-detail.html',
   styleUrl: './game-detail.css',
 })
@@ -41,6 +43,9 @@ export class GameDetailComponent {
 
   /** null until known (or when logged out). */
   protected watchState = signal<{ watched: boolean; pinned: boolean } | null>(null);
+  /** Set by the price-prediction panel once it knows the lowest price on record. */
+  protected isRecordLow = signal(false);
+  protected discountOf = discountOf;
   protected targetPriceInput: number | null = null;
   protected watchError = signal<string | null>(null);
 

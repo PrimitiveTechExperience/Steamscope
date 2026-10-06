@@ -170,6 +170,14 @@ func (a *App) SeedGame(appID int, name string, developers, publishers []string) 
 	}
 }
 
+// SeedPriceHistory writes one price_history row per point for a game.
+func (a *App) SeedPriceHistory(appID int, points []models.PricePoint) {
+	a.T.Helper()
+	if err := a.DB.UpsertPriceHistoryBatch(context.Background(), appID, points); err != nil {
+		a.T.Fatalf("seed price history: %v", err)
+	}
+}
+
 // SeedBundle stores a tracked bundle containing the given games.
 func (a *App) SeedBundle(id int, name string, games ...models.BundleGame) {
 	a.T.Helper()

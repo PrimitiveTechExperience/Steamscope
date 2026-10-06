@@ -9,10 +9,14 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
 ## Features
 
 **For visitors**
-- Browse and search games by name, genre, tag, developer, publisher, language and price range.
+- Browse and search games by name, genre, tag, developer, publisher, language, price range and minimum discount.
 - Game pages with sanitized store descriptions, reviews and a price-history chart (1 week to 2 years).
+- A "Buy now or wait?" call for every game: a two-year price forecast (chance of a lower price, expected prices, when the
+  next sale is likely) and a verdict with the reasons behind it. Watchers get advice that also weighs their target price
+  and how long they have been waiting. See [docs/PREDICTIONS.md](docs/PREDICTIONS.md).
 - Bundle tracking: bundles are discovered from tracked games' store pages (and can be submitted by link), with
-  their own price history and a cover collage built from the games they contain.
+  years of price history imported from ITAD, the same forecast and buy-now-or-wait advice as games, a verdict on
+  whether the bundle beats buying its games separately, and a cover collage built from the games they contain.
 
 **For signed-in users**
 - Email-and-password accounts, plus "Sign in through Steam" (OpenID) and Steam profile cards.
@@ -54,6 +58,7 @@ flowchart LR
 | API | Go (`net/http`), pgx, go-redis, argon2id password hashing, signed and encrypted cookies |
 | Data | Postgres (schema in `backend/postgres/setup.sql`, row level security enabled), Redis for sessions, rate limits and caches |
 | Scraping | colly and goquery, a sanitizing HTML allowlist for store descriptions |
+| Forecasting | seeded Monte Carlo simulation of each game's sale cycle (Weibull renewal process with seasonality) |
 | Observability | Prometheus client, `log/slog` JSON logs |
 | Tests | Go `testing` with a real Postgres schema and miniredis; Vitest and Angular TestBed |
 
@@ -132,6 +137,7 @@ The Admin entry appears in the user menu.
 ```bash
 go run ./backend/cmd/scraper            # one full scrape: games, bundles, price-history backfill, cleanup
 go run ./backend/cmd/backfill-history   # backfill price history for tracked games from ITAD
+go run ./backend/cmd/backtest           # score the price forecast against what really happened
 
 go test ./...                            # backend; integration tests need TEST_DATABASE_URL (see docs/CI-CD.md)
 cd frontend && npx ng test --watch=false # frontend
@@ -167,7 +173,7 @@ All endpoints are under `/api`. Responses are JSON; errors have the form `{"erro
 
 | Area | Endpoints |
 | --- | --- |
-| Public data | `GET /games`, `/games/{id}`, `/games/{id}/reviews`, `/games/{id}/price-history`, `/filters`, `/bundles`, `/bundles/{id}` |
+| Public data | `GET /games`, `/games/{id}`, `/games/{id}/reviews`, `/games/{id}/price-history`, `/games/{id}/prediction`, `/games/{id}/advice`, `/filters`, `/bundles`, `/bundles/{id}` |
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/logout`; `GET /auth/me`; `GET /auth/steam/login`, `/auth/steam/link`, `/auth/steam/callback` |
 | Signed-in user | `/me/preferences`, `/me/watchlist`, `/me/notifications`, `/me/recent-searches`, `/me/steam-profile`, `/me/feed`, `/me/submissions`; `POST /submissions` |
 | Admin | `/admin/stats`, `/admin/users`, `/admin/items`, `/admin/blacklist` (requires an admin session) |
@@ -185,6 +191,7 @@ backend/
   internal/
     auth/ cache/ config/ database/ handlers/ router/    API, sessions and storage
     scraper/ steam/ itad/ scheduler/                      data collection
+    prediction/                                            price forecast, buy-or-wait advice, backtest
     moderation/ sanitize/ observability/                  input safety, blacklist, metrics and logs
     testutil/                                             in-process API for integration tests
   postgres/setup.sql   schema
@@ -198,10 +205,11 @@ docs/                  CI/CD and operations guides
 
 - [docs/CI-CD.md](docs/CI-CD.md): CI pipeline, branch protection, Dependabot, deployment and the scheduled scrape
 - [docs/OPERATIONS.md](docs/OPERATIONS.md): health checks, metrics, request IDs, queries, alerts and the test suite
+- [docs/PREDICTIONS.md](docs/PREDICTIONS.md): the price-forecast model, the buy-or-wait rules, caching and validation
 
 ## Notes and limitations
 
 - Steamscope reads public Steam store pages. Keep the scrape rate modest, respect Steam's terms of service, and
   do not put real account cookies in the repository.
 - Price history older than the first ITAD record is never invented: a recent release shows only the days that exist.
-- Bundle history starts when a bundle is first discovered, because ITAD has no history for Steam bundles.
+- Bundles have no list price of their own, so their forecast treats the highest price of the past year as the regular price.

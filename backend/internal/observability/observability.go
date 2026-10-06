@@ -6,6 +6,8 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"regexp"
@@ -28,11 +30,16 @@ func Uptime() time.Duration { return time.Since(startedAt) }
 
 const RequestIDHeader = "X-Request-ID"
 
+// StatusClientClosedRequest is recorded (never sent) for requests the client
+// abandoned before the server finished.
+const StatusClientClosedRequest = 499
+
 type ctxKey int
 
 const (
 	requestIDKey ctxKey = iota
 	routeKey
+	failureKey
 )
 
 // A client-supplied request ID is only trusted if it looks like an ID, so a
@@ -51,6 +58,46 @@ func newRequestID() string {
 func RequestID(ctx context.Context) string {
 	id, _ := ctx.Value(requestIDKey).(string)
 	return id
+}
+
+// failure is what a handler reports about a request that ended in a server
+// error, so the one log line written for it can say why.
+type failure struct {
+	op    string
+	err   error
+	attrs []any
+}
+
+// RecordError tells the middleware why the request is about to fail with a
+// 5xx: op names what was being attempted, err is the underlying cause and
+// attrs are extra key/value pairs (ids, codes) worth having in the log. The
+// middleware then writes a single structured line with all of it, tagged with
+// the request ID the client also receives. Only the first report for a request
+// is kept.
+func RecordError(ctx context.Context, op string, err error, attrs ...any) {
+	if f, ok := ctx.Value(failureKey).(*failureHolder); ok && f.failure == nil {
+		f.failure = &failure{op: op, err: err, attrs: attrs}
+	}
+}
+
+type failureHolder struct{ failure *failure }
+
+// logAttrs turns a recorded failure into log attributes: the message, its
+// Go type, and the chain of wrapped errors, which is what usually points at
+// the real cause (a database error under two layers of "failed to ...").
+func (f *failure) logAttrs() []any {
+	out := []any{"op", f.op}
+	if f.err != nil {
+		out = append(out, "error", f.err.Error(), "error_type", fmt.Sprintf("%T", f.err))
+		var chain []string
+		for e := errors.Unwrap(f.err); e != nil; e = errors.Unwrap(e) {
+			chain = append(chain, fmt.Sprintf("%T: %s", e, e.Error()))
+		}
+		if len(chain) > 0 {
+			out = append(out, "error_chain", chain)
+		}
+	}
+	return append(out, f.attrs...)
 }
 
 // Registry holds every metric the API exposes.
@@ -112,6 +159,19 @@ var (
 		Help: "Unix time of the last successful scrape run.",
 	})
 
+	// PredictionRequests counts forecast lookups by result: hit (served from the
+	// cache), miss (computed and cached) or insufficient (too little history).
+	PredictionRequests = prometheus.NewCounterVec(prometheus.CounterOpts{
+		Name: "steamscope_prediction_requests_total",
+		Help: "Price forecast lookups, by result.",
+	}, []string{"result"})
+
+	PredictionCompute = prometheus.NewHistogram(prometheus.HistogramOpts{
+		Name:    "steamscope_prediction_compute_seconds",
+		Help:    "Time to compute a price forecast (including any ITAD calls).",
+		Buckets: []float64{.01, .05, .1, .25, .5, 1, 2.5, 5, 10, 20},
+	})
+
 	buildInfo = prometheus.NewGaugeVec(prometheus.GaugeOpts{
 		Name: "steamscope_build_info",
 		Help: "Build information; always 1.",
@@ -121,7 +181,7 @@ var (
 func init() {
 	Registry.MustRegister(
 		httpRequests, httpDuration, httpInFlight, httpPanics,
-		LoginAttempts, Submissions, ScrapeRuns, ScrapeDuration, ScrapeGames, ScrapeLastSuccess, buildInfo,
+		LoginAttempts, Submissions, PredictionRequests, PredictionCompute, ScrapeRuns, ScrapeDuration, ScrapeGames, ScrapeLastSuccess, buildInfo,
 		prometheus.NewGoCollector(),
 		prometheus.NewProcessCollector(prometheus.ProcessCollectorOpts{}),
 	)
@@ -186,9 +246,13 @@ func (w *statusWriter) Write(b []byte) (int, error) {
 func (w *statusWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 // Middleware assigns each request an ID (honouring a well-formed incoming
-// X-Request-ID), recovers panics into a JSON 500, records metrics and writes
-// one structured access-log line per request.
-func Middleware(logger *slog.Logger) func(http.Handler) http.Handler {
+// X-Request-ID), recovers panics into a JSON 500 and records metrics.
+//
+// It writes a structured log line only for server errors (status 500 and up),
+// which are always worth seeing. With logAll it writes one line per request,
+// which is far too noisy to leave on (a busy page makes dozens of calls), so it
+// is opt-in; see ACCESS_LOG.
+func Middleware(logger *slog.Logger, logAll bool) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			start := time.Now()
@@ -199,21 +263,26 @@ func Middleware(logger *slog.Logger) func(http.Handler) http.Handler {
 			w.Header().Set(RequestIDHeader, id)
 
 			holder := &routeHolder{}
+			failed := &failureHolder{}
 			ctx := context.WithValue(r.Context(), requestIDKey, id)
 			ctx = context.WithValue(ctx, routeKey, holder)
+			ctx = context.WithValue(ctx, failureKey, failed)
 			r = r.WithContext(ctx)
 
 			sw := &statusWriter{ResponseWriter: w}
 			httpInFlight.Inc()
 			defer func() {
 				httpInFlight.Dec()
+				panicked := false
 				if rec := recover(); rec != nil {
+					panicked = true
 					httpPanics.Inc()
-					logger.Error("panic recovered", "request_id", id, "panic", rec, "stack", string(debug.Stack()))
+					logger.Error("panic recovered", "request_id", id, "method", r.Method, "path", r.URL.Path,
+						"panic", fmt.Sprint(rec), "stack", string(debug.Stack()))
 					if sw.status == 0 {
 						sw.Header().Set("Content-Type", "application/json")
 						sw.WriteHeader(http.StatusInternalServerError)
-						sw.Write([]byte(`{"error":"internal server error"}`))
+						sw.Write([]byte(`{"error":"internal server error","request_id":"` + id + `"}`))
 					}
 				}
 				route := holder.pattern
@@ -224,20 +293,37 @@ func Middleware(logger *slog.Logger) func(http.Handler) http.Handler {
 				if status == 0 {
 					status = http.StatusOK
 				}
+				// When the browser gave up on the request (navigated away, closed the
+				// tab), whatever the handler wrote went nowhere and its "error" is not
+				// a server fault. Record it as 499, nginx's "client closed request",
+				// instead of a 5xx that would be logged and alert-worthy.
+				if !panicked && status >= http.StatusInternalServerError && errors.Is(r.Context().Err(), context.Canceled) {
+					status = StatusClientClosedRequest
+				}
 				elapsed := time.Since(start)
 				httpRequests.WithLabelValues(r.Method, route, strconv.Itoa(status)).Inc()
 				httpDuration.WithLabelValues(r.Method, route).Observe(elapsed.Seconds())
-				if route != "GET /metrics" {
-					logger.Info("request",
+				if route != "GET /metrics" && (logAll || status >= http.StatusInternalServerError) {
+					attrs := []any{
 						"request_id", id,
 						"method", r.Method,
 						"route", route,
 						"path", r.URL.Path,
+						"query", r.URL.RawQuery,
 						"status", status,
-						"duration_ms", float64(elapsed.Microseconds())/1000,
+						"duration_ms", float64(elapsed.Microseconds()) / 1000,
 						"bytes", sw.bytes,
 						"remote", r.RemoteAddr,
-					)
+					}
+					// A server error is logged at error level with its cause, on the
+					// same line, so one grep for the request ID explains the failure.
+					if status >= http.StatusInternalServerError && failed.failure != nil {
+						logger.Error("request failed", append(attrs, failed.failure.logAttrs()...)...)
+					} else if status >= http.StatusInternalServerError {
+						logger.Error("request failed", append(attrs, "op", "unknown", "error", "no cause was recorded for this status")...)
+					} else {
+						logger.Info("request", attrs...)
+					}
 				}
 			}()
 			next.ServeHTTP(sw, r)

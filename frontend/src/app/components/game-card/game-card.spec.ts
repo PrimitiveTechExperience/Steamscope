@@ -33,6 +33,12 @@ describe('GameCardComponent', () => {
     expect(el.querySelector('.line-through')).toBeNull();
   });
 
+  it('still shows the discount badge when the stored percentage is missing but the price is below the regular price', () => {
+    const el = render({ price: 14.99, original_price: 59.99, discount_percentage: 0 });
+    expect(textOf(el.querySelector('.edge-btn'))).toBe('-75%');
+    expect(el.querySelector('.line-through')?.textContent).toContain('$59.99');
+  });
+
   it('shows "Free" for a free game', () => {
     expect(textOf(render({ price: 0, original_price: 0, discount_percentage: 0 }))).toContain('Free');
   });

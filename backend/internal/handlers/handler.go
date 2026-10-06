@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net"
 	"net/http"
 	"time"
@@ -9,9 +10,14 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/itad"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/observability"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/prediction"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/redis/go-redis/v9"
+	"golang.org/x/sync/singleflight"
 )
 
 type Handler struct {
@@ -21,7 +27,12 @@ type Handler struct {
 	Config      *config.Config
 	SteamAPI    *steam.WebAPI
 	Submissions *SubmissionQueue
-	httpClient  *http.Client
+	// Predictions caches the most recent price forecasts (at most five).
+	Predictions *prediction.Store
+	// ITAD extends price history for forecasts; nil when no API key is set.
+	ITAD          *itad.Client
+	predictFlight singleflight.Group
+	httpClient    *http.Client
 }
 
 type Deps struct {
@@ -33,6 +44,10 @@ type Deps struct {
 }
 
 func New(d Deps) *Handler {
+	var itadClient *itad.Client
+	if d.Config.ITADAPIKey != "" {
+		itadClient = itad.New(d.Config.ITADAPIKey)
+	}
 	return &Handler{
 		DB:          d.DB,
 		Redis:       d.Redis,
@@ -40,6 +55,8 @@ func New(d Deps) *Handler {
 		Config:      d.Config,
 		SteamAPI:    steam.NewWebAPI(d.Config.Auth.SteamWebAPIKey),
 		Submissions: d.Submissions,
+		Predictions: prediction.NewStore(d.Redis, prediction.DefaultMaxEntries, prediction.DefaultTTL),
+		ITAD:        itadClient,
 		httpClient:  &http.Client{Timeout: 10 * time.Second},
 	}
 }
@@ -68,6 +85,27 @@ func writeJSON(w http.ResponseWriter, status int, v any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+// serverError answers a request that failed on our side. The client gets a
+// short message and the request ID (also in the X-Request-ID header), never
+// internals. The cause goes to the log through the middleware, as one
+// structured line carrying the same request ID, the operation, the error and,
+// for database errors, the Postgres code, table and constraint.
+func serverError(w http.ResponseWriter, r *http.Request, op string, err error, message string, extra ...any) {
+	attrs := append([]any{}, extra...)
+	if user := auth.CurrentUser(r.Context()); user != nil {
+		attrs = append(attrs, "user_id", user.UserID)
+	}
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) {
+		attrs = append(attrs, "pg_code", pgErr.Code, "pg_table", pgErr.TableName, "pg_constraint", pgErr.ConstraintName, "pg_detail", pgErr.Detail)
+	}
+	observability.RecordError(r.Context(), op, err, attrs...)
+	writeJSON(w, http.StatusInternalServerError, map[string]string{
+		"error":      message,
+		"request_id": observability.RequestID(r.Context()),
+	})
 }
 
 func decodeJSON(w http.ResponseWriter, r *http.Request, v any) bool {

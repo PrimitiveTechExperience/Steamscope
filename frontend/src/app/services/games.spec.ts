@@ -29,6 +29,18 @@ describe('GamesService', () => {
     req.flush({ games: [], total: 0, limit: 5, offset: 0 });
   });
 
+  it('sends the minimum discount, and leaves it out when it is 0 or unset', () => {
+    service.getGames({ minDiscount: 50 }).subscribe();
+    const req = http.expectOne((r) => r.url === `${API_URL}/games`);
+    expect(req.request.params.get('minDiscount')).toBe('50');
+    req.flush({ games: [], total: 0, limit: 20, offset: 0 });
+
+    service.getGames({ minDiscount: 0 }).subscribe();
+    const none = http.expectOne((r) => r.url === `${API_URL}/games`);
+    expect(none.request.params.has('minDiscount')).toBe(false);
+    none.flush({ games: [], total: 0, limit: 20, offset: 0 });
+  });
+
   it('omits empty filters entirely', () => {
     service.getGames({ search: '', genres: [] }).subscribe();
     const req = http.expectOne((r) => r.url === `${API_URL}/games`);
@@ -41,6 +53,13 @@ describe('GamesService', () => {
     http.expectOne(`${API_URL}/games/730`).flush({});
     service.getPriceHistory(730).subscribe();
     http.expectOne(`${API_URL}/games/730/price-history`).flush([]);
+  });
+
+  it('fetches the price forecast and the buy-or-wait advice', () => {
+    service.getPrediction(730).subscribe();
+    http.expectOne(`${API_URL}/games/730/prediction`).flush({});
+    service.getAdvice(730).subscribe();
+    http.expectOne(`${API_URL}/games/730/advice`).flush({});
   });
 
   it('lists all bundles, or only those containing a game', () => {

@@ -43,6 +43,36 @@ func backfillThinHistories(ctx context.Context, db *database.DB, cfg *config.Con
 	}
 }
 
+// minBundleHistoryRows is how many days of history a bundle needs before it is
+// considered to have one. Bundles are only tracked from the day they are found,
+// so a new one has a single row until it is imported from ITAD.
+const minBundleHistoryRows = 60
+
+func backfillThinBundleHistories(ctx context.Context, db *database.DB, cfg *config.Config) {
+	if cfg.ITADAPIKey == "" {
+		return
+	}
+	ids, err := db.GetBundleIDsNeedingBackfill(ctx, minBundleHistoryRows)
+	if err != nil {
+		log.Printf("Scheduler: %v", err)
+		return
+	}
+	client := itad.New(cfg.ITADAPIKey)
+	to := time.Now()
+	for _, id := range ids {
+		added, err := itad.BackfillBundle(ctx, db, client, id, to.AddDate(-itad.BundleHistoryYears, 0, 0), to)
+		if errors.Is(err, itad.ErrNoHistory) || errors.Is(err, itad.ErrBundleUnknown) {
+			continue // ITAD simply doesn't have it; not worth a log line per run
+		}
+		if err != nil {
+			log.Printf("Scheduler: history import for bundle %d failed: %v", id, err)
+			continue
+		}
+		log.Printf("Scheduler: imported %d days of price history for bundle %d", added, id)
+		time.Sleep(time.Second) // stay under ITAD's rate limit
+	}
+}
+
 // scrapeAndBackfill re-scrapes every tracked game and bundle, then backfills
 // any game whose price history is still thin, recording run metrics.
 func scrapeAndBackfill(ctx context.Context, db *database.DB, cfg *config.Config, s *scraper.Scraper) error {
@@ -65,6 +95,7 @@ func scrapeAndBackfill(ctx context.Context, db *database.DB, cfg *config.Config,
 		log.Println("Scheduler: scrape run complete")
 	}
 	backfillThinHistories(ctx, db, cfg)
+	backfillThinBundleHistories(ctx, db, cfg)
 	return runErr
 }
 

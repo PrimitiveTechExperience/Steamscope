@@ -22,9 +22,13 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handle("GET /api/games/{appID}", h.GetGame)
 	handle("GET /api/games/{appID}/reviews", h.GetReviews)
 	handle("GET /api/games/{appID}/price-history", h.GetPriceHistory)
+	handle("GET /api/games/{appID}/prediction", h.GetPrediction)
+	handle("GET /api/games/{appID}/advice", h.GetAdvice)
 	handle("GET /api/filters", h.GetFilterOptions)
 	handle("GET /api/bundles", h.GetBundles)
 	handle("GET /api/bundles/{bundleID}", h.GetBundle)
+	handle("GET /api/bundles/{bundleID}/prediction", h.GetBundlePrediction)
+	handle("GET /api/bundles/{bundleID}/advice", h.GetBundleAdvice)
 	handle("GET /api/health", h.Health)
 	handle("GET /api/ready", h.Ready)
 	handle("GET /metrics", observability.MetricsHandler(h.Config.MetricsToken).ServeHTTP)
@@ -73,7 +77,7 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handler = h.Sessions.Middleware(h.DB.GetUserByID)(handler)
 	handler = withOriginCheck(handler, frontendURL)
 	handler = withCORS(handler, frontendURL)
-	handler = observability.Middleware(slog.New(slog.NewJSONHandler(os.Stdout, nil)))(handler)
+	handler = observability.Middleware(slog.New(slog.NewJSONHandler(os.Stdout, nil)), h.Config.AccessLog)(handler)
 	return handler
 }
 

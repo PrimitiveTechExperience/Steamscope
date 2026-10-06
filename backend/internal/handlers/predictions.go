@@ -1,0 +1,249 @@
+package handlers
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"log"
+	"net/http"
+	"strconv"
+	"time"
+
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/cache"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/itad"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/observability"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/prediction"
+)
+
+const (
+	// Forecasts can call ITAD, whose key is rate limited, so cap how often one
+	// address can ask for them.
+	predictLimit  = 30
+	predictWindow = time.Minute
+	// How far back ITAD history is used, and how long the call may take.
+	extendedHistoryYears = 6
+	itadTimeout          = 6 * time.Second
+)
+
+// GetPrediction returns the price forecast for a game: predicted prices and
+// the chance of a lower price for up to two years ahead.
+func (h *Handler) GetPrediction(w http.ResponseWriter, r *http.Request) {
+	appID, ok := h.predictionRequest(w, r)
+	if !ok {
+		return
+	}
+	f, err := h.forecast(r.Context(), appID)
+	if err != nil {
+		if r.Context().Err() != nil {
+			return // the client went away; nobody is waiting for an answer
+		}
+		serverError(w, r, "compute forecast", err, "failed to compute the forecast", "app_id", appID)
+		return
+	}
+	writeJSON(w, http.StatusOK, f)
+}
+
+type adviceResponse struct {
+	prediction.Advice
+	GeneratedAt time.Time `json:"generated_at"`
+	Cached      bool      `json:"cached"`
+}
+
+// GetAdvice says whether to buy now or wait. Anyone gets a general answer; a
+// signed-in user who watches the game gets one that also weighs their target
+// price and how long (and at what price) they have been watching.
+func (h *Handler) GetAdvice(w http.ResponseWriter, r *http.Request) {
+	appID, ok := h.predictionRequest(w, r)
+	if !ok {
+		return
+	}
+	f, err := h.forecast(r.Context(), appID)
+	if err != nil {
+		if r.Context().Err() != nil {
+			return
+		}
+		serverError(w, r, "compute advice", err, "failed to compute the advice", "app_id", appID)
+		return
+	}
+
+	var in prediction.AdviceInput
+	if user := auth.CurrentUser(r.Context()); user != nil {
+		watch, err := h.DB.GetWatchInfo(r.Context(), user.UserID, appID)
+		switch {
+		case err == nil:
+			in = prediction.AdviceInput{
+				Watching:    true,
+				TargetPrice: watch.TargetPrice,
+				DaysWatched: max(0, int(time.Since(watch.WatchedAt).Hours()/24)),
+			}
+			if p, err := h.DB.GetPriceOnOrBefore(r.Context(), appID, watch.WatchedAt); err == nil {
+				in.WatchStartPrice = p
+			}
+		case !errors.Is(err, database.ErrNotFound):
+			log.Printf("advice for %d: watch info: %v", appID, err)
+		}
+	}
+
+	writeJSON(w, http.StatusOK, adviceResponse{Advice: prediction.Advise(f, in), GeneratedAt: f.GeneratedAt, Cached: f.Cached})
+}
+
+// predictionRequest validates the request shared by both endpoints.
+func (h *Handler) predictionRequest(w http.ResponseWriter, r *http.Request) (int, bool) {
+	appID, err := strconv.Atoi(r.PathValue("appID"))
+	if err != nil || appID <= 0 {
+		writeError(w, http.StatusBadRequest, "invalid appID")
+		return 0, false
+	}
+	if !cache.Allow(r.Context(), h.Redis, "ratelimit:predict:"+clientIP(r), predictLimit, predictWindow) {
+		writeError(w, http.StatusTooManyRequests, "too many forecast requests, try again in a minute")
+		return 0, false
+	}
+	if _, err := h.DB.GetGameName(r.Context(), appID); errors.Is(err, database.ErrNotFound) {
+		writeError(w, http.StatusNotFound, "game not found")
+		return 0, false
+	} else if err != nil {
+		if r.Context().Err() != nil {
+			return 0, false // the client went away
+		}
+		serverError(w, r, "forecast: load game", err, "failed to load the game", "app_id", appID)
+		return 0, false
+	}
+	return appID, true
+}
+
+// forecastSource is what a forecast is built for: a game or a bundle.
+type forecastSource struct {
+	appID    int    // 0 for a bundle
+	bundleID int    // 0 for a game
+	version  string // identifies the history the forecast is built from
+	load     func(ctx context.Context) (points []prediction.Point, allTimeLow float64, extended bool, err error)
+}
+
+func (s forecastSource) key() int {
+	if s.bundleID > 0 {
+		return prediction.BundleKey(s.bundleID)
+	}
+	return s.appID
+}
+
+// forecast returns the cached forecast for a game when the price history hasn't
+// changed since it was built, and otherwise computes (and caches) a new one.
+func (h *Handler) forecast(ctx context.Context, appID int) (prediction.Forecast, error) {
+	summary, err := h.DB.GetPriceHistorySummary(ctx, appID)
+	if err != nil {
+		return prediction.Forecast{}, err
+	}
+	return h.cachedForecast(ctx, forecastSource{
+		appID:   appID,
+		version: fmt.Sprintf("m%s|%d|%s|%.2f|itad=%t", prediction.ModelVersion, summary.Rows, summary.LastDate.Format("2006-01-02"), summary.LastPrice, h.ITAD != nil),
+		load: func(ctx context.Context) ([]prediction.Point, float64, bool, error) {
+			return h.historyPoints(ctx, appID)
+		},
+	})
+}
+
+// cachedForecast serves the cached forecast while its version still matches,
+// and otherwise computes and caches a new one. Requests for the same subject
+// that arrive together share one computation.
+func (h *Handler) cachedForecast(ctx context.Context, src forecastSource) (prediction.Forecast, error) {
+	if f, ok := h.Predictions.Get(ctx, src.key(), src.version); ok {
+		observability.PredictionRequests.WithLabelValues("hit").Inc()
+		return *f, nil
+	}
+
+	v, err, _ := h.predictFlight.Do(strconv.Itoa(src.key())+"|"+src.version, func() (any, error) {
+		start := time.Now()
+		// The shared computation must not die with the first caller's request.
+		cctx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 3*itadTimeout)
+		defer cancel()
+
+		points, allTimeLow, extended, err := src.load(cctx)
+		if err != nil {
+			return nil, err
+		}
+		f := prediction.Predict(src.appID, points, src.version, prediction.Options{AllTimeLow: allTimeLow})
+		f.BundleID = src.bundleID
+		f.UsedExtended = extended
+		observability.PredictionCompute.Observe(time.Since(start).Seconds())
+
+		if f.Model == prediction.ModelInsufficient {
+			observability.PredictionRequests.WithLabelValues("insufficient").Inc()
+			return f, nil // not worth a cache slot: there is nothing to reuse
+		}
+		observability.PredictionRequests.WithLabelValues("miss").Inc()
+		if err := h.Predictions.Put(cctx, f); err != nil {
+			log.Printf("prediction: cache put %d: %v", src.key(), err)
+		}
+		return f, nil
+	})
+	if err != nil {
+		return prediction.Forecast{}, err
+	}
+	return v.(prediction.Forecast), nil
+}
+
+// historyPoints loads the game's recorded history and, when an ITAD key is
+// configured, extends it backwards with ITAD's longer log. Recorded days always
+// win over ITAD's for the dates they cover. A failing ITAD call only costs the
+// extension, never the forecast.
+func (h *Handler) historyPoints(ctx context.Context, appID int) (points []prediction.Point, allTimeLow float64, extended bool, err error) {
+	recorded, err := h.DB.GetPriceHistory(ctx, appID)
+	if err != nil {
+		return nil, 0, false, err
+	}
+	points = make([]prediction.Point, 0, len(recorded))
+	for _, p := range recorded {
+		points = append(points, prediction.Point{Date: p.Date, Price: p.Price, Regular: p.OriginalPrice})
+	}
+	if h.ITAD == nil {
+		return points, 0, false, nil
+	}
+
+	ictx, cancel := context.WithTimeout(ctx, itadTimeout)
+	defer cancel()
+	events, err := h.ITAD.History(ictx, appID)
+	if err != nil {
+		log.Printf("prediction: ITAD history for %d unavailable, using recorded history only: %v", appID, err)
+		return points, 0, false, nil
+	}
+	return mergeHistory(points, events, time.Now()), lowestPaid(events), true, nil
+}
+
+// lowestPaid is the lowest price anyone could have bought the game at in
+// ITAD's whole log. A $0 price is a free promotion (or free to play), not a
+// purchase price, and is ignored, whether or not ITAD labels it as one. It
+// returns 0 when there is no paid price.
+func lowestPaid(events []itad.HistoryEvent) float64 {
+	low := 0.0
+	for _, e := range events {
+		if e.Price <= 0 {
+			continue
+		}
+		if low == 0 || e.Price < low {
+			low = e.Price
+		}
+	}
+	return low
+}
+
+// mergeHistory prepends the daily series built from ITAD events to the
+// recorded points, covering only the dates before the first recorded day.
+func mergeHistory(recorded []prediction.Point, events []itad.HistoryEvent, now time.Time) []prediction.Point {
+	if len(events) == 0 {
+		return recorded
+	}
+	cutoff := now.AddDate(0, 0, 1)
+	if len(recorded) > 0 {
+		cutoff = recorded[0].Date
+	}
+	series := itad.BuildDailySeries(events, now.AddDate(-extendedHistoryYears, 0, 0), now)
+	merged := make([]prediction.Point, 0, len(series)+len(recorded))
+	for _, p := range series {
+		if p.Date.Before(cutoff) {
+			merged = append(merged, prediction.Point{Date: p.Date, Price: p.Price, Regular: p.OriginalPrice})
+		}
+	}
+	return append(merged, recorded...)
+}

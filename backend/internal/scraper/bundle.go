@@ -71,21 +71,59 @@ func parseBundlePage(doc *goquery.Selection, bundleID int, url string) (models.B
 
 	seen := map[int]bool{}
 	doc.Find(".bundle_package_item [data-ds-appid]").Each(func(_ int, s *goquery.Selection) {
+		// A package ("Condition Zero") lists several apps: "10,80". It is one
+		// priced item, so it is represented by its first app.
 		raw, _ := s.Attr("data-ds-appid")
-		appID, err := strconv.Atoi(raw)
+		first, _, _ := strings.Cut(raw, ",")
+		appID, err := strconv.Atoi(strings.TrimSpace(first))
 		if err != nil || appID <= 0 || seen[appID] {
 			return
 		}
 		seen[appID] = true
+		price, regular := parseBundleItemPrices(s)
 		bundle.Games = append(bundle.Games, models.BundleGame{
-			AppID: appID,
-			Name:  strings.TrimSpace(s.Find(".tab_item_name").First().Text()),
+			AppID:        appID,
+			Name:         strings.TrimSpace(s.Find(".tab_item_name").First().Text()),
+			Price:        price,
+			RegularPrice: regular,
 		})
 	})
 	if len(bundle.Games) == 0 {
 		return bundle, fmt.Errorf("bundle %d (%s): no games found", bundleID, bundle.Name)
 	}
 	return bundle, nil
+}
+
+var normalPricePattern = regexp.MustCompile(`\$\s*([\d,]+(?:\.\d{1,2})?)\s+normally`)
+
+// parseBundleItemPrices reads one included game's current and regular price
+// from its discount block, which Steam renders as
+//
+//	<div class="discount_block" data-price-final="199" data-discount="80"
+//	     aria-label="80% off. $9.99 normally, discounted to $1.99">
+//
+// data-price-final is in cents. The regular price comes from the "normally"
+// phrase when there is one, else from undoing the discount. Both are 0 when the
+// item shows no price block (unknown, or free).
+func parseBundleItemPrices(item *goquery.Selection) (price, regular float64) {
+	block := item.Find(".discount_block").First()
+	if block.Length() == 0 {
+		return 0, 0
+	}
+	if cents, err := strconv.Atoi(strings.TrimSpace(block.AttrOr("data-price-final", ""))); err == nil && cents >= 0 {
+		price = float64(cents) / 100
+	}
+	discount, _ := strconv.Atoi(strings.TrimSpace(block.AttrOr("data-discount", "0")))
+
+	if m := normalPricePattern.FindStringSubmatch(block.AttrOr("aria-label", "")); m != nil {
+		if v, err := strconv.ParseFloat(strings.ReplaceAll(m[1], ",", ""), 64); err == nil {
+			return price, v
+		}
+	}
+	if discount > 0 && discount < 100 {
+		return price, math.Round(price/(1-float64(discount)/100)*100) / 100
+	}
+	return price, price
 }
 
 type bundleResult struct {

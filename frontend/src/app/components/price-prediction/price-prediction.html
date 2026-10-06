@@ -1,0 +1,127 @@
+<div class="edge-panel p-4">
+    <div class="flex flex-wrap items-center justify-between gap-2">
+        <h2 class="text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Buy now or wait?</h2>
+        @if (hasForecast()) {
+            <span class="forecast-confidence text-xs text-[var(--color-text-muted)]">Forecast confidence: {{ forecastConfidence() }}</span>
+        }
+    </div>
+
+    @if (loading()) {
+        <div class="skeleton mt-4 h-40"></div>
+    } @else if (failed()) {
+        <p class="mt-4 text-sm text-[var(--color-text-muted)]">The price forecast isn't available right now. Try again in a moment.</p>
+    } @else {
+        @if (atRecordLow()) {
+            <div class="record-low edge-btn mt-4 flex flex-wrap items-center gap-2 px-3 py-2 text-sm font-bold" style="background: var(--color-discount); color: #fff;">
+                <span class="uppercase">Record low</span>
+                <span class="font-normal">
+                    This is the lowest price on record ({{ forecast()!.historic_low | currency }}, from {{ forecast()!.history_days }} days of history).
+                </span>
+            </div>
+        }
+        @if (advice(); as a) {
+            <div class="mt-4 flex flex-wrap items-center gap-3">
+                <span class="verdict edge-btn px-4 py-2 text-lg font-black uppercase" [style.background]="verdictBackground()" [style.color]="verdictColor()">
+                    {{ verdictLabel() }}
+                </span>
+                @if (a.verdict !== 'not_enough_data' && a.verdict !== 'free') {
+                    <span class="advice-confidence text-sm text-[var(--color-text-muted)]">
+                        Score {{ a.score }}/100 &middot; Confidence: {{ adviceConfidence() }}
+                    </span>
+                }
+            </div>
+
+            @if (a.verdict === 'wait' && a.wait_until) {
+                <p class="wait-until mt-3 text-sm text-[var(--color-text)]">
+                    A sale is likely around <strong>{{ a.wait_until | date:'mediumDate':'UTC' }}</strong>.
+                </p>
+            }
+            @if (a.verdict !== 'not_enough_data' && a.verdict !== 'free' && a.expected_saving_percent > 0) {
+                <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+                    Waiting up to {{ a.patience_days }} days saves about {{ a.expected_saving_percent | number:'1.0-0' }}% on average.
+                </p>
+            }
+
+            @if (a.reasons.length > 0) {
+                <ul class="reasons mt-3 flex flex-col gap-1 text-sm">
+                    @for (r of a.reasons; track r.code) {
+                        <li class="flex items-start gap-2">
+                            <span class="impact shrink-0 font-bold" [style.color]="r.impact >= 0 ? 'var(--color-discount)' : 'var(--color-accent)'">{{ impact(r.impact) }}</span>
+                            <span class="text-[var(--color-text)]">{{ r.text }}</span>
+                        </li>
+                    }
+                </ul>
+            }
+            @if (!a.personalized && a.verdict !== 'free') {
+                <p class="generic-note mt-3 text-xs text-[var(--color-text-muted)]">
+                    @if (isBundle()) {
+                        This is a general call, based on this bundle's price history.
+                    } @else {
+                        This is a general call. Watch this game (and set a target price) to factor in how long you've been waiting.
+                    }
+                </p>
+            }
+        }
+
+        @if (hasForecast()) {
+            <dl class="mt-5 grid gap-3 text-sm sm:grid-cols-3">
+                <div class="edge-panel-sm p-3">
+                    <dt class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Next sale</dt>
+                    <dd class="next-sale mt-1 text-[var(--color-text)]">{{ nextSaleText() }}</dd>
+                </div>
+                <div class="edge-panel-sm p-3">
+                    <dt class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Usual sale</dt>
+                    <dd class="typical-sale mt-1 text-[var(--color-text)]">{{ typicalSaleText() }}</dd>
+                    @if (forecast()!.typical_sale.count > 0) {
+                        <dd class="mt-1 text-xs text-[var(--color-text-muted)]">Typically {{ forecast()!.typical_sale.median_price | currency }}</dd>
+                    }
+                </div>
+                <div class="edge-panel-sm p-3">
+                    <dt class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Lowest on record</dt>
+                    <dd class="historic-low mt-1 text-[var(--color-text)]">{{ forecast()!.historic_low | currency }}</dd>
+                    <dd class="mt-1 text-xs text-[var(--color-text-muted)]">{{ forecast()!.history_days }} days of history</dd>
+                </div>
+            </dl>
+
+            <table class="horizons mt-5 w-full text-sm">
+                <thead>
+                    <tr class="text-left text-xs uppercase text-[var(--color-text-muted)]">
+                        <th class="pb-1 font-bold">Within</th>
+                        <th class="pb-1 font-bold">Chance of a lower price</th>
+                        <th class="pb-1 text-right font-bold">Expected low</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (h of horizons(); track h.label) {
+                        <tr class="border-t border-[var(--color-border)]">
+                            <td class="py-1.5 text-[var(--color-text)]">{{ h.label }}</td>
+                            <td class="py-1.5 text-[var(--color-text)]">{{ h.chance }}%</td>
+                            <td class="py-1.5 text-right text-[var(--color-text)]">{{ h.expectedLow | currency }}</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (isBrowser) {
+                <div class="mt-5 h-64">
+                    <canvas baseChart [data]="chartData()" [options]="chartOptions()" type="line"></canvas>
+                </div>
+            }
+        } @else {
+            <p class="no-forecast mt-4 text-sm text-[var(--color-text-muted)]">
+                @if (isFree()) {
+                    This game is free to play, so there is no price to wait for.
+                } @else if (forecast(); as f) {
+                    We need about two months of price history before we can forecast this {{ subject() }}. It has {{ f.history_days }}
+                    {{ f.history_days === 1 ? 'day' : 'days' }} so far.
+                } @else {
+                    There isn't enough price history to forecast this {{ subject() }} yet.
+                }
+            </p>
+        }
+
+        <p class="disclaimer mt-4 text-xs text-[var(--color-text-muted)]">
+            An estimate based on this {{ subject() }}'s past sales, not a guarantee. Publishers can change prices at any time.
+        </p>
+    }
+</div>

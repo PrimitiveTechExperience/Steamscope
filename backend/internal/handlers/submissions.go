@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"net/http"
@@ -60,7 +61,7 @@ func (q *SubmissionQueue) Run(ctx context.Context, db *database.DB, cfg *config.
 
 func processSubmission(ctx context.Context, db *database.DB, cfg *config.Config, s *scraper.Scraper, job submissionJob, onTracked func()) {
 	if job.kind == steam.StoreKindBundle {
-		processBundleSubmission(ctx, db, s, job, onTracked)
+		processBundleSubmission(ctx, db, cfg, s, job, onTracked)
 		return
 	}
 	if err := scraper.RunScrape(ctx, db, cfg, s, []int{job.id}); err != nil {
@@ -146,8 +147,7 @@ func (h *Handler) SubmitGame(w http.ResponseWriter, r *http.Request) {
 		status, created, err = h.DB.SubmitTrackedGame(r.Context(), id, user.UserID, initial)
 	}
 	if err != nil {
-		log.Printf("submit game: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to submit game")
+		serverError(w, r, "submit game", err, "failed to submit game")
 		return
 	}
 	if created && status == "pending" && !h.enqueueSubmission(r.Context(), kind, id, user.UserID) {
@@ -169,8 +169,7 @@ func (h *Handler) GetSubmissions(w http.ResponseWriter, r *http.Request) {
 	user := auth.CurrentUser(r.Context())
 	submissions, err := h.DB.GetSubmissions(r.Context(), user.UserID)
 	if err != nil {
-		log.Printf("get submissions: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load submissions")
+		serverError(w, r, "get submissions", err, "failed to load submissions")
 		return
 	}
 	writeJSON(w, http.StatusOK, submissions)
@@ -178,7 +177,7 @@ func (h *Handler) GetSubmissions(w http.ResponseWriter, r *http.Request) {
 
 // processBundleSubmission scrapes a submitted bundle (and stores it), then
 // tells the submitter how it went.
-func processBundleSubmission(ctx context.Context, db *database.DB, s *scraper.Scraper, job submissionJob, onTracked func()) {
+func processBundleSubmission(ctx context.Context, db *database.DB, cfg *config.Config, s *scraper.Scraper, job submissionJob, onTracked func()) {
 	stored := scraper.ScrapeAndStoreBundles(ctx, db, s, map[int]bool{job.id: true}, time.Now())
 	if !stored[job.id] {
 		if err := db.SetBundleStatus(ctx, job.id, "failed"); err != nil {
@@ -187,6 +186,15 @@ func processBundleSubmission(ctx context.Context, db *database.DB, s *scraper.Sc
 		db.CreateNotification(ctx, job.userID, nil, "bundle_failed",
 			fmt.Sprintf("We couldn't read Steam bundle %d, so it wasn't added.", job.id))
 		return
+	}
+	// Only today's price was just recorded; import the rest of its history so
+	// its chart and forecast have something to work from straight away.
+	if cfg.ITADAPIKey != "" {
+		now := time.Now()
+		if _, err := itad.BackfillBundle(ctx, db, itad.New(cfg.ITADAPIKey), job.id, now.AddDate(-itad.BundleHistoryYears, 0, 0), now); err != nil &&
+			!errors.Is(err, itad.ErrNoHistory) && !errors.Is(err, itad.ErrBundleUnknown) {
+			log.Printf("bundle submission %d: history import: %v", job.id, err)
+		}
 	}
 	name, _ := db.GetBundleName(ctx, job.id)
 	db.CreateNotification(ctx, job.userID, nil, "bundle_tracked",

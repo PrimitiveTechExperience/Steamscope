@@ -25,9 +25,18 @@ const EMPTY_FILTER_OPTIONS: FilterOptions = {
 
 const EMPTY_RESULTS: GamesResponse = { games: [], total: 0, limit: 20, offset: 0 };
 
+/** The "minimum discount" choices. 1 means "on sale at all". */
+export const DISCOUNT_STEPS: { label: string; value: number | null }[] = [
+  { label: 'Any', value: null },
+  { label: 'On sale', value: 1 },
+  { label: '25%+', value: 25 },
+  { label: '50%+', value: 50 },
+  { label: '75%+', value: 75 },
+];
+
 function isEmptySearch(s: RecentSearch): boolean {
   const lists = [s.genres, s.tags, s.developers, s.publishers, s.languages];
-  return lists.every((l) => !l?.length) && s.min_price == null && s.max_price == null;
+  return lists.every((l) => !l?.length) && s.min_price == null && s.max_price == null && s.min_discount == null;
 }
 
 /** Short human-readable summary of a saved filter set, e.g. "Action, RPG · $5-$20". */
@@ -40,6 +49,9 @@ function searchLabel(s: RecentSearch): string {
   if (s.min_price != null || s.max_price != null) {
     parts.push(`$${s.min_price ?? 0}-${s.max_price != null ? '$' + s.max_price : 'any'}`);
   }
+  if (s.min_discount != null) {
+    parts.push(s.min_discount <= 1 ? 'On sale' : `${s.min_discount}%+ off`);
+  }
   return parts.join(' · ');
 }
 
@@ -47,6 +59,12 @@ function seedFromQueryParam(route: ActivatedRoute, key: string): Set<string> {
   const value = route.snapshot.queryParamMap.get(key);
   if (!value) return new Set();
   return new Set(value.split(',').map((v) => v.trim()).filter(Boolean));
+}
+
+/** /search?minDiscount=50 opens the page already filtered to deals. */
+function seedDiscount(route: ActivatedRoute): number | null {
+  const n = Number(route.snapshot.queryParamMap.get('minDiscount'));
+  return Number.isInteger(n) && n >= 1 && n <= 100 ? n : null;
 }
 
 @Component({
@@ -72,6 +90,12 @@ export class SearchComponent {
   protected selectedLanguages = signal<Set<string>>(seedFromQueryParam(this.route, 'languages'));
   protected minPrice = signal<number | null>(null);
   protected maxPrice = signal<number | null>(null);
+  protected minDiscount = signal<number | null>(seedDiscount(this.route));
+  protected discountSteps = DISCOUNT_STEPS;
+
+  protected setMinDiscount(value: number | null) {
+    this.minDiscount.set(value);
+  }
 
   private categorySignals: Record<FilterCategory, ReturnType<typeof signal<Set<string>>>> = {
     genres: this.selectedGenres,
@@ -108,6 +132,7 @@ export class SearchComponent {
     languages: Array.from(this.selectedLanguages()),
     minPrice: this.minPrice() ?? undefined,
     maxPrice: this.maxPrice() ?? undefined,
+    minDiscount: this.minDiscount() ?? undefined,
     limit: 60,
   }));
 
@@ -165,6 +190,7 @@ export class SearchComponent {
           languages: query.languages,
           min_price: query.minPrice,
           max_price: query.maxPrice,
+          min_discount: query.minDiscount,
         };
         if (isEmptySearch(search)) return;
         this.account.addRecentSearch(search).subscribe({
@@ -184,6 +210,7 @@ export class SearchComponent {
     this.selectedLanguages.set(new Set(search.languages ?? []));
     this.minPrice.set(search.min_price ?? null);
     this.maxPrice.set(search.max_price ?? null);
+    this.minDiscount.set(search.min_discount ?? null);
   }
 
   protected searchLabel = searchLabel;

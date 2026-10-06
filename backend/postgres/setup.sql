@@ -205,6 +205,10 @@ create table bundle_games (
     bundle_id integer not null references bundles(bundle_id) on delete cascade,
     app_id integer not null,
     name text not null default '',
+    -- What the bundle page showed for this game (USD; 0 = unknown): its current
+    -- price and its regular, undiscounted price.
+    price numeric(10, 2) not null default 0,
+    regular_price numeric(10, 2) not null default 0,
 
     primary key (bundle_id, app_id)
 );

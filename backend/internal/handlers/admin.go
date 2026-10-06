@@ -10,6 +10,7 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/moderation"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/observability"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/sanitize"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 )
@@ -17,8 +18,7 @@ import (
 func (h *Handler) AdminListUsers(w http.ResponseWriter, r *http.Request) {
 	users, err := h.DB.ListUsers(r.Context(), 1000)
 	if err != nil {
-		log.Printf("admin list users: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load users")
+		serverError(w, r, "admin list users", err, "failed to load users")
 		return
 	}
 	writeJSON(w, http.StatusOK, users)
@@ -39,8 +39,7 @@ func (h *Handler) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, database.ErrNotFound):
 		writeError(w, http.StatusNotFound, "no such user (admins can't be deleted)")
 	case err != nil:
-		log.Printf("admin delete user: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to delete user")
+		serverError(w, r, "admin delete user", err, "failed to delete user")
 	default:
 		log.Printf("admin %s deleted user %d", admin.Username, id)
 		w.WriteHeader(http.StatusNoContent)
@@ -50,8 +49,7 @@ func (h *Handler) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminListItems(w http.ResponseWriter, r *http.Request) {
 	items, err := h.DB.ListItems(r.Context(), 1000)
 	if err != nil {
-		log.Printf("admin list items: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load games")
+		serverError(w, r, "admin list items", err, "failed to load games")
 		return
 	}
 	writeJSON(w, http.StatusOK, items)
@@ -77,8 +75,7 @@ func (h *Handler) AdminDeleteItem(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, database.ErrNotFound):
 		writeError(w, http.StatusNotFound, "no such game or bundle")
 	case err != nil:
-		log.Printf("admin delete item: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to delete")
+		serverError(w, r, "admin delete item", err, "failed to delete")
 	default:
 		h.InvalidateCaches(r.Context())
 		w.WriteHeader(http.StatusNoContent)
@@ -97,8 +94,7 @@ func (h *Handler) AdminApproveItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("admin approve: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to approve")
+		serverError(w, r, "admin approve", err, "failed to approve")
 		return
 	}
 	var userID int64
@@ -124,8 +120,7 @@ func (h *Handler) AdminRejectItem(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		log.Printf("admin reject: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to reject")
+		serverError(w, r, "admin reject", err, "failed to reject")
 		return
 	}
 	if submitter != nil {
@@ -142,8 +137,7 @@ func (h *Handler) AdminRejectItem(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminStats(w http.ResponseWriter, r *http.Request) {
 	stats, err := h.DB.GetAdminStats(r.Context())
 	if err != nil {
-		log.Printf("admin stats: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load stats")
+		serverError(w, r, "admin stats", err, "failed to load stats")
 		return
 	}
 	writeJSON(w, http.StatusOK, stats)
@@ -175,8 +169,7 @@ func (h *Handler) AdminModerateUser(w http.ResponseWriter, r *http.Request) {
 	case errors.Is(err, database.ErrNotFound):
 		writeError(w, http.StatusNotFound, "no such user (admins can't be moderated)")
 	case err != nil:
-		log.Printf("admin moderate user: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to update user")
+		serverError(w, r, "admin moderate user", err, "failed to update user")
 	default:
 		log.Printf("admin %s moderated user %d: %+v", admin.Username, id, req)
 		w.WriteHeader(http.StatusNoContent)
@@ -186,8 +179,7 @@ func (h *Handler) AdminModerateUser(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) AdminListBlacklist(w http.ResponseWriter, r *http.Request) {
 	rules, err := h.DB.ListBlacklist(r.Context())
 	if err != nil {
-		log.Printf("admin list blacklist: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to load the blacklist")
+		serverError(w, r, "admin list blacklist", err, "failed to load the blacklist")
 		return
 	}
 	writeJSON(w, http.StatusOK, rules)
@@ -222,13 +214,12 @@ func (h *Handler) AdminAddBlacklistRule(w http.ResponseWriter, r *http.Request) 
 		writeError(w, http.StatusConflict, err.Error())
 		return
 	case err != nil:
-		log.Printf("admin add blacklist rule: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to add rule")
+		serverError(w, r, "admin add blacklist rule", err, "failed to add rule")
 		return
 	}
 	rule, err := h.DB.GetBlacklistRule(r.Context(), id)
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "rule added, but failed to reload it")
+		serverError(w, r, "admin reload blacklist rule", err, "rule added, but failed to reload it")
 		return
 	}
 	writeJSON(w, http.StatusCreated, rule)
@@ -244,8 +235,7 @@ func (h *Handler) AdminDeleteBlacklistRule(w http.ResponseWriter, r *http.Reques
 	case errors.Is(err, database.ErrNotFound):
 		writeError(w, http.StatusNotFound, "no such rule")
 	case err != nil:
-		log.Printf("admin delete blacklist rule: %v", err)
-		writeError(w, http.StatusInternalServerError, "failed to delete rule")
+		serverError(w, r, "admin delete blacklist rule", err, "failed to delete rule")
 	default:
 		w.WriteHeader(http.StatusNoContent)
 	}
@@ -262,16 +252,17 @@ func (h *Handler) matchingGames(r *http.Request) (rule *database.BlacklistRule, 
 		return nil, nil, http.StatusNotFound, errors.New("no such rule")
 	}
 	if err != nil {
-		log.Printf("blacklist matches: %v", err)
+		observability.RecordError(r.Context(), "blacklist matches: load rule", err)
 		return nil, nil, http.StatusInternalServerError, errors.New("failed to load the rule")
 	}
 	compiled, err := moderation.CompileRule(rule.Field, rule.Pattern)
 	if err != nil {
+		observability.RecordError(r.Context(), "blacklist matches: compile rule", err, "rule_id", id)
 		return nil, nil, http.StatusInternalServerError, errors.New("that rule is no longer valid")
 	}
 	metas, err := h.DB.GamesMeta(r.Context(), 0)
 	if err != nil {
-		log.Printf("blacklist matches: %v", err)
+		observability.RecordError(r.Context(), "blacklist matches: load games", err)
 		return nil, nil, http.StatusInternalServerError, errors.New("failed to load games")
 	}
 	for _, m := range metas {

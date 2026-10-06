@@ -35,7 +35,38 @@ journalctl -u steamscope-api | grep 3f9c1e0a7b2d4c11
 
 ## Access log
 
-One JSON line per request is written to stdout. `/metrics` scrapes are not logged.
+By default only server errors (status 500 and up) are logged, plus recovered panics. One line per request would bury
+real problems, since a single page makes dozens of calls. Set `ACCESS_LOG=true` to log every request; `/metrics`
+scrapes are never logged. Request IDs and metrics do not depend on this setting.
+
+Requests the client abandons (the browser navigates away or cancels) are recorded as status 499 rather than 500, so
+they are not logged as errors and do not appear as server failures in the metrics. A request that exceeds its own
+deadline is still a real error and is logged.
+
+### Server errors
+
+Every 500 is logged as a single structured line at error level, with the cause on the same line, so one search for
+the request ID explains it:
+
+```json
+{"level":"ERROR","msg":"request failed","request_id":"a8f41ca8efafde2a","method":"GET","route":"GET /api/bundles/{bundleID}",
+ "path":"/api/bundles/233","status":500,"duration_ms":12.4,"op":"get bundle","bundle_id":233,
+ "error":"failed to get bundle: ...","error_type":"*fmt.wrapError","error_chain":["*pgconn.PgError: ..."],
+ "pg_code":"42703","pg_table":"bundles","pg_constraint":""}
+```
+
+- `op` names what was being attempted, `error` is the full message, and `error_chain` lists each wrapped cause, which
+  usually points at the real problem. Database errors add the Postgres code, table and constraint, and `user_id` is
+  included for signed-in requests.
+- The client gets only a short message and the same `request_id` (also in the `X-Request-ID` header). The site shows
+  it as "(reference ...)" so a report can be matched to its log line. Internals are never sent to the client.
+- Recovered panics are logged with the request ID, path and stack trace.
+- A 5xx with no recorded cause is logged with `op":"unknown"`; that means a handler wrote the status without going
+  through `serverError`, and is worth fixing.
+
+In handler code, report a failure with `serverError(w, r, "operation", err, "message for the user", "key", value...)`.
+
+A logged line looks like this:
 
 ```json
 {"time":"2026-10-05T04:15:02Z","level":"INFO","msg":"request","request_id":"3f9c1e0a7b2d4c11",
@@ -53,6 +84,20 @@ journalctl -u steamscope-api -o cat | jq -c 'select(.msg=="request") | {route,du
 journalctl -u steamscope-api -o cat | jq -c 'select(.msg=="request" and .status>=500)'
 ```
 
+## How the scraper reads prices
+
+A store page can list several purchase blocks: the game itself, then DLC, upgrades, editions and bundle upsells. The
+scraper uses the first block that is the game's own, in page order:
+
+- A **"Free To Play"** block means the game is free (price 0), even if paid upgrades are listed after it. Counter-Strike
+  2's Prime upgrade and Team Fortress 2's items were once stored as the game's price this way.
+- Otherwise the first purchasable package (an `add_to_cart` block) is used. Demo blocks and bundle dropdowns are skipped.
+- The discount is read from the block's `data-discount` and `data-price-final` attributes, then from its "-50%" text.
+  If neither is present it is worked out from the price and the undiscounted price, so a discounted game always has a
+  percentage.
+- A page with **no price at all** (a delisted or unreleased game) is not treated as free: the last known price is kept
+  and no price-history row is written for that day. The log line `No price found on the page for ...` marks these.
+
 ## Metrics
 
 | Metric | Type | Labels | Meaning |
@@ -63,6 +108,8 @@ journalctl -u steamscope-api -o cat | jq -c 'select(.msg=="request" and .status>
 | `steamscope_http_panics_total` | counter | - | recovered handler panics |
 | `steamscope_login_attempts_total` | counter | outcome = success / bad_credentials / banned / rate_limited | authentication health and brute-force signal |
 | `steamscope_submissions_total` | counter | kind, outcome | game and bundle suggestions |
+| `steamscope_prediction_requests_total` | counter | result = hit / miss / insufficient | price-forecast lookups: served from the cache, computed, or too little history |
+| `steamscope_prediction_compute_seconds` | histogram | - | time to compute a forecast, including any ITAD calls |
 | `steamscope_scrape_runs_total` | counter | result = success / error | scrape runs by the in-process scheduler |
 | `steamscope_scrape_last_duration_seconds`, `steamscope_scrape_last_games` | gauge | - | duration and size of the last run |
 | `steamscope_scrape_last_success_timestamp_seconds` | gauge | - | time of the last successful scrape |

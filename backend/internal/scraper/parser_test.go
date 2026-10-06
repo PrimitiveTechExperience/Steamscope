@@ -589,3 +589,139 @@ func TestParseGamePageSkipsDemoBlockForPrice(t *testing.T) {
 		t.Errorf("got price=%v original=%v discount=%v, want 59.99/59.99/0", game.Price, game.OriginalPrice, game.DiscountPercentage)
 	}
 }
+
+func parsePurchase(t *testing.T, body string) models.Game {
+	t.Helper()
+	doc, err := goquery.NewDocumentFromReader(strings.NewReader("<html><body><div class=\"apphub_AppName\">X</div>" + body + "</body></html>"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return parseGamePage(doc.Selection, 1, "https://store.steampowered.com/app/1")
+}
+
+func TestFreeToPlayGameIgnoresPaidUpgradesListedAfterIt(t *testing.T) {
+	// Shaped like CS2's and TF2's pages: a "Free To Play" block first, then a paid
+	// package (CS2's Prime upgrade, an 80%-off TF2 item) that must not become the game's price.
+	game := parsePurchase(t, `
+		<div class="game_area_purchase_game" role="region" aria-labelledby="game_area_purchase_section_free_730">
+			<div class="game_purchase_action"><div class="game_purchase_price price">Free To Play</div></div>
+		</div>
+		<div class="game_area_purchase_game_wrapper">
+			<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_54029">
+				<div class="discount_block game_purchase_discount" data-price-final="399" data-discount="80">
+					<div class="discount_pct">-80%</div>
+					<div class="discount_prices"><div class="discount_original_price">$19.99</div><div class="discount_final_price">$3.99</div></div>
+				</div>
+			</div>
+		</div>`)
+	if game.Price != 0 || game.OriginalPrice != 0 || game.DiscountPercentage != 0 {
+		t.Errorf("free game scraped as price=%v original=%v discount=%v, want 0/0/0", game.Price, game.OriginalPrice, game.DiscountPercentage)
+	}
+}
+
+func TestPaidGameWithAFreeBlockAfterItStaysPaid(t *testing.T) {
+	game := parsePurchase(t, `
+		<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_9">
+			<div class="game_purchase_price price">$29.99</div>
+		</div>
+		<div class="game_area_purchase_game" aria-labelledby="game_area_purchase_section_free_9">
+			<div class="game_purchase_price price">Free To Play</div>
+		</div>`)
+	if game.Price != 29.99 {
+		t.Errorf("price = %v, want 29.99", game.Price)
+	}
+}
+
+func TestFreeWeekendBlockIsNotFreeToPlay(t *testing.T) {
+	// A free weekend offers "Play for free" above the real price; it has no
+	// "Free To Play" price label, so the game keeps its price.
+	game := parsePurchase(t, `
+		<div class="game_area_purchase_game" aria-labelledby="game_area_purchase_section_free_weekend">
+			<h1>Free Weekend</h1><div class="btn_addtocart"><a>Play for free</a></div>
+		</div>
+		<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_9">
+			<div class="game_purchase_price price">$29.99</div>
+		</div>`)
+	if game.Price != 29.99 {
+		t.Errorf("price = %v, want 29.99", game.Price)
+	}
+}
+
+func TestDiscountComesFromTheDataAttributesWhenTheTextIsMissing(t *testing.T) {
+	// The discount badge used to vanish for a discounted game when its "-50%"
+	// text was absent; Steam still states the discount in data-discount.
+	game := parsePurchase(t, `
+		<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_9">
+			<div class="discount_block game_purchase_discount" data-price-final="1999" data-discount="50">
+				<div class="discount_prices"><div class="discount_original_price">$39.99</div><div class="discount_final_price">$19.99</div></div>
+			</div>
+		</div>`)
+	if game.Price != 19.99 || game.OriginalPrice != 39.99 || game.DiscountPercentage != 50 {
+		t.Errorf("got %v / %v / %v, want 19.99 / 39.99 / 50", game.Price, game.OriginalPrice, game.DiscountPercentage)
+	}
+}
+
+func TestDiscountIsWorkedOutFromThePricesWhenNothingStatesIt(t *testing.T) {
+	game := parsePurchase(t, `
+		<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_9">
+			<div class="discount_prices"><div class="discount_original_price">$59.99</div><div class="discount_final_price">$14.99</div></div>
+		</div>`)
+	if game.DiscountPercentage != 75 {
+		t.Errorf("discount = %v, want 75 (14.99 against 59.99)", game.DiscountPercentage)
+	}
+}
+
+func TestOriginalPriceIsRebuiltWhenOnlyThePercentageIsGiven(t *testing.T) {
+	game := parsePurchase(t, `
+		<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_9">
+			<div class="discount_block" data-discount="50"><div class="discount_pct">-50%</div>
+				<div class="discount_prices"><div class="discount_final_price">$10.00</div></div></div>
+		</div>`)
+	if game.Price != 10 || game.OriginalPrice != 20 || game.DiscountPercentage != 50 {
+		t.Errorf("got %v / %v / %v, want 10 / 20 / 50", game.Price, game.OriginalPrice, game.DiscountPercentage)
+	}
+}
+
+func TestNormalizeDiscount(t *testing.T) {
+	cases := []struct {
+		name        string
+		price, orig float64
+		pct         int
+		wantO       float64
+		wantP       int
+	}{
+		{"consistent", 5, 10, 50, 10, 50},
+		{"no discount", 10, 10, 0, 10, 0},
+		{"original below price is lifted", 10, 5, 0, 10, 0},
+		{"missing percentage", 7.5, 10, 0, 10, 25},
+		{"missing original", 7.5, 0, 25, 10, 25},
+		{"nonsense percentage dropped", 10, 10, 250, 10, 0},
+		{"negative percentage", 10, 10, -5, 10, 0},
+	}
+	for _, c := range cases {
+		_, o, p := normalizeDiscount(c.price, c.orig, c.pct)
+		if o != c.wantO || p != c.wantP {
+			t.Errorf("%s: got original %v discount %v, want %v / %v", c.name, o, p, c.wantO, c.wantP)
+		}
+	}
+}
+
+func TestPageWithoutAnyPriceIsMarkedUnknownNotFree(t *testing.T) {
+	// A delisted game (GTA V Legacy) has no purchase block at all. That is not
+	// the same as a free game, and must not be stored as a $0 price.
+	game := parsePurchase(t, `<div class="game_area_already_owned_text">Not available</div>`)
+	if !game.PriceUnknown {
+		t.Error("a page with no price should be marked PriceUnknown")
+	}
+}
+
+func TestPagesWithAPriceAreNotMarkedUnknown(t *testing.T) {
+	paid := parsePurchase(t, `<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_9"><div class="game_purchase_price price">$9.99</div></div>`)
+	free := parsePurchase(t, `<div class="game_area_purchase_game" aria-labelledby="game_area_purchase_section_free_9"><div class="game_purchase_price price">Free To Play</div></div>`)
+	sale := parsePurchase(t, `<div class="game_area_purchase_game" id="game_area_purchase_section_add_to_cart_9"><div class="discount_prices"><div class="discount_original_price">$10.00</div><div class="discount_final_price">$5.00</div></div></div>`)
+	for name, g := range map[string]bool{"paid": paid.PriceUnknown, "free": free.PriceUnknown, "sale": sale.PriceUnknown} {
+		if g {
+			t.Errorf("%s game marked PriceUnknown", name)
+		}
+	}
+}
