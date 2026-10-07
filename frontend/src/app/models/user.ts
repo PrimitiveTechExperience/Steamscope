@@ -85,6 +85,50 @@ export interface SteamProfile {
     recently_played: SteamPlayedGame[];
 }
 
+/** A wishlist game we do not track yet; name is "" when Steam could not be asked. */
+export interface WishlistGame {
+    app_id: number;
+    name: string;
+}
+
+/**
+ * Where a wishlist stands: "empty" (nothing on it, or private), "incomplete"
+ * (games still to import), "waiting" (everything else is in; requested games are
+ * being added) or "complete" (every game is on the watchlist).
+ */
+export type WishlistState = 'empty' | 'incomplete' | 'waiting' | 'complete';
+
+export interface WishlistStatus {
+    state: WishlistState;
+    wishlist_size: number;
+    /** Games that still need importing or requesting. */
+    remaining: number;
+    /** Requested games still being added. */
+    waiting: number;
+    /** Games that cannot be added (turned down or blocked). */
+    unavailable: number;
+}
+
+export interface WishlistImportResult {
+    /** 0 means the wishlist is empty or private. */
+    wishlist_size: number;
+    /** Games the user started watching just now. */
+    watched: number;
+    already_watched: number;
+    requestable: WishlistGame[];
+    awaiting_review: number;
+    unavailable: number;
+    state: WishlistState;
+}
+
+export interface WishlistRequestResult {
+    state: WishlistState;
+    requested: number;
+    skipped: number;
+    /** "pending" when the games are being added straight away (admins), else "awaiting_approval". */
+    status: 'pending' | 'awaiting_approval';
+}
+
 export interface RecentSearch {
     search?: string;
     genres?: string[];

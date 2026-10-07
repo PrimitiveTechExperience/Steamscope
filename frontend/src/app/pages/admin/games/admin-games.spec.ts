@@ -79,6 +79,22 @@ describe('AdminGamesComponent', () => {
     expect(textOf(el.querySelector('.bundles-heading + .empty'))).toBe('Nothing matches.');
   });
 
+  it('puts the games and bundles lists side by side on wide screens, stacked on narrow ones', () => {
+    const { el } = render();
+    const games = el.querySelector('.games-section')!;
+    const bundles = el.querySelector('.bundles-section')!;
+    const grid = games.parentElement!;
+    expect(bundles.parentElement).toBe(grid); // the same row
+    expect(grid.classList.contains('grid')).toBe(true);
+    expect(grid.classList.contains('grid-cols-1')).toBe(true); // one column by default (phones)
+    expect(grid.classList.contains('lg:grid-cols-2')).toBe(true); // two from the large breakpoint
+    expect(Array.from(grid.children)).toEqual([games, bundles]); // games first, bundles beside it
+    expect(games.querySelector('.games-heading')).not.toBeNull();
+    expect(bundles.querySelector('.bundles-heading')).not.toBeNull();
+    expect(games.querySelector('ul[data-list="games"]')).not.toBeNull();
+    expect(bundles.querySelector('ul[data-list="bundles"]')).not.toBeNull();
+  });
+
   it('deletes a bundle from the bundles list', () => {
     const { service, bundles, button } = render();
     button(bundles()[0], 'Delete')!.click();

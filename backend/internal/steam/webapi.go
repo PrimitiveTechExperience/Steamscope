@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"time"
@@ -12,18 +13,30 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
 )
 
-const webAPIBase = "https://api.steampowered.com"
+const (
+	defaultWebAPIBase = "https://api.steampowered.com"
+	defaultStoreBase  = "https://store.steampowered.com"
+)
 
 var ErrNoAPIKey = errors.New("STEAM_WEB_API_KEY is not configured")
 
 type WebAPI struct {
-	apiKey string
-	client *http.Client
+	apiKey    string
+	client    *http.Client
+	webBase   string
+	storeBase string
 }
 
 func NewWebAPI(apiKey string) *WebAPI {
-	return &WebAPI{apiKey: apiKey, client: &http.Client{Timeout: 10 * time.Second}}
+	return NewWebAPIAt(apiKey, defaultWebAPIBase, defaultStoreBase)
 }
+
+// NewWebAPIAt is NewWebAPI against other servers, so tests can fake Steam.
+func NewWebAPIAt(apiKey, webBase, storeBase string) *WebAPI {
+	return &WebAPI{apiKey: apiKey, client: &http.Client{Timeout: 10 * time.Second}, webBase: webBase, storeBase: storeBase}
+}
+
+func decodeJSON(r io.Reader, out any) error { return json.NewDecoder(r).Decode(out) }
 
 var personaStates = map[int]string{
 	0: "Offline", 1: "Online", 2: "Busy", 3: "Away", 4: "Snooze", 5: "Looking to trade", 6: "Looking to play",
@@ -98,7 +111,7 @@ func (a *WebAPI) GetProfile(ctx context.Context, steamID string) (*models.SteamP
 
 func (a *WebAPI) get(ctx context.Context, path string, params url.Values, out any) error {
 	params.Set("key", a.apiKey)
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, webAPIBase+path+"?"+params.Encode(), nil)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, a.webBase+path+"?"+params.Encode(), nil)
 	if err != nil {
 		return err
 	}

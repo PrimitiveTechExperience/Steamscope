@@ -20,6 +20,9 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/steam"
 )
 
+// scrapeApps scrapes the given apps; tests replace it so no request is made to Steam.
+var scrapeApps = scraper.RunScrape
+
 type submissionJob struct {
 	kind   steam.StoreKind
 	id     int
@@ -36,6 +39,9 @@ type SubmissionQueue struct {
 func NewSubmissionQueue(size int) *SubmissionQueue {
 	return &SubmissionQueue{jobs: make(chan submissionJob, size)}
 }
+
+// Len is how many submissions are waiting to be scraped.
+func (q *SubmissionQueue) Len() int { return len(q.jobs) }
 
 func (q *SubmissionQueue) enqueue(job submissionJob) bool {
 	select {
@@ -64,13 +70,16 @@ func processSubmission(ctx context.Context, db *database.DB, cfg *config.Config,
 		processBundleSubmission(ctx, db, cfg, s, job, onTracked)
 		return
 	}
-	if err := scraper.RunScrape(ctx, db, cfg, s, []int{job.id}); err != nil {
+	if err := scrapeApps(ctx, db, cfg, s, []int{job.id}); err != nil {
 		log.Printf("submission %d: scrape: %v", job.id, err)
 	}
 
 	appID := job.id
 	if blockedAfterScrape(ctx, db, appID) {
 		if err := db.RejectGame(ctx, appID); err != nil {
+			log.Printf("submission %d: %v", appID, err)
+		}
+		if err := db.DeleteWishlistRequests(ctx, appID); err != nil {
 			log.Printf("submission %d: %v", appID, err)
 		}
 		db.CreateNotification(ctx, job.userID, nil, "submission_rejected",
@@ -92,11 +101,20 @@ func processSubmission(ctx context.Context, db *database.DB, cfg *config.Config,
 		}
 		db.CreateNotification(ctx, job.userID, &appID, "submission_tracked",
 			fmt.Sprintf("%s is now being tracked. Thanks for the submission!", name))
+		// Users who asked for it from their wishlist now watch it, pinned if they chose that.
+		if n, err := db.ApplyWishlistRequests(ctx, appID); err != nil {
+			log.Printf("submission %d: wishlist requests: %v", appID, err)
+		} else if n > 0 {
+			log.Printf("submission %d: %d wishlist request(s) now watching", appID, n)
+		}
 		onTracked()
 		return
 	}
 
 	if err := db.SetTrackedGameStatus(ctx, appID, "failed"); err != nil {
+		log.Printf("submission %d: %v", appID, err)
+	}
+	if err := db.DeleteWishlistRequests(ctx, appID); err != nil {
 		log.Printf("submission %d: %v", appID, err)
 	}
 	db.CreateNotification(ctx, job.userID, nil, "submission_failed",

@@ -12,6 +12,7 @@ import { GameCardComponent } from '../../components/game-card/game-card';
 import { FilterAutocompleteComponent } from '../../components/filter-autocomplete/filter-autocomplete';
 import { FilterOptions, GamesResponse } from '../../models/game';
 import { withLoading } from '../../utils/with-loading';
+import { discountOf } from '../../utils/discount';
 
 type FilterCategory = 'genres' | 'tags' | 'developers' | 'publishers' | 'languages';
 
@@ -149,7 +150,17 @@ export class SearchComponent {
     { initialValue: { data: EMPTY_RESULTS, loading: true } }
   );
 
-  protected results = computed(() => this.resultsState().data);
+  /**
+   * The games to show. The server applies the discount filter, but it is applied
+   * here as well so the page is right even when it talks to a server that does
+   * not know the filter yet (it would ignore the parameter and send everything).
+   */
+  protected results = computed(() => {
+    const data = this.resultsState().data;
+    const min = this.minDiscount();
+    if (min === null) return data;
+    return { ...data, games: data.games.filter((g) => discountOf(g) >= min) };
+  });
   protected resultsLoading = computed(() => this.resultsState().loading);
 
   // Recent searches (logged-in users). A filter set is only saved once it

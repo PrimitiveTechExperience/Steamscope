@@ -115,6 +115,39 @@ describe('SearchComponent discount filter', () => {
     expect(step('50%+').getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('still shows only discounted games when the server ignores the filter', async () => {
+    const all = [
+      makeGame({ app_id: 1, name: 'Full Price', price: 20, original_price: 20, discount_percentage: 0 }),
+      makeGame({ app_id: 2, name: 'Mild Sale', price: 15, original_price: 20, discount_percentage: 25 }),
+      makeGame({ app_id: 3, name: 'Big Sale', price: 5, original_price: 20, discount_percentage: 75 }),
+      makeGame({ app_id: 4, name: 'Unlabelled Sale', price: 8, original_price: 20, discount_percentage: 0 }), // 60% off by its prices
+    ];
+    const { fixture, el, step, getGames } = render();
+    getGames.mockReturnValue(of({ games: all, total: 4, limit: 60, offset: 0 }));
+    await settle(fixture);
+    const shown = () => Array.from(el.querySelectorAll('app-game-card h2')).map((h) => textOf(h));
+
+    expect(shown()).toEqual(['Full Price', 'Mild Sale', 'Big Sale', 'Unlabelled Sale']);
+    step('50%+').click();
+    await settle(fixture);
+    expect(shown()).toEqual(['Big Sale', 'Unlabelled Sale']);
+    step('On sale').click();
+    await settle(fixture);
+    expect(shown()).toEqual(['Mild Sale', 'Big Sale', 'Unlabelled Sale']);
+    step('Any').click();
+    await settle(fixture);
+    expect(shown()).toHaveLength(4);
+  });
+
+  it('says so when nothing is discounted enough', async () => {
+    const { fixture, el, step, getGames } = render();
+    getGames.mockReturnValue(of({ games: [makeGame({ price: 20, original_price: 20, discount_percentage: 0 })], total: 1, limit: 60, offset: 0 }));
+    await settle(fixture);
+    step('75%+').click();
+    await settle(fixture);
+    expect(textOf(el)).toContain('No games match these filters.');
+  });
+
   it('does not save an unfiltered search', async () => {
     const { fixture, addRecentSearch } = render({ loggedIn: true });
     await vi.advanceTimersByTimeAsync(2500);

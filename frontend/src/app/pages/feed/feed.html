@@ -10,6 +10,19 @@
         }
     </section>
 
+    <nav class="shortcuts mt-6 flex flex-wrap items-center gap-2" aria-label="Jump to a section">
+        <span class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Jump to</span>
+        @for (s of shortcuts(); track s.id) {
+            <button
+                type="button"
+                class="shortcut edge-btn bg-[var(--color-surface)] px-3 py-1.5 text-xs normal-case"
+                (click)="jumpTo(s.id)"
+            >
+                {{ s.label }}@if (s.count !== null) { <span class="text-[var(--color-text-muted)]"> ({{ s.count }})</span> }
+            </button>
+        }
+    </nav>
+
     <section class="mt-8">
         @if (profileLoading()) {
             <div class="skeleton h-44"></div>
@@ -62,6 +75,7 @@
                     </div>
                 </div>
             </div>
+            <app-wishlist-import class="wishlist-strip mt-3 block" (imported)="reloadFeed()" />
         } @else if (profileUnavailable(); as reason) {
             <div class="edge-panel p-5 text-sm text-[var(--color-text-muted)]">{{ reason }}</div>
         } @else {
@@ -72,7 +86,7 @@
         }
     </section>
 
-    <section class="mt-10">
+    <section id="section-notifications" class="scroll-mt-20 mt-10">
         <div class="mb-3 flex items-center justify-between">
             <h2 class="text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
                 Notifications
@@ -122,7 +136,7 @@
         </div>
     } @else {
         @if (pinned().length > 0) {
-            <section class="mt-12">
+            <section id="section-pinned" class="scroll-mt-20 mt-12">
                 <h2 class="mb-4 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">📌 Pinned</h2>
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
                     @for (w of pinned(); track w.game.app_id) {
@@ -132,8 +146,19 @@
             </section>
         }
 
+        @if (watching().length > 0) {
+            <section id="section-watching" class="scroll-mt-20 mt-12">
+                <h2 class="mb-4 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Watching</h2>
+                <div class="carousel-fade hairline-scroll flex gap-4 overflow-x-auto py-2">
+                    @for (w of watching(); track w.game.app_id) {
+                        <div class="w-64 shrink-0"><app-game-card [game]="w.game" /></div>
+                    }
+                </div>
+            </section>
+        }
+
         @if (feed().deals.length > 0) {
-            <section class="mt-12">
+            <section id="section-deals" class="scroll-mt-20 mt-12">
                 <h2 class="text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Below their usual price</h2>
                 <p class="mb-4 text-sm text-[var(--color-text-muted)]">Compared to each game's average price over the last 90 days.</p>
                 <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
@@ -153,19 +178,8 @@
             </section>
         }
 
-        @if (watching().length > 0) {
-            <section class="mt-12">
-                <h2 class="mb-4 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Watching</h2>
-                <div class="carousel-fade hairline-scroll flex gap-4 overflow-x-auto py-2">
-                    @for (w of watching(); track w.game.app_id) {
-                        <div class="w-64 shrink-0"><app-game-card [game]="w.game" /></div>
-                    }
-                </div>
-            </section>
-        }
-
         @if (feed().suggestions.length > 0) {
-            <section class="mt-12">
+            <section id="section-suggestions" class="scroll-mt-20 mt-12">
                 <h2 class="text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Suggested for you</h2>
                 <p class="mb-4 text-sm text-[var(--color-text-muted)]">
                     {{ feed().watchlist.length > 0 ? 'Based on the genres and tags of games you watch.' : 'Popular and discounted right now.' }}

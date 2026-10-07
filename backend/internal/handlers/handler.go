@@ -41,6 +41,8 @@ type Deps struct {
 	Sessions    *auth.SessionManager
 	Config      *config.Config
 	Submissions *SubmissionQueue
+	// SteamAPI overrides the Steam Web API client; tests use it to fake Steam.
+	SteamAPI *steam.WebAPI
 }
 
 func New(d Deps) *Handler {
@@ -48,12 +50,16 @@ func New(d Deps) *Handler {
 	if d.Config.ITADAPIKey != "" {
 		itadClient = itad.New(d.Config.ITADAPIKey)
 	}
+	steamAPI := d.SteamAPI
+	if steamAPI == nil {
+		steamAPI = steam.NewWebAPI(d.Config.Auth.SteamWebAPIKey)
+	}
 	return &Handler{
 		DB:          d.DB,
 		Redis:       d.Redis,
 		Sessions:    d.Sessions,
 		Config:      d.Config,
-		SteamAPI:    steam.NewWebAPI(d.Config.Auth.SteamWebAPIKey),
+		SteamAPI:    steamAPI,
 		Submissions: d.Submissions,
 		Predictions: prediction.NewStore(d.Redis, prediction.DefaultMaxEntries, prediction.DefaultTTL),
 		ITAD:        itadClient,

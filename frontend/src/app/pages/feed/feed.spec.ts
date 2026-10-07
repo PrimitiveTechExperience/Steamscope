@@ -8,7 +8,7 @@ import { FeedComponent } from './feed';
 import { AuthService } from '../../services/auth';
 import { AccountService } from '../../services/account';
 import { AppNotification, Feed, SteamProfile } from '../../models/user';
-import { fakeAuth, makeUser, stubIntersectionObserver, textOf } from '../../../testing/factories';
+import { fakeAuth, makeGame, makeUser, stubIntersectionObserver, textOf } from '../../../testing/factories';
 
 const EMPTY: Feed = { watchlist: [], deals: [], suggestions: [] };
 
@@ -31,7 +31,7 @@ function notification(over: Partial<AppNotification> = {}): AppNotification {
   return { notification_id: 1, app_id: null, kind: 'price_drop', message: 'Hades dropped to $10', read_at: null, created_at: '2026-10-01T12:00:00Z', ...over };
 }
 
-function render(opts: { profile?: SteamProfile | null; profileError?: number; notifications?: AppNotification[]; submitGame?: unknown } = {}) {
+function render(opts: { profile?: SteamProfile | null; profileError?: number; notifications?: AppNotification[]; submitGame?: unknown; feed?: Feed } = {}) {
   stubIntersectionObserver();
   const notifications = signal<AppNotification[]>(opts.notifications ?? []);
   const account = {
@@ -40,11 +40,13 @@ function render(opts: { profile?: SteamProfile | null; profileError?: number; no
     loadNotifications: vi.fn(),
     markRead: vi.fn().mockReturnValue(of(undefined)),
     markAllRead: vi.fn().mockReturnValue(of(undefined)),
-    getFeed: vi.fn().mockReturnValue(of(EMPTY)),
+    getFeed: vi.fn().mockReturnValue(of(opts.feed ?? EMPTY)),
     getSteamProfile: vi.fn().mockReturnValue(
       opts.profileError ? throwError(() => new HttpErrorResponse({ status: opts.profileError })) : of({ profile: opts.profile === undefined ? null : opts.profile })
     ),
     submitGame: opts.submitGame ?? vi.fn().mockReturnValue(of({ kind: 'app', id: 2, status: 'awaiting_approval' })),
+    importWishlist: vi.fn(),
+    getWishlistStatus: vi.fn().mockReturnValue(of({ state: 'incomplete', wishlist_size: 4, remaining: 4, waiting: 0, unavailable: 0 })),
   };
   TestBed.configureTestingModule({
     imports: [FeedComponent],
@@ -109,6 +111,99 @@ describe('FeedComponent: Steam profile', () => {
     fixture.detectChanges();
     expect(textOf(el)).toContain("You're not able to submit games");
     expect(tile('New Game').querySelector('button')).not.toBeNull();
+  });
+
+  describe('sections and shortcuts', () => {
+    const watched = (id: number, pinned: boolean) => ({ game: makeGame({ app_id: id, name: `Game ${id}` }), pinned, target_price: null, watched_at: '2026-10-01T00:00:00Z' });
+    const FULL: Feed = {
+      watchlist: [watched(1, true), watched(2, false), watched(3, false)],
+      deals: [{ game: makeGame({ app_id: 4, name: 'Deal Game' }), average_price: 20, percent_below_usual: 40, watched: false }],
+      suggestions: [makeGame({ app_id: 5, name: 'Suggested Game' })],
+    };
+    const headings = (el: HTMLElement) => Array.from(el.querySelectorAll('section[id] > h2, section[id] h2')).map((h) => textOf(h).replace(/\s+/g, ' ').trim());
+    const sectionIds = (el: HTMLElement) => Array.from(el.querySelectorAll('section[id^="section-"]')).map((s) => s.id);
+
+    it('shows Watching above the below-usual-price section', () => {
+      const { el } = render({ feed: FULL });
+      const ids = sectionIds(el);
+      expect(ids).toEqual(['section-notifications', 'section-pinned', 'section-watching', 'section-deals', 'section-suggestions']);
+      expect(ids.indexOf('section-watching')).toBeLessThan(ids.indexOf('section-deals'));
+      expect(headings(el).filter((h) => /Watching|Below their usual price/.test(h))).toEqual(['Watching', 'Below their usual price']);
+    });
+
+    it('keeps the watching games themselves intact after the move', () => {
+      const { el } = render({ feed: FULL });
+      const watching = el.querySelector('#section-watching')!;
+      expect(textOf(watching)).toContain('Game 2');
+      expect(textOf(watching)).toContain('Game 3');
+      expect(textOf(watching)).not.toContain('Game 1'); // that one is pinned
+    });
+
+    it('offers a shortcut to every section on the page, with counts, in page order', () => {
+      const { el } = render({ feed: FULL, notifications: [notification(), notification({ notification_id: 2 })] });
+      const buttons = Array.from(el.querySelectorAll('.shortcut')).map((b) => textOf(b).replace(/\s+/g, ' ').trim());
+      expect(buttons).toEqual(['Notifications (2)', 'Pinned (1)', 'Watching (2)', 'Below usual price (1)', 'Suggested (1)']);
+    });
+
+    it('leaves out shortcuts for sections that are not shown', () => {
+      const { el } = render({ feed: { ...EMPTY, watchlist: [watched(2, false)] } });
+      const buttons = Array.from(el.querySelectorAll('.shortcut')).map((b) => textOf(b).replace(/\s+/g, ' ').trim());
+      expect(buttons).toEqual(['Notifications', 'Watching (1)']);
+    });
+
+    it('scrolls to the section when a shortcut is pressed', () => {
+      const { el, fixture } = render({ feed: FULL });
+      const scrolled: string[] = [];
+      for (const id of ['section-watching', 'section-deals']) {
+        const target = el.querySelector('#' + id) as HTMLElement;
+        target.scrollIntoView = vi.fn(() => scrolled.push(id));
+      }
+      const button = (label: string) => Array.from(el.querySelectorAll<HTMLButtonElement>('.shortcut')).find((b) => textOf(b).startsWith(label))!;
+      button('Watching').click();
+      button('Below usual price').click();
+      fixture.detectChanges();
+      expect(scrolled).toEqual(['section-watching', 'section-deals']);
+      expect((el.querySelector('#section-watching') as HTMLElement).scrollIntoView).toHaveBeenCalledWith({ behavior: 'smooth', block: 'start' });
+    });
+  });
+
+  describe('wishlist import', () => {
+    const imported = { wishlist_size: 4, watched: 2, already_watched: 0, requestable: [], awaiting_review: 0, unavailable: 0 };
+
+    it('puts the Import wishlist button in its own strip under the profile card, leaving the card as it was', () => {
+      const { el } = render({ profile: profile() });
+      const strip = el.querySelector('.wishlist-strip')!;
+      expect(textOf(strip.querySelector('.import-button'))).toBe('Import wishlist');
+      const card = strip.previousElementSibling!;
+      expect(card.classList.contains('edge-panel')).toBe(true);
+      expect(card.contains(strip)).toBe(false);
+      expect(card.querySelector('.import-button')).toBeNull();
+      expect(card.querySelectorAll(':scope > div > div')).toHaveLength(2); // avatar and recently played only
+    });
+
+    it('does not show it to someone who has not linked Steam', () => {
+      const { el } = render({ profile: null });
+      expect(el.querySelector('.wishlist-strip')).toBeNull();
+      expect(el.querySelector('app-wishlist-import')).toBeNull();
+    });
+
+    it('reloads the feed after games were added to the watchlist', () => {
+      const { fixture, el, account } = render({ profile: profile() });
+      account.importWishlist.mockReturnValue(of(imported));
+      expect(account.getFeed).toHaveBeenCalledTimes(1);
+      (el.querySelector('.import-button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(account.importWishlist).toHaveBeenCalled();
+      expect(account.getFeed).toHaveBeenCalledTimes(2);
+    });
+
+    it('does not reload the feed when nothing was added', () => {
+      const { fixture, el, account } = render({ profile: profile() });
+      account.importWishlist.mockReturnValue(of({ ...imported, watched: 0, already_watched: 4 }));
+      (el.querySelector('.import-button') as HTMLButtonElement).click();
+      fixture.detectChanges();
+      expect(account.getFeed).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('explains when nothing was played recently', () => {
