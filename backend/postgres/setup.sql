@@ -150,8 +150,26 @@ create table user_preferences (
     theme text not null default 'dark' check (theme in ('light', 'dark')),
     notify_price_drops boolean not null default true,
     price_drop_threshold_percent integer not null default 10 check (price_drop_threshold_percent between 1 and 100),
-    preferred_genres text[] not null default '{}'
+    preferred_genres text[] not null default '{}',
+    -- Where to send an alert when a watched game reaches its target price, besides the
+    -- in-app notification. The webhook URL is a credential: only ever shown to its owner.
+    alert_email boolean not null default false,
+    alert_discord boolean not null default false,
+    discord_webhook_url text not null default '',
+    alert_push boolean not null default false
 );
+
+-- One row per browser a user has allowed push notifications in.
+create table push_subscriptions (
+    subscription_id bigint generated always as identity primary key,
+    user_id bigint not null references users(user_id) on delete cascade,
+    endpoint text not null unique,
+    p256dh text not null,
+    auth text not null,
+    created_at timestamptz not null default now()
+);
+
+create index idx_push_subscriptions_user_id on push_subscriptions(user_id);
 
 create table watched_games (
     user_id bigint not null references users(user_id) on delete cascade,

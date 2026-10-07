@@ -55,15 +55,78 @@ func (db *DB) GetGames(ctx context.Context, filters models.GameFilters) ([]model
 			return nil, fmt.Errorf("failed to scan game: %w", err)
 		}
 		game.ReviewScore = GetReviewScoreDescription(score)
-		if err := db.loadGameRelations(ctx, &game); err != nil {
-			return nil, err
-		}
 		games = append(games, game)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, fmt.Errorf("failed to read games: %w", err)
 	}
+	rows.Close() // free the connection before the follow-up queries
+
+	if err := db.loadListRelations(ctx, games); err != nil {
+		return nil, err
+	}
 	return games, nil
+}
+
+// loadListRelations fills in developers, publishers, tags, genres and
+// languages for a page of games with one query for each, not one per game. It
+// used to ask five questions per game, one after another, so a page of 20 took
+// 100 round trips to the database (over five seconds on a hosted one), which was
+// slow enough to hold up server-side rendering of the home page.
+//
+// Reviews are left out: no list view shows them, and ten per game made the
+// response too big to cache. The single-game endpoint still includes them.
+func (db *DB) loadListRelations(ctx context.Context, games []models.Game) error {
+	if len(games) == 0 {
+		return nil
+	}
+	ids := make([]int, len(games))
+	byID := make(map[int]*models.Game, len(games))
+	for i := range games {
+		ids[i] = games[i].AppID
+		byID[games[i].AppID] = &games[i]
+		games[i].Developers, games[i].Publishers = []string{}, []string{}
+		games[i].Tags, games[i].Genres, games[i].SupportedLanguages = []string{}, []string{}, []string{}
+		games[i].Reviews = []models.Review{}
+	}
+	relations := []struct {
+		what  string
+		query string
+		add   func(g *models.Game, value string)
+	}{
+		{"developers", `SELECT gd.app_id, d.developer FROM game_developers gd JOIN developers d ON d.developer_id = gd.developer_id WHERE gd.app_id = ANY($1) ORDER BY gd.app_id, d.developer`,
+			func(g *models.Game, v string) { g.Developers = append(g.Developers, v) }},
+		{"publishers", `SELECT gp.app_id, p.publisher FROM game_publishers gp JOIN publishers p ON p.publisher_id = gp.publisher_id WHERE gp.app_id = ANY($1) ORDER BY gp.app_id, p.publisher`,
+			func(g *models.Game, v string) { g.Publishers = append(g.Publishers, v) }},
+		{"tags", `SELECT gt.app_id, t.tag FROM game_tags gt JOIN tags t ON t.tag_id = gt.tag_id WHERE gt.app_id = ANY($1) ORDER BY gt.app_id, t.tag`,
+			func(g *models.Game, v string) { g.Tags = append(g.Tags, v) }},
+		{"genres", `SELECT gg.app_id, ge.genre FROM game_genres gg JOIN genres ge ON ge.genre_id = gg.genre_id WHERE gg.app_id = ANY($1) ORDER BY gg.app_id, ge.genre`,
+			func(g *models.Game, v string) { g.Genres = append(g.Genres, v) }},
+		{"languages", `SELECT gl.app_id, l.language FROM game_languages gl JOIN languages l ON l.language_id = gl.language_id WHERE gl.app_id = ANY($1) ORDER BY gl.app_id, l.language`,
+			func(g *models.Game, v string) { g.SupportedLanguages = append(g.SupportedLanguages, v) }},
+	}
+	for _, rel := range relations {
+		rows, err := db.Pool.Query(ctx, rel.query, ids)
+		if err != nil {
+			return fmt.Errorf("failed to get game %s: %w", rel.what, err)
+		}
+		for rows.Next() {
+			var appID int
+			var value string
+			if err := rows.Scan(&appID, &value); err != nil {
+				rows.Close()
+				return fmt.Errorf("failed to read game %s: %w", rel.what, err)
+			}
+			if g, ok := byID[appID]; ok {
+				rel.add(g, value)
+			}
+		}
+		rows.Close()
+		if err := rows.Err(); err != nil {
+			return fmt.Errorf("failed to read game %s: %w", rel.what, err)
+		}
+	}
+	return nil
 }
 
 func (db *DB) GetGamesCount(ctx context.Context, filters models.GameFilters) (int, error) {

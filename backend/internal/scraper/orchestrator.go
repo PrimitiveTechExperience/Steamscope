@@ -6,6 +6,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/alerts"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
@@ -39,6 +40,7 @@ func runScrape(ctx context.Context, db *database.DB, cfg *config.Config, s *Scra
 	const workers = 5
 	today := time.Now()
 
+	notifier := alerts.New(db, cfg)
 	jobs := make(chan models.Game, len(games))
 	var wg sync.WaitGroup
 	for i := 0; i < workers; i++ {
@@ -63,8 +65,11 @@ func runScrape(ctx context.Context, db *database.DB, cfg *config.Config, s *Scra
 					log.Printf("No price found on the page for %s (AppID: %d); keeping its last known price", game.Name, game.AppID)
 				} else if err := db.UpsertPriceHistory(ctx, game.AppID, game.Price, game.OriginalPrice, game.DiscountPercentage, today); err != nil {
 					log.Printf("Failed to upsert price history for game %s (AppID: %d): %v", game.Name, game.AppID, err)
-				} else if err := db.CreatePriceDropNotifications(ctx, game.AppID, game.Price, today); err != nil {
+				} else if targets, err := db.CreatePriceDropNotifications(ctx, game.AppID, game.Price, today); err != nil {
 					log.Printf("Failed to create price drop notifications for game %s (AppID: %d): %v", game.Name, game.AppID, err)
+				} else if len(targets) > 0 {
+					// Also send them through each user's chosen channels (email, Discord, web push).
+					notifier.Dispatch(ctx, targets)
 				}
 				if err := db.StoreReviews(ctx, game.AppID, game.Reviews, cfg.Steam.ReviewMaxReviews); err != nil {
 					log.Printf("Failed to insert reviews into database for game %s (AppID: %d): %v", game.Name, game.AppID, err)

@@ -68,6 +68,11 @@ export class PricePredictionComponent {
   private state = toSignal(
     combineLatest([toObservable(this.appId), toObservable(this.bundleId), toObservable(this.refreshKey)]).pipe(
       switchMap(([appId, bundleId]) => {
+        // Server rendering shows the loading skeleton and leaves the forecast to the
+        // browser. A forecast is slow the first time and rate limited per address, and
+        // every server-rendered page shares the address of the render server, so
+        // fetching it there would hold up the page and use up everyone's allowance.
+        if (!this.isBrowser) return EMPTY;
         const [prediction, advice] =
           bundleId != null
             ? [this.games.getBundlePrediction(bundleId), this.games.getBundleAdvice(bundleId)]

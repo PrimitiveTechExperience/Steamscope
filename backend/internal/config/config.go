@@ -24,7 +24,32 @@ type Config struct {
 	DisableScheduler bool
 	// AccessLog logs every request (not just server errors) when true.
 	AccessLog bool
+	// Alerts configures the channels target-price alerts can be sent through.
+	// A channel with no configuration is simply unavailable.
+	Alerts AlertsConfig
 }
+
+// AlertsConfig holds the email and web push settings. Discord needs none: each
+// user supplies their own webhook.
+type AlertsConfig struct {
+	SMTPHost     string
+	SMTPPort     int
+	SMTPUsername string
+	SMTPPassword string
+	// SMTPFrom is the sender address, e.g. "Steamscope <alerts@example.com>".
+	SMTPFrom string
+	// VAPID keys identify this server to browsers' push services.
+	VAPIDPublicKey  string
+	VAPIDPrivateKey string
+	// VAPIDSubject is a mailto: or https: contact for the push services.
+	VAPIDSubject string
+}
+
+// EmailConfigured reports whether email alerts can be sent.
+func (a AlertsConfig) EmailConfigured() bool { return a.SMTPHost != "" && a.SMTPFrom != "" }
+
+// PushConfigured reports whether web push alerts can be sent.
+func (a AlertsConfig) PushConfigured() bool { return a.VAPIDPublicKey != "" && a.VAPIDPrivateKey != "" }
 
 type AuthConfig struct {
 	SessionHashKey  string
@@ -82,7 +107,25 @@ func LoadConfig() *Config {
 		MetricsToken:     os.Getenv("METRICS_TOKEN"),
 		DisableScheduler: os.Getenv("DISABLE_SCHEDULER") == "true",
 		AccessLog:        os.Getenv("ACCESS_LOG") == "true",
+		Alerts: AlertsConfig{
+			SMTPHost:        os.Getenv("SMTP_HOST"),
+			SMTPPort:        envInt("SMTP_PORT", 587),
+			SMTPUsername:    os.Getenv("SMTP_USERNAME"),
+			SMTPPassword:    os.Getenv("SMTP_PASSWORD"),
+			SMTPFrom:        os.Getenv("SMTP_FROM"),
+			VAPIDPublicKey:  os.Getenv("VAPID_PUBLIC_KEY"),
+			VAPIDPrivateKey: os.Getenv("VAPID_PRIVATE_KEY"),
+			VAPIDSubject:    getEnv("VAPID_SUBJECT", "mailto:admin@localhost"),
+		},
 	}
+}
+
+// envInt reads an integer environment variable, quietly falling back to def.
+func envInt(key string, def int) int {
+	if v, err := strconv.Atoi(os.Getenv(key)); err == nil && v > 0 {
+		return v
+	}
+	return def
 }
 
 func parseAppIDs(csv string) []int {

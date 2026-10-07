@@ -62,6 +62,25 @@ back.
 - A game deleted from the database by hand leaves a "tracked" row behind. It is treated as missing, offered again, and can be
   requested again (by import or by submitting its link).
 
+## Target-price alerts
+
+Besides the in-app notification, a user can ask to be told when a game they watch reaches its target price by **email**,
+**Discord** or a **browser notification**. They are three checkboxes under Account, Preferences, each off by default; a test
+button next to each sends a sample so the user can see it works before relying on it. They are saved with the rest of the
+preferences, and apply only to target prices (a game dropping a few percent is still in-app only).
+
+- **Email** goes to the address on the account. It needs an SMTP server (`SMTP_HOST`, `SMTP_FROM`, and usually a username and
+  password); without one the option shows as "not set up on this server".
+- **Discord** takes the user's own webhook URL (channel settings, Integrations, Webhooks). Only real `discord.com` webhook
+  addresses are accepted, because the server sends requests to whatever the user enters. Messages cannot ping anyone. A webhook
+  that Discord says no longer exists switches the option off by itself.
+- **Browser notification** uses web push. Run `go run ./backend/cmd/vapid` once and put the keys in `.env`. Ticking the box asks
+  the browser for permission and subscribes that browser (several browsers can be subscribed); a browser that has unsubscribed
+  is forgotten when a push to it fails with 404 or 410.
+
+Alerts are sent by the scrape, when the price that crosses the target is recorded, so a user hears about it once per day at most.
+One channel failing never stops the others or the scrape. Banned users get no outside alerts.
+
 ## Architecture
 
 ```mermaid
@@ -188,6 +207,8 @@ Environment variables (see `.env.example` for the full annotated list):
 | `TRACKED_APP_IDS` | Comma-separated app IDs tracked from the start |
 | `ITAD_API_KEY` | Enables price-history backfills |
 | `STEAM_WEB_API_KEY` | Enables Steam profile cards and wishlist import |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Enable email target-price alerts |
+| `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Enable browser push alerts (generate with `go run ./backend/cmd/vapid`) |
 | `REVIEW_FILTER`, `REVIEW_MAX_REVIEWS`, `REVIEW_LANGUAGE` | Review scraping options |
 | `METRICS_TOKEN` | If set, `/metrics` requires this bearer token |
 | `DISABLE_SCHEDULER` | `true` when an external job runs the scrape |
@@ -201,7 +222,7 @@ All endpoints are under `/api`. Responses are JSON; errors have the form `{"erro
 | --- | --- |
 | Public data | `GET /games`, `/games/{id}`, `/games/{id}/reviews`, `/games/{id}/price-history`, `/games/{id}/prediction`, `/games/{id}/advice`, `/filters`, `/bundles`, `/bundles/{id}` |
 | Auth | `POST /auth/register`, `/auth/login`, `/auth/logout`; `GET /auth/me`; `GET /auth/steam/login`, `/auth/steam/link`, `/auth/steam/callback` |
-| Signed-in user | `/me/preferences`, `/me/watchlist`, `/me/notifications`, `/me/recent-searches`, `/me/steam-profile`, `/me/feed`, `/me/submissions`; `GET /me/wishlist/status`, `POST /me/wishlist/import`, `POST /me/wishlist/request`; `POST /submissions` |
+| Signed-in user | `/me/preferences`, `/me/watchlist`, `/me/notifications`, `/me/recent-searches`, `/me/steam-profile`, `/me/feed`, `/me/submissions`; `GET /me/wishlist/status`, `POST /me/wishlist/import`, `POST /me/wishlist/request`; `GET /me/alert-channels`, `POST`/`DELETE /me/push-subscription`, `POST /me/alerts/test`; `POST /submissions` |
 | Admin | `/admin/stats`, `/admin/users`, `/admin/items`, `/admin/blacklist` (requires an admin session) |
 | Operations | `GET /api/health`, `GET /api/ready`, `GET /metrics` |
 

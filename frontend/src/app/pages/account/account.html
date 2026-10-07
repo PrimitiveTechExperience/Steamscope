@@ -88,6 +88,116 @@
                         </span>
                     </label>
 
+                    <fieldset class="alerts flex flex-col gap-4 border-t-2 border-[var(--color-border)] pt-5">
+                        <legend class="pr-3 text-xs font-bold uppercase tracking-wide text-[var(--color-text-muted)]">Target-price alerts</legend>
+                        <p class="text-[var(--color-text-muted)]">
+                            When a game you watch drops to the target price you set for it, also tell me by:
+                        </p>
+
+                        <div class="alert-email flex flex-col gap-1">
+                            <label class="flex items-center justify-between gap-4" [class.opacity-50]="channels() && !channels()!.email">
+                                <span class="text-[var(--color-text)]">Email <span class="text-[var(--color-text-muted)]">({{ auth.user()?.email }})</span></span>
+                                <input
+                                    type="checkbox"
+                                    class="email-box h-5 w-5"
+                                    [disabled]="!channels()?.email && !p.alert_email"
+                                    [ngModel]="p.alert_email"
+                                    (ngModelChange)="updatePrefs({ alert_email: $event })"
+                                />
+                            </label>
+                            @if (channels() && !channels()!.email) {
+                                <p class="email-unavailable text-xs text-[var(--color-text-muted)]">Not set up on this server.</p>
+                            } @else if (p.alert_email) {
+                                <button type="button" class="test-email edge-btn self-start bg-[var(--color-surface)] px-3 py-1 text-xs" [disabled]="testing() !== null" (click)="sendTest('email')">
+                                    {{ testing() === 'email' ? 'Sending...' : 'Send a test email' }}
+                                </button>
+                            }
+                            @if (testResult(); as t) {
+                                @if (t.channel === 'email') {
+                                    <p class="test-result text-xs" [style.color]="t.kind === 'ok' ? 'var(--color-discount)' : 'var(--color-accent)'">{{ t.text }}</p>
+                                }
+                            }
+                        </div>
+
+                        <div class="alert-discord flex flex-col gap-2">
+                            <label class="flex items-center justify-between gap-4">
+                                <span class="text-[var(--color-text)]">Discord</span>
+                                <input
+                                    type="checkbox"
+                                    class="discord-box h-5 w-5"
+                                    [ngModel]="p.alert_discord"
+                                    (ngModelChange)="updatePrefs({ alert_discord: $event })"
+                                />
+                            </label>
+                            @if (p.alert_discord || p.discord_webhook_url) {
+                                <input
+                                    type="url"
+                                    class="discord-url w-full border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-2 py-1 text-[var(--color-text)]"
+                                    placeholder="https://discord.com/api/webhooks/..."
+                                    autocomplete="off"
+                                    spellcheck="false"
+                                    maxlength="300"
+                                    aria-label="Discord webhook URL"
+                                    [ngModel]="p.discord_webhook_url"
+                                    (ngModelChange)="updatePrefs({ discord_webhook_url: $event })"
+                                />
+                                <p class="text-xs text-[var(--color-text-muted)]">
+                                    In Discord: channel settings &rarr; Integrations &rarr; Webhooks &rarr; New webhook &rarr; Copy Webhook URL.
+                                    Keep it private: anyone with it can post in that channel.
+                                </p>
+                                <button type="button" class="test-discord edge-btn self-start bg-[var(--color-surface)] px-3 py-1 text-xs" [disabled]="testing() !== null || !p.discord_webhook_url.trim()" (click)="sendTest('discord')">
+                                    {{ testing() === 'discord' ? 'Sending...' : 'Send a test message' }}
+                                </button>
+                            }
+                            @if (testResult(); as t) {
+                                @if (t.channel === 'discord') {
+                                    <p class="test-result text-xs" [style.color]="t.kind === 'ok' ? 'var(--color-discount)' : 'var(--color-accent)'">{{ t.text }}</p>
+                                }
+                            }
+                        </div>
+
+                        <div class="alert-push flex flex-col gap-1">
+                            <label class="flex items-center justify-between gap-4" [class.opacity-50]="pushUnavailableReason() && !p.alert_push">
+                                <span class="text-[var(--color-text)]">Browser notification <span class="text-[var(--color-text-muted)]">(on this device)</span></span>
+                                <input
+                                    type="checkbox"
+                                    class="push-box h-5 w-5"
+                                    [disabled]="pushBusy() || (!!pushUnavailableReason() && !p.alert_push)"
+                                    [checked]="p.alert_push"
+                                    (change)="togglePush($event)"
+                                />
+                            </label>
+                            @if (pushUnavailableReason(); as reason) {
+                                @if (!p.alert_push) {
+                                    <p class="push-unavailable text-xs text-[var(--color-text-muted)]">{{ reason }}</p>
+                                }
+                            }
+                            @if (p.alert_push && !pushHere() && pushUsable) {
+                                <p class="push-elsewhere text-xs text-[var(--color-text-muted)]">
+                                    This browser isn't subscribed yet.
+                                    <button type="button" class="enable-here font-bold text-[var(--color-accent)] hover:underline" [disabled]="pushBusy()" (click)="subscribeThisBrowser()">Enable it here</button>
+                                </p>
+                            }
+                            @if (p.alert_push) {
+                                <button type="button" class="test-push edge-btn self-start bg-[var(--color-surface)] px-3 py-1 text-xs" [disabled]="testing() !== null" (click)="sendTest('push')">
+                                    {{ testing() === 'push' ? 'Sending...' : 'Send a test notification' }}
+                                </button>
+                            }
+                            @if (pushMessage(); as msg) {
+                                <p class="push-message text-xs text-[var(--color-accent)]" role="alert">{{ msg }}</p>
+                            }
+                            @if (testResult(); as t) {
+                                @if (t.channel === 'push') {
+                                    <p class="test-result text-xs" [style.color]="t.kind === 'ok' ? 'var(--color-discount)' : 'var(--color-accent)'">{{ t.text }}</p>
+                                }
+                            }
+                        </div>
+
+                        <p class="text-xs text-[var(--color-text-muted)]">
+                            Set a target price on any game you watch (on its page). These choices are saved with the button below.
+                        </p>
+                    </fieldset>
+
                     <div>
                         <app-filter-autocomplete
                             label="Favourite genres (used for suggestions)"

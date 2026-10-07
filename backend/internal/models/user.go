@@ -20,6 +20,11 @@ type Preferences struct {
 	NotifyPriceDrops          bool     `json:"notify_price_drops"`
 	PriceDropThresholdPercent int      `json:"price_drop_threshold_percent"`
 	PreferredGenres           []string `json:"preferred_genres"`
+	// Target-price alerts: where to send one, besides the in-app notification.
+	AlertEmail        bool   `json:"alert_email"`
+	AlertDiscord      bool   `json:"alert_discord"`
+	DiscordWebhookURL string `json:"discord_webhook_url"`
+	AlertPush         bool   `json:"alert_push"`
 }
 
 type WatchedGame struct {
