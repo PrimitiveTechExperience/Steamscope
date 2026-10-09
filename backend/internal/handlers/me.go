@@ -41,6 +41,16 @@ func (h *Handler) UpdatePreferences(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "price drop threshold must be between 1 and 100")
 		return
 	}
+	prefs.DiscordWebhookURL = strings.TrimSpace(prefs.DiscordWebhookURL)
+	current, err := h.DB.GetPreferences(r.Context(), user.UserID)
+	if err != nil {
+		serverError(w, r, "get preferences", err, "failed to save preferences")
+		return
+	}
+	if msg, ok := h.validateAlertPreferences(r, user.UserID, prefs, current); !ok {
+		writeError(w, http.StatusBadRequest, msg)
+		return
+	}
 	if len(prefs.PreferredGenres) > 20 {
 		writeError(w, http.StatusBadRequest, "too many preferred genres")
 		return

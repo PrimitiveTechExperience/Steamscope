@@ -1,4 +1,4 @@
-import { Directive, input } from '@angular/core';
+import { Directive, PLATFORM_ID, input } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { HttpErrorResponse } from '@angular/common/http';
 import { BaseChartDirective } from 'ng2-charts';
@@ -338,6 +338,40 @@ describe('PricePredictionComponent', () => {
     it('labels the axis by month, in UTC so no label is a day early', () => {
       const { fixture } = render();
       expect(chartOf(fixture).data()!.labels).toEqual(["Oct '26", "Mar '27", "Oct '28"]);
+    });
+  });
+
+  describe('when rendered on the server', () => {
+    it('shows the skeleton and asks the API for nothing', () => {
+      const service = {
+        getPrediction: vi.fn(), getAdvice: vi.fn(), getBundlePrediction: vi.fn(), getBundleAdvice: vi.fn(),
+      };
+      TestBed.configureTestingModule({
+        imports: [PricePredictionComponent],
+        providers: [{ provide: GamesService, useValue: service }, { provide: PLATFORM_ID, useValue: 'server' }],
+      });
+      TestBed.overrideComponent(PricePredictionComponent, { remove: { imports: [BaseChartDirective] }, add: { imports: [FakeChartDirective] } });
+      const fixture = TestBed.createComponent(PricePredictionComponent);
+      fixture.componentRef.setInput('appId', 730);
+      fixture.detectChanges();
+      const el = fixture.nativeElement as HTMLElement;
+      expect(el.querySelector('.skeleton')).not.toBeNull();
+      expect(el.querySelector('.verdict')).toBeNull();
+      for (const fn of Object.values(service)) expect(fn).not.toHaveBeenCalled();
+    });
+
+    it('does the same for a bundle', () => {
+      const service = { getPrediction: vi.fn(), getAdvice: vi.fn(), getBundlePrediction: vi.fn(), getBundleAdvice: vi.fn() };
+      TestBed.configureTestingModule({
+        imports: [PricePredictionComponent],
+        providers: [{ provide: GamesService, useValue: service }, { provide: PLATFORM_ID, useValue: 'server' }],
+      });
+      TestBed.overrideComponent(PricePredictionComponent, { remove: { imports: [BaseChartDirective] }, add: { imports: [FakeChartDirective] } });
+      const fixture = TestBed.createComponent(PricePredictionComponent);
+      fixture.componentRef.setInput('bundleId', 233);
+      fixture.detectChanges();
+      expect(service.getBundlePrediction).not.toHaveBeenCalled();
+      expect(service.getBundleAdvice).not.toHaveBeenCalled();
     });
   });
 

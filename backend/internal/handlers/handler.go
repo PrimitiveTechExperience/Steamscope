@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/alerts"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/config"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
@@ -21,11 +22,13 @@ import (
 )
 
 type Handler struct {
-	DB          *database.DB
-	Redis       *redis.Client
-	Sessions    *auth.SessionManager
-	Config      *config.Config
-	SteamAPI    *steam.WebAPI
+	DB       *database.DB
+	Redis    *redis.Client
+	Sessions *auth.SessionManager
+	Config   *config.Config
+	SteamAPI *steam.WebAPI
+	// Alerts sends target-price alerts to email, Discord and web push.
+	Alerts      *alerts.Notifier
 	Submissions *SubmissionQueue
 	// Predictions caches the most recent price forecasts (at most five).
 	Predictions *prediction.Store
@@ -41,6 +44,8 @@ type Deps struct {
 	Sessions    *auth.SessionManager
 	Config      *config.Config
 	Submissions *SubmissionQueue
+	// Alerts overrides the target-price alert sender; tests use it to fake the channels.
+	Alerts *alerts.Notifier
 	// SteamAPI overrides the Steam Web API client; tests use it to fake Steam.
 	SteamAPI *steam.WebAPI
 }
@@ -49,6 +54,10 @@ func New(d Deps) *Handler {
 	var itadClient *itad.Client
 	if d.Config.ITADAPIKey != "" {
 		itadClient = itad.New(d.Config.ITADAPIKey)
+	}
+	notifier := d.Alerts
+	if notifier == nil {
+		notifier = alerts.New(d.DB, d.Config)
 	}
 	steamAPI := d.SteamAPI
 	if steamAPI == nil {
@@ -60,6 +69,7 @@ func New(d Deps) *Handler {
 		Sessions:    d.Sessions,
 		Config:      d.Config,
 		SteamAPI:    steamAPI,
+		Alerts:      notifier,
 		Submissions: d.Submissions,
 		Predictions: prediction.NewStore(d.Redis, prediction.DefaultMaxEntries, prediction.DefaultTTL),
 		ITAD:        itadClient,
@@ -99,6 +109,13 @@ func writeError(w http.ResponseWriter, status int, message string) {
 // structured line carrying the same request ID, the operation, the error and,
 // for database errors, the Postgres code, table and constraint.
 func serverError(w http.ResponseWriter, r *http.Request, op string, err error, message string, extra ...any) {
+	serverErrorWithStatus(w, r, http.StatusInternalServerError, op, err, message, extra...)
+}
+
+// serverErrorWithStatus is serverError for a failure that is not our own bug
+// but an outside service's (a mail server, a push service): same logging, a
+// different status, such as 502.
+func serverErrorWithStatus(w http.ResponseWriter, r *http.Request, status int, op string, err error, message string, extra ...any) {
 	attrs := append([]any{}, extra...)
 	if user := auth.CurrentUser(r.Context()); user != nil {
 		attrs = append(attrs, "user_id", user.UserID)
@@ -108,7 +125,7 @@ func serverError(w http.ResponseWriter, r *http.Request, op string, err error, m
 		attrs = append(attrs, "pg_code", pgErr.Code, "pg_table", pgErr.TableName, "pg_constraint", pgErr.ConstraintName, "pg_detail", pgErr.Detail)
 	}
 	observability.RecordError(r.Context(), op, err, attrs...)
-	writeJSON(w, http.StatusInternalServerError, map[string]string{
+	writeJSON(w, status, map[string]string{
 		"error":      message,
 		"request_id": observability.RequestID(r.Context()),
 	})

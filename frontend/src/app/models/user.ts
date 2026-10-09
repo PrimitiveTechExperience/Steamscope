@@ -15,7 +15,23 @@ export interface Preferences {
     notify_price_drops: boolean;
     price_drop_threshold_percent: number;
     preferred_genres: string[];
+    /** Target-price alerts: send one by email, to a Discord webhook, or as a browser push. */
+    alert_email: boolean;
+    alert_discord: boolean;
+    discord_webhook_url: string;
+    alert_push: boolean;
 }
+
+/** Which alert channels this server can send through. */
+export interface AlertChannels {
+    email: boolean;
+    discord: boolean;
+    push: boolean;
+    /** The key a browser needs to subscribe to push; empty when push is not set up. */
+    vapid_public_key: string;
+}
+
+export type AlertChannel = 'email' | 'discord' | 'push';
 
 export interface WatchedGame {
     game: Game;

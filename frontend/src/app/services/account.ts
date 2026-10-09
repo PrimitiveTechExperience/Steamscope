@@ -2,8 +2,11 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable, catchError, of, tap } from 'rxjs';
 
+import { PushSubscriptionData } from './push';
 import { API_URL } from '../api';
 import {
+  AlertChannel,
+  AlertChannels,
   AppNotification,
   Feed,
   Preferences,
@@ -31,6 +34,27 @@ export class AccountService {
 
   updatePreferences(prefs: Preferences): Observable<Preferences> {
     return this.http.put<Preferences>(`${this.base}/preferences`, prefs);
+  }
+
+  /** Which ways of sending a target-price alert this server supports. */
+  getAlertChannels(): Observable<AlertChannels> {
+    return this.http.get<AlertChannels>(`${this.base}/alert-channels`);
+  }
+
+  /** Remembers this browser so push alerts can reach it. */
+  savePushSubscription(subscription: PushSubscriptionData): Observable<void> {
+    return this.http.post<void>(`${this.base}/push-subscription`, subscription);
+  }
+
+  /** Forgets a browser. */
+  deletePushSubscription(endpoint: string): Observable<void> {
+    return this.http.request<void>('DELETE', `${this.base}/push-subscription`, { body: { endpoint } });
+  }
+
+  /** Sends a sample alert so the user can see it works. */
+  sendTestAlert(channel: AlertChannel, discordWebhookUrl?: string): Observable<void> {
+    const body = channel === 'discord' && discordWebhookUrl ? { channel, discord_webhook_url: discordWebhookUrl } : { channel };
+    return this.http.post<void>(`${this.base}/alerts/test`, body);
   }
 
   getWatchlist(): Observable<WatchedGame[]> {

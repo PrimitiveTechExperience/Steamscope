@@ -74,7 +74,7 @@ func (db *DB) MarkNotificationsRead(ctx context.Context, userID int64, ids []int
 // price_history (UpsertPriceHistory), so "previous price" is computed on the
 // scraper's calendar rather than the database's (Postgres CURRENT_DATE is
 // UTC, which disagrees with the scraper's local date for part of each day).
-func (db *DB) CreatePriceDropNotifications(ctx context.Context, appID int, newPrice float64, recordedDate time.Time) error {
+func (db *DB) CreatePriceDropNotifications(ctx context.Context, appID int, newPrice float64, recordedDate time.Time) ([]TargetAlert, error) {
 	day := recordedDate.Format("2006-01-02")
 	_, err := db.Pool.Exec(ctx, `
 		WITH prev AS (
@@ -104,10 +104,10 @@ func (db *DB) CreatePriceDropNotifications(ctx context.Context, appID int, newPr
 		appID, newPrice, day,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create price drop notifications: %w", err)
+		return nil, fmt.Errorf("failed to create price drop notifications: %w", err)
 	}
 
-	_, err = db.Pool.Exec(ctx, `
+	rows, err := db.Pool.Query(ctx, `
 		WITH prev AS (
 			SELECT price FROM price_history
 			WHERE app_id = $1 AND recorded_date < $3::date
@@ -131,11 +131,30 @@ func (db *DB) CreatePriceDropNotifications(ctx context.Context, appID int, newPr
 				SELECT 1 FROM notifications n
 				WHERE n.user_id = w.user_id AND n.app_id = $1 AND n.kind = 'target_price'
 					AND n.created_at > now() - interval '20 hours'
-			)`,
+			)
+		RETURNING user_id, app_id, message`,
 		appID, newPrice, day,
 	)
 	if err != nil {
-		return fmt.Errorf("failed to create target price notifications: %w", err)
+		return nil, fmt.Errorf("failed to create target price notifications: %w", err)
 	}
-	return nil
+	defer rows.Close()
+	var alerts []TargetAlert
+	for rows.Next() {
+		var a TargetAlert
+		if err := rows.Scan(&a.UserID, &a.AppID, &a.Message); err != nil {
+			return nil, fmt.Errorf("failed to read target price notification: %w", err)
+		}
+		alerts = append(alerts, a)
+	}
+	return alerts, rows.Err()
+}
+
+// TargetAlert is a target-price notification that was just created, and so
+// should also go out through the user's chosen alert channels. A game is only
+// returned once per user per day, however often the price is recorded.
+type TargetAlert struct {
+	UserID  int64
+	AppID   int
+	Message string
 }
