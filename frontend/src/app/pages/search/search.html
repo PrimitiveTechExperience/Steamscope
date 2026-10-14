@@ -3,12 +3,29 @@
         Search
     </h1>
 
+    <div class="mb-6">
+        <input
+            type="search"
+            class="search-box edge-panel-sm w-full px-4 py-3 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
+            [placeholder]="includeBundles() ? 'Search games and bundles by name or description' : 'Search games by name or description'"
+            maxlength="100"
+            autocomplete="off"
+            aria-label="Search"
+            [value]="searchText()"
+            (input)="onSearchInput($event)"
+        />
+    </div>
+
     @if (recentSearches().length > 0) {
         <div class="mb-6 flex flex-wrap items-center gap-2">
             <span class="text-xs font-bold uppercase text-[var(--color-text-muted)]">Recent:</span>
             @for (s of recentSearches(); track $index) {
-                <button (click)="applyRecent(s)" class="edge-btn bg-[var(--color-surface)] px-2 py-1 text-xs normal-case">
-                    {{ searchLabel(s) }}
+                <button
+                    (click)="applyRecent(s)"
+                    class="recent-chip edge-btn max-w-full truncate bg-[var(--color-surface)] px-2 py-1 text-xs normal-case"
+                    [title]="searchLabel(s)"
+                >
+                    {{ chipLabel(s) }}
                 </button>
             }
         </div>
@@ -37,6 +54,21 @@
                         (input)="onMaxPriceInput($event)"
                     />
                 </div>
+            </div>
+
+            <div class="bundles-filter">
+                <label class="include-bundles flex cursor-pointer items-start gap-2 text-sm text-[var(--color-text)]">
+                    <input type="checkbox" class="include-bundles-box mt-0.5 h-4 w-4 shrink-0" [checked]="includeBundles()" (change)="onIncludeBundles($event)" />
+                    <span>
+                        Include bundles
+                        <span class="block text-xs text-[var(--color-text-muted)]">Also show bundles with a matching name, or with a matching game in them.</span>
+                    </span>
+                </label>
+                @if (bundlesLeftOut()) {
+                    <p class="bundles-left-out mt-2 text-xs text-[var(--color-accent)]">
+                        Bundles have no genre, tag, developer, publisher or language of their own, so they are left out while one of those is set.
+                    </p>
+                }
             </div>
 
             <div class="discount-filter">
@@ -92,19 +124,36 @@
             />
         </aside>
 
-        <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3" style="align-content: start;">
-            @if (resultsLoading()) {
-                @for (i of [1,2,3,4,5,6]; track i) {
-                    <div class="skeleton aspect-[4/5]"></div>
+        <div class="flex min-w-0 flex-col gap-8">
+            <div class="games-results grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3" style="align-content: start;">
+                @if (resultsLoading()) {
+                    @for (i of [1,2,3,4,5,6]; track i) {
+                        <div class="skeleton aspect-[4/5]"></div>
+                    }
+                } @else {
+                    @for (game of results().games; track game.app_id){
+                        <app-game-card [game]="game" />
+                    } @empty {
+                        @if (bundles().length === 0) {
+                            <p class="no-results col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
+                                {{ emptyMessage() }}
+                            </p>
+                        }
+                    }
                 }
-            } @else {
-                @for (game of results().games; track game.app_id){
-                    <app-game-card [game]="game" />
-                } @empty {
-                    <p class="col-span-full py-16 text-center text-sm text-[var(--color-text-muted)]">
-                        No games match these filters.
-                    </p>
-                }
+            </div>
+
+            @if (!resultsLoading() && bundles().length > 0) {
+                <section class="bundle-results">
+                    <h2 class="mb-3 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">
+                        Bundles ({{ bundles().length }})
+                    </h2>
+                    <div class="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-3">
+                        @for (b of bundles(); track b.bundle_id) {
+                            <app-bundle-card [bundle]="b" />
+                        }
+                    </div>
+                </section>
             }
         </div>
     </div>

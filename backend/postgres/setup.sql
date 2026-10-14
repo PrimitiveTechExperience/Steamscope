@@ -21,8 +21,17 @@ create table games (
     linux_compatible boolean not null,
 
     created_at timestamptz NOT NULL DEFAULT now(),
-    updated_at timestamptz NOT NULL DEFAULT now()
+    updated_at timestamptz NOT NULL DEFAULT now(),
+
+    -- Full-text search. The name is indexed as typed ('simple': no stemming or
+    -- stop words, so "The Forest" and prefixes like "half li" work) and ranks above
+    -- the description, which is indexed as English prose (so "running" finds "run").
+    search_vector tsvector generated always as (
+        setweight(to_tsvector('simple', name), 'A') || setweight(to_tsvector('english', description), 'B')
+    ) stored
 );
+
+create index idx_games_search on games using gin (search_vector);
 
 create table reviews (
     recommendation_id text primary key,
@@ -229,8 +238,11 @@ create table bundles (
     status text not null default 'pending' check (status in ('awaiting_approval', 'pending', 'tracked', 'failed', 'rejected')),
     submitted_by bigint references users(user_id) on delete set null,
     created_at timestamptz not null default now(),
-    updated_at timestamptz not null default now()
+    updated_at timestamptz not null default now(),
+    search_vector tsvector generated always as (to_tsvector('simple', name)) stored
 );
+
+create index idx_bundles_search on bundles using gin (search_vector);
 
 -- No FK on app_id: a bundle can include games we don't track.
 create table bundle_games (
@@ -241,9 +253,13 @@ create table bundle_games (
     -- price and its regular, undiscounted price.
     price numeric(10, 2) not null default 0,
     regular_price numeric(10, 2) not null default 0,
+    -- So a search for a game finds the bundles it is in, even when we do not track the game.
+    name_tsv tsvector generated always as (to_tsvector('simple', name)) stored,
 
     primary key (bundle_id, app_id)
 );
+
+create index idx_bundle_games_name_tsv on bundle_games using gin (name_tsv);
 
 create index idx_bundle_games_app_id on bundle_games(app_id);
 

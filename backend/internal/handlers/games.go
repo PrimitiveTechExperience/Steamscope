@@ -33,6 +33,14 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 	filters.Languages = splitFilterValues(r.URL.Query().Get("languages"))
 	filters.Developers = splitFilterValues(r.URL.Query().Get("developers"))
 	filters.Publishers = splitFilterValues(r.URL.Query().Get("publishers"))
+	switch r.URL.Query().Get("includeBundles") {
+	case "", "false", "0":
+	case "true", "1":
+		filters.IncludeBundles = true
+	default:
+		writeError(w, http.StatusBadRequest, "Invalid includeBundles parameter")
+		return
+	}
 
 	if value := r.URL.Query().Get("limit"); value != "" {
 		parsed, err := strconv.Atoi(value)
@@ -100,6 +108,15 @@ func (h *Handler) GetGames(w http.ResponseWriter, r *http.Request) {
 		Limit:  filters.Limit,
 		Offset: offset,
 	}
+	// Bundles come with the first page only, and not when a filter that only a
+	// game can satisfy (genre, developer...) is set: a bundle has none of its own.
+	if filters.IncludeBundles && offset == 0 && !filters.HasGameAttributeFilters() {
+		response.Bundles, err = h.DB.SearchBundles(r.Context(), filters, min(filters.Limit, maxSearchBundles))
+		if err != nil {
+			serverError(w, r, "search bundles", err, "Failed to search bundles")
+			return
+		}
+	}
 	encoded, err := json.Marshal(response)
 	if err != nil {
 		serverError(w, r, "encode games", err, "Failed to encode games")
@@ -119,6 +136,8 @@ const (
 	searchCacheTTL       = 10 * time.Minute
 	maxCachedSearchBytes = 64 << 10
 	searchVersionKey     = "search:version"
+	// A search shows at most this many bundles beside the games.
+	maxSearchBundles = 12
 )
 
 // searchCacheKey namespaces cached results under a version counter that's

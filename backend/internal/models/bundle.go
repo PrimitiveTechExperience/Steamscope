@@ -17,6 +17,9 @@ type Bundle struct {
 	GameCount   int          `json:"game_count"`
 	Games       []BundleGame `json:"games"`
 	UpdatedAt   time.Time    `json:"updated_at"`
+	// MatchedGames names the bundle's games that matched a search, when the
+	// bundle was found because of a game it contains rather than its own name.
+	MatchedGames []string `json:"matched_games,omitempty"`
 }
 
 // BundleGame is one game in a bundle. Tracked is true when the game is also

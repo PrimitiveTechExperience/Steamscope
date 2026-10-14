@@ -43,7 +43,7 @@ func (db *DB) GetGames(ctx context.Context, filters models.GameFilters) ([]model
 	}
 	defer rows.Close()
 
-	var games []models.Game
+	games := []models.Game{}
 	for rows.Next() {
 		var game models.Game
 		var score int
@@ -150,9 +150,20 @@ func buildGameQuery(filters models.GameFilters, countOnly bool) (string, []any) 
 		return fmt.Sprintf("$%d", len(args))
 	}
 
-	if filters.Search != "" {
-		placeholder := addArg("%" + filters.Search + "%")
-		query = append(query, "AND (g.name ILIKE "+placeholder+" OR g.description ILIKE "+placeholder+")")
+	// rank is how well a game matches the search; empty when nothing is being searched for.
+	rank := ""
+	if strings.TrimSpace(filters.Search) != "" {
+		if terms := SearchTerms(filters.Search); len(terms) > 0 {
+			match := fullQuery(terms, addArg)
+			query = append(query, "AND g.search_vector @@ "+match)
+			// Games named for the search come first. Relevance alone is not enough: a
+			// description that repeats a word often can outscore a game that is called that.
+			rank = "(to_tsvector('simple', g.name) @@ " + prefixQuery(terms, addArg) + ") DESC, " +
+				"ts_rank_cd(g.search_vector, " + match + ") DESC, "
+		} else {
+			// Only punctuation was typed: match the text as it is.
+			query = append(query, "AND g.name ILIKE "+addArg("%"+escapeLike(strings.TrimSpace(filters.Search))+"%"))
+		}
 	}
 	if filters.Genre != "" {
 		placeholder := addArg(filters.Genre)
@@ -196,7 +207,7 @@ func buildGameQuery(filters models.GameFilters, countOnly bool) (string, []any) 
 		query = append(query, "AND g.discount_percentage >= "+addArg(filters.MinDiscount))
 	}
 	if !countOnly {
-		query = append(query, "ORDER BY g.name")
+		query = append(query, "ORDER BY "+rank+"g.name")
 		if filters.Limit > 0 {
 			query = append(query, "LIMIT "+addArg(filters.Limit))
 		}

@@ -82,6 +82,8 @@ type GameResponse struct {
 	Total  int           `json:"total"`
 	Limit  int           `json:"limit"`
 	Offset int           `json:"offset"`
+	// Bundles matching the search, only when includeBundles was asked for.
+	Bundles []models.Bundle `json:"bundles,omitempty"`
 }
 
 type ReviewResponse struct {

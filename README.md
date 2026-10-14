@@ -9,7 +9,7 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
 ## Features
 
 **For visitors**
-- Browse and search games by name, genre, tag, developer, publisher, language, price range and minimum discount.
+- Browse and search games by name or description (Postgres full-text search: results are ranked, games named for the search come first, and a half-typed word still matches), genre, tag, developer, publisher, language, price range and minimum discount. An "include bundles" switch also finds bundles by their name or by a game inside them.
 - Game pages with sanitized store descriptions, reviews and a price-history chart (1 week to 2 years).
 - A "Buy now or wait?" call for every game: a two-year price forecast (chance of a lower price, expected prices, when the
   next sale is likely) and a verdict with the reasons behind it. Watchers get advice that also weighs their target price
@@ -61,6 +61,37 @@ back.
   counting as imported.
 - A game deleted from the database by hand leaves a "tracked" row behind. It is treated as missing, offered again, and can be
   requested again (by import or by submitting its link).
+
+## Search
+
+`GET /api/games?search=...` uses Postgres full-text search over a stored, indexed `tsvector` on each game. The name is indexed as
+typed (so "The Forest" and "Left 4 Dead" work, and `half li` finds "Half-Life" as you type), the description as English (so
+"zombie" finds "zombies" and "running" finds "run"). Every word typed must match, results are ordered with games named for the
+search first and then by relevance, and nothing a user types can alter the query: it is reduced to plain words before it
+reaches the database.
+
+`includeBundles=true` also returns `bundles`: tracked bundles whose own name matches, and bundles that contain a game whose name
+matches (including games we do not track). Bundles found through a game list the matching games in `matched_games`. The price
+and minimum-discount filters apply to the bundle; filters that describe a game (genre, tag, developer, publisher, language)
+cannot be judged for a bundle, so bundles are left out while any is set. Bundles come with the first page only.
+
+The bundles page has its own search box, backed by `GET /api/bundles?search=...`, which finds bundles the same way (by name or
+by a game in them, best matches first). `search` and `app_id` cannot be combined.
+
+Signed-in users' last five searches are kept and shown as chips on the search page; a long one is cut to 80 characters with an
+ellipsis, with the full search in its tooltip.
+
+Existing databases need the new columns and indexes:
+
+```sql
+alter table games add column if not exists search_vector tsvector generated always as (
+    setweight(to_tsvector('simple', name), 'A') || setweight(to_tsvector('english', description), 'B')) stored;
+create index if not exists idx_games_search on games using gin (search_vector);
+alter table bundles add column if not exists search_vector tsvector generated always as (to_tsvector('simple', name)) stored;
+create index if not exists idx_bundles_search on bundles using gin (search_vector);
+alter table bundle_games add column if not exists name_tsv tsvector generated always as (to_tsvector('simple', name)) stored;
+create index if not exists idx_bundle_games_name_tsv on bundle_games using gin (name_tsv);
+```
 
 ## Target-price alerts
 

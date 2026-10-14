@@ -1,10 +1,30 @@
 <div class="mx-auto max-w-7xl px-6 py-10">
-    <h1 class="text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
-        Bundles
-    </h1>
-    <p class="mt-1 text-sm text-[var(--color-text-muted)]">
-        Steam bundles that include games we track, biggest discount first. Prices are in USD.
-    </p>
+    <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <h1 class="text-3xl font-black uppercase tracking-tight text-[var(--color-text)]" style="font-family: var(--font-display);">
+                Bundles
+            </h1>
+            <p class="mt-1 text-sm text-[var(--color-text-muted)]">
+                Steam bundles that include games we track, biggest discount first. Prices are in USD.
+            </p>
+        </div>
+        <div class="flex w-full max-w-md items-center gap-2">
+            <input
+                type="text"
+                placeholder="Search bundles or the games in them"
+                aria-label="Search bundles"
+                maxlength="100"
+                autocomplete="off"
+                class="bundle-search edge-panel-sm w-full px-4 py-2 text-sm text-[var(--color-text)] outline-none placeholder:text-[var(--color-text-muted)]"
+                [value]="searchTerm()"
+                (input)="onInput($event)"
+                (keyup.enter)="search()"
+            />
+            <button class="search-button edge-btn shrink-0 bg-[var(--color-accent)] px-4 py-2 text-sm text-white" (click)="search()">
+                Search
+            </button>
+        </div>
+    </div>
 
     @if (loading()) {
         <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
@@ -13,7 +33,13 @@
             }
         </div>
     } @else if (bundles().length === 0) {
-        <p class="mt-6 text-sm text-[var(--color-text-muted)]">No bundles tracked yet.</p>
+        <p class="no-bundles mt-6 text-sm text-[var(--color-text-muted)]">
+            @if (activeSearch()) {
+                No bundles match "{{ activeSearch() }}".
+            } @else {
+                No bundles tracked yet.
+            }
+        </p>
     } @else {
         <div class="mt-6 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
             @for (b of bundles(); track b.bundle_id) {

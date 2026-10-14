@@ -234,7 +234,8 @@ func (h *Handler) GetFeed(w http.ResponseWriter, r *http.Request) {
 // results themselves live in the shared search cache (see games.go).
 
 const (
-	recentSearchesMax = 10
+	// Only the latest few are kept; the search page shows them all as chips.
+	recentSearchesMax = 5
 	recentSearchesTTL = 30 * 24 * time.Hour
 )
 
@@ -249,6 +250,8 @@ type recentSearch struct {
 	MaxPrice   *float64 `json:"max_price,omitempty"`
 	// MinDiscount is the "at least this % off" filter, 1-100.
 	MinDiscount *int `json:"min_discount,omitempty"`
+	// IncludeBundles is the "include bundles" switch.
+	IncludeBundles bool `json:"include_bundles,omitempty"`
 }
 
 // clean strips control characters and bounds every user-supplied string.
