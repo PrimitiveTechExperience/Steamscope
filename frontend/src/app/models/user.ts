@@ -156,4 +156,6 @@ export interface RecentSearch {
     max_price?: number;
     /** "At least this % off", 1-100. */
     min_discount?: number;
+    /** The "include bundles" switch. */
+    include_bundles?: boolean;
 }

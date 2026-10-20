@@ -41,6 +41,48 @@ describe('GamesService', () => {
     none.flush({ games: [], total: 0, limit: 20, offset: 0 });
   });
 
+  it('asks for bundles only when told to', () => {
+    service.getGames({ search: 'portal', includeBundles: true }).subscribe();
+    const on = http.expectOne((r) => r.url === `${API_URL}/games`);
+    expect(on.request.params.get('includeBundles')).toBe('true');
+    expect(on.request.params.get('search')).toBe('portal');
+    on.flush({ games: [], total: 0, limit: 20, offset: 0 });
+
+    for (const opts of [{ includeBundles: false }, {}]) {
+      service.getGames(opts).subscribe();
+      const off = http.expectOne((r) => r.url === `${API_URL}/games`);
+      expect(off.request.params.has('includeBundles')).toBe(false);
+      off.flush({ games: [], total: 0, limit: 20, offset: 0 });
+    }
+  });
+
+  it('returns the bundles the server sends back', () => {
+    let got: unknown;
+    service.getGames({ includeBundles: true }).subscribe((r) => (got = r));
+    http.expectOne((r) => r.url === `${API_URL}/games`).flush({ games: [], total: 0, limit: 20, offset: 0, bundles: [{ bundle_id: 1, name: 'Pack' }] });
+    expect((got as { bundles: unknown[] }).bundles).toHaveLength(1);
+  });
+
+  it('searches bundles, and leaves the parameter out when there is nothing to search for', () => {
+    service.getBundles(undefined, '  portal  ').subscribe();
+    const searched = http.expectOne((r) => r.url === `${API_URL}/bundles`);
+    expect(searched.request.params.get('search')).toBe('portal');
+    expect(searched.request.params.has('app_id')).toBe(false);
+    searched.flush([]);
+
+    for (const blank of [undefined, '', '   ']) {
+      service.getBundles(undefined, blank).subscribe();
+      const all = http.expectOne((r) => r.url === `${API_URL}/bundles`);
+      expect(all.request.params.has('search')).toBe(false);
+      all.flush([]);
+    }
+
+    service.getBundles(730).subscribe();
+    const forGame = http.expectOne((r) => r.url === `${API_URL}/bundles`);
+    expect(forGame.request.params.get('app_id')).toBe('730');
+    forGame.flush([]);
+  });
+
   it('omits empty filters entirely', () => {
     service.getGames({ search: '', genres: [] }).subscribe();
     const req = http.expectOne((r) => r.url === `${API_URL}/games`);

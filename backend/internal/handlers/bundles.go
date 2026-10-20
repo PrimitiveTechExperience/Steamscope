@@ -8,10 +8,12 @@ import (
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/bundlevalue"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/database"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/models"
+	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/sanitize"
 )
 
 // GetBundles lists tracked bundles, biggest discount first. ?app_id=N limits
-// it to bundles containing that game.
+// it to bundles containing that game. ?search=text finds bundles by their name or
+// by a game in them, the same way the game search does, best matches first.
 func (h *Handler) GetBundles(w http.ResponseWriter, r *http.Request) {
 	appID := 0
 	if v := r.URL.Query().Get("app_id"); v != "" {
@@ -32,7 +34,19 @@ func (h *Handler) GetBundles(w http.ResponseWriter, r *http.Request) {
 		limit = min(parsed, maxGamesLimit)
 	}
 
-	bundles, err := h.DB.GetBundles(r.Context(), appID, limit)
+	search := sanitize.Text(r.URL.Query().Get("search"), maxFilterLength)
+	if search != "" && appID != 0 {
+		writeError(w, http.StatusBadRequest, "use either search or app_id, not both")
+		return
+	}
+
+	var bundles []models.Bundle
+	var err error
+	if search != "" {
+		bundles, err = h.DB.SearchBundles(r.Context(), models.GameFilters{Search: search}, limit)
+	} else {
+		bundles, err = h.DB.GetBundles(r.Context(), appID, limit)
+	}
 	if err != nil {
 		serverError(w, r, "get bundles", err, "failed to load bundles")
 		return

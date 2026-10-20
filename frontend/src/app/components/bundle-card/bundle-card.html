@@ -20,6 +20,9 @@
             {{ bundle().name }}
         </h2>
         <p class="text-xs text-[var(--color-text-muted)]">{{ bundle().game_count }} games</p>
+        @if (bundle().matched_games?.length) {
+            <p class="matched-games line-clamp-2 text-xs font-bold text-[var(--color-accent)]">Contains {{ bundle().matched_games!.join(', ') }}</p>
+        }
         <div class="mt-auto flex items-center justify-between pt-2">
             @if (bundle().discount_percentage > 0) {
                 <span class="text-xs text-[var(--color-text-muted)] line-through">{{ bundle().original_price | currency }}</span>

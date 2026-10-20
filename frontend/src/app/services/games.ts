@@ -20,6 +20,8 @@ export interface GamesQueryOptions {
   maxPrice?: number;
   /** Only games at least this many percent off (1-100). */
   minDiscount?: number;
+  /** Also return bundles that match the search or contain a matching game. */
+  includeBundles?: boolean;
   limit?: number;
 }
 
@@ -43,6 +45,7 @@ export class GamesService {
     if (opts?.minPrice != null) params = params.set('minPrice', opts.minPrice);
     if (opts?.maxPrice != null) params = params.set('maxPrice', opts.maxPrice);
     if (opts?.minDiscount != null && opts.minDiscount > 0) params = params.set('minDiscount', opts.minDiscount);
+    if (opts?.includeBundles) params = params.set('includeBundles', 'true');
     if (opts?.limit != null) params = params.set('limit', opts.limit);
     return this.http.get<GamesResponse>(`${this.apiUrl}/games`, { params });
   }
@@ -55,9 +58,11 @@ export class GamesService {
     return this.http.get<PricePoint[]>(`${this.apiUrl}/games/${id}/price-history`);
   }
 
-  getBundles(appId?: number): Observable<Bundle[]> {
+  /** Tracked bundles: all of them, those containing a game, or those matching a search. */
+  getBundles(appId?: number, search?: string): Observable<Bundle[]> {
     let params = new HttpParams();
     if (appId != null) params = params.set('app_id', appId);
+    if (search?.trim()) params = params.set('search', search.trim());
     return this.http.get<Bundle[]>(`${this.apiUrl}/bundles`, { params });
   }
 

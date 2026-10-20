@@ -1,13 +1,13 @@
 import { Routes } from '@angular/router';
 import { GamesComponent } from './pages/games/games';
-import { SearchComponent } from './pages/search/search';
 import { LandingComponent } from './pages/landing/landing';
 import { adminGuard, authGuard, guestGuard } from './guards/auth.guard';
 
 export const routes: Routes = [
     { path: '', component: LandingComponent },
     { path: 'games', component: GamesComponent },
-    { path: 'search', component: SearchComponent },
+    // Lazy: the search page brings in the bundle cards and filters, which the landing page does not need.
+    { path: 'search', loadComponent: () => import('./pages/search/search').then((m) => m.SearchComponent) },
     // Lazy: pulls in Chart.js, which the landing/browse pages don't need.
     { path: 'games/:app_id', loadComponent: () => import('./pages/game-detail/game-detail').then((m) => m.GameDetailComponent) },
 

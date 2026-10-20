@@ -27,6 +27,8 @@ export interface Bundle {
     game_count: number;
     games: BundleGame[] | null;
     updated_at: string;
+    /** In search results: the bundle's games that matched, when it was found through a game in it. */
+    matched_games?: string[];
 }
 
 export type BundleVerdict = 'great_deal' | 'good_deal' | 'fair' | 'poor_value' | 'not_enough_data';

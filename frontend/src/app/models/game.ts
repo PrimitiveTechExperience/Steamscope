@@ -1,3 +1,4 @@
+import { Bundle } from './bundle';
 export interface Game{
     app_id: number;
     name: string;
@@ -47,6 +48,8 @@ export interface GamesResponse{
     total: number;
     limit: number;
     offset: number;
+    /** Bundles that match the search; only present when they were asked for. */
+    bundles?: Bundle[];
 }
 
 export interface PricePoint{

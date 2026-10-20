@@ -31,6 +31,19 @@ describe('BundleCardComponent', () => {
     expect(render({ at_record_low: false }).querySelector('.record-low-badge')).toBeNull();
   });
 
+  it('says which games matched a search when it was found through them', () => {
+    const el = render({ matched_games: ['Portal', 'Portal 2'] });
+    expect(textOf(el.querySelector('.matched-games'))).toBe('Contains Portal, Portal 2');
+  });
+
+  it('says nothing of the sort when it was not', () => {
+    expect(render().querySelector('.matched-games')).toBeNull();
+  });
+
+  it('says nothing for an empty list of matches', () => {
+    expect(render({ matched_games: [] }).querySelector('.matched-games')).toBeNull();
+  });
+
   it('links to the bundle page', () => {
     expect(render().querySelector('a')?.getAttribute('href')).toBe('/bundles/5001');
   });
