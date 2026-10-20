@@ -7,13 +7,14 @@ create table games (
     description_html text not null default '',
     header_image text not null default '',
 
-    release_date date not null,
+    release_date timestamptz not null,
 
     price numeric(10, 2) not null,
     original_price numeric(10, 2) not null,
     discount_percentage decimal(5, 2) not null,
 
-    review_score integer not null,
+    -- Steam's review summary as a number, 0 (none) to 9 (Overwhelmingly Positive).
+    review_score smallint not null,
     review_count integer not null,
 
     windows_compatible boolean not null,
