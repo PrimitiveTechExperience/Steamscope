@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"log"
 	"net/http"
 	"net/mail"
 	"strings"
@@ -24,6 +25,20 @@ const (
 // doesn't exist so that "no such user" and "wrong password" take the same
 // time and can't be told apart.
 var dummyPasswordHash, _ = auth.HashPassword("steamscope-dummy-password")
+
+// checkNewPassword applies the rules for a password being set, answering 400
+// when it breaks one.
+func checkNewPassword(w http.ResponseWriter, password string) bool {
+	if len(password) < minPasswordLength || len(password) > maxPasswordLength {
+		writeError(w, http.StatusBadRequest, "password must be 8-128 characters")
+		return false
+	}
+	if !sanitize.ValidPassword(password) {
+		writeError(w, http.StatusBadRequest, "password contains invalid characters")
+		return false
+	}
+	return true
+}
 
 type registerRequest struct {
 	Username string `json:"username"`
@@ -54,12 +69,7 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "please enter a valid email address")
 		return
 	}
-	if len(req.Password) < minPasswordLength || len(req.Password) > maxPasswordLength {
-		writeError(w, http.StatusBadRequest, "password must be 8-128 characters")
-		return
-	}
-	if !sanitize.ValidPassword(req.Password) {
-		writeError(w, http.StatusBadRequest, "password contains invalid characters")
+	if !checkNewPassword(w, req.Password) {
 		return
 	}
 	if !cache.Allow(r.Context(), h.Redis, "ratelimit:register:"+clientIP(r), 10, time.Hour) {
@@ -119,6 +129,13 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	lockKey := lockoutKey(user, req.Login)
+	if left := h.lockedFor(r.Context(), lockKey); left > 0 {
+		observability.LoginAttempts.WithLabelValues("locked").Inc()
+		writeError(w, http.StatusTooManyRequests, lockoutMessage(left))
+		return
+	}
+
 	hash := dummyPasswordHash
 	if user != nil {
 		hash = user.PasswordHash
@@ -126,9 +143,14 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	ok, _ := auth.VerifyPassword(req.Password, hash)
 	if user == nil || !ok {
 		observability.LoginAttempts.WithLabelValues("bad_credentials").Inc()
+		if h.recordLoginFailure(r.Context(), lockKey) && user != nil {
+			log.Printf("lockout: user %d locked after %d failed sign-ins", user.UserID, lockoutThreshold)
+			h.sendLockoutEmail(user)
+		}
 		writeError(w, http.StatusUnauthorized, "invalid username/email or password")
 		return
 	}
+	h.clearLockout(r.Context(), lockKey)
 
 	if user.IsBanned {
 		observability.LoginAttempts.WithLabelValues("banned").Inc()

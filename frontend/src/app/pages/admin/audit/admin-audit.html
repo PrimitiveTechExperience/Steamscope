@@ -1,0 +1,66 @@
+@if (error(); as e) {
+    <p class="error-message mt-4 border-2 border-[var(--color-accent)] px-3 py-2 text-sm text-[var(--color-accent)]">{{ e }}</p>
+}
+
+<div class="mt-8 mb-4 flex flex-wrap items-end justify-between gap-3">
+    <div>
+        <h2 class="mb-1 text-lg font-black uppercase text-[var(--color-text)]" style="font-family: var(--font-display);">Audit log</h2>
+        <p class="max-w-3xl text-xs text-[var(--color-text-muted)]">
+            Every ban, deletion, approval and blacklist change, with who made it, when and from which address. Entries can't be edited or removed here.
+        </p>
+    </div>
+    <label class="flex flex-col gap-1 text-xs font-bold uppercase text-[var(--color-text-muted)]">
+        Show
+        <select
+            name="action"
+            [(ngModel)]="action"
+            (ngModelChange)="reload()"
+            class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
+        >
+            <option value="">Everything</option>
+            @for (a of actions; track a) {
+                <option [value]="a">{{ labels[a] }}</option>
+            }
+        </select>
+    </label>
+</div>
+
+@if (entries() === null) {
+    <div class="skeleton h-40"></div>
+} @else if (entries()!.length === 0) {
+    <p class="no-entries text-sm text-[var(--color-text-muted)]">{{ action ? 'No entries of that kind yet.' : 'No admin actions recorded yet.' }}</p>
+} @else {
+    <ul class="flex flex-col gap-2">
+        @for (e of entries(); track e.audit_id) {
+            <li class="audit-entry edge-panel-sm flex flex-col gap-1 px-4 py-3 text-sm md:flex-row md:items-center md:gap-4">
+                <time class="shrink-0 text-xs text-[var(--color-text-muted)] md:w-40" [attr.datetime]="e.created_at">{{ e.created_at | date: 'medium' }}</time>
+                <span class="audit-action shrink-0 self-start bg-[var(--color-surface)] px-2 py-0.5 text-[10px] font-bold uppercase text-[var(--color-text-muted)] md:w-44">
+                    {{ label(e.action) }}
+                </span>
+                <span class="audit-summary min-w-0 flex-1 break-words text-[var(--color-text)]">
+                    @if (targetLink(e); as link) {
+                        <a [routerLink]="link" class="hover:underline">{{ describe(e) }}</a>
+                    } @else {
+                        {{ describe(e) }}
+                    }
+                </span>
+                <span class="audit-admin shrink-0 text-xs text-[var(--color-text-muted)]">
+                    by <strong class="text-[var(--color-text)]">{{ e.admin_username }}</strong>{{ e.admin_id === null ? ' (account removed)' : '' }}
+                    @if (e.ip) {
+                        <span class="font-mono"> &middot; {{ e.ip }}</span>
+                    }
+                </span>
+            </li>
+        }
+    </ul>
+    @if (hasMore()) {
+        <button
+            type="button"
+            class="load-more edge-btn mt-4 bg-[var(--color-surface)] px-4 py-2 text-xs text-[var(--color-text)] disabled:opacity-60"
+            [disabled]="loadingMore()"
+            (click)="loadMore()"
+        >
+            {{ loadingMore() ? 'Loading...' : 'Load older entries' }}
+        </button>
+    }
+}

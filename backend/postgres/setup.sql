@@ -288,6 +288,36 @@ create table if not exists blacklist_rules (
     unique (field, pattern)
 );
 
+-- A password reset link. Only a SHA-256 of the token is stored, so a copy of
+-- the database cannot be used to reset anyone's password. A token works once
+-- and only until it expires.
+create table password_reset_tokens (
+    token_hash bytea primary key,
+    user_id bigint not null references users(user_id) on delete cascade,
+    created_at timestamptz not null default now(),
+    expires_at timestamptz not null,
+    used_at timestamptz
+);
+create index idx_password_reset_tokens_user_id on password_reset_tokens(user_id);
+
+-- What admins did: bans, deletions, approvals and blacklist changes. The
+-- admin's name is copied in so an entry still says who it was after the
+-- account is gone. target_id is text because targets are users, games,
+-- bundles and rules.
+create table admin_audit_log (
+    audit_id bigint generated always as identity primary key,
+    admin_id bigint references users(user_id) on delete set null,
+    admin_username text not null,
+    action text not null,
+    target_type text not null,
+    target_id text not null default '',
+    details jsonb not null default '{}',
+    ip text not null default '',
+    created_at timestamptz not null default now()
+);
+create index idx_admin_audit_log_created_at on admin_audit_log(created_at desc);
+create index idx_admin_audit_log_action on admin_audit_log(action, created_at desc);
+
 -- Row level security: every table has RLS enabled with no policies, so
 -- Supabase's public API roles (anon / authenticated) can read or write
 -- nothing. The Go backend connects as the postgres role, which bypasses

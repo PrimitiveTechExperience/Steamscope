@@ -29,6 +29,15 @@ export const routes: Routes = [
         loadComponent: () => import('./pages/register/register').then((m) => m.RegisterComponent),
     },
     {
+        path: 'forgot-password',
+        canActivate: [guestGuard],
+        loadComponent: () => import('./pages/forgot-password/forgot-password').then((m) => m.ForgotPasswordComponent),
+    },
+    {
+        path: 'reset-password',
+        loadComponent: () => import('./pages/reset-password/reset-password').then((m) => m.ResetPasswordComponent),
+    },
+    {
         path: 'feed',
         canActivate: [authGuard],
         loadComponent: () => import('./pages/feed/feed').then((m) => m.FeedComponent),
@@ -58,6 +67,10 @@ export const routes: Routes = [
             {
                 path: 'blacklist',
                 loadComponent: () => import('./pages/admin/blacklist/admin-blacklist').then((m) => m.AdminBlacklistComponent),
+            },
+            {
+                path: 'audit',
+                loadComponent: () => import('./pages/admin/audit/admin-audit').then((m) => m.AdminAuditComponent),
             },
         ],
     },

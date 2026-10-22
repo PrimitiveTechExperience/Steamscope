@@ -106,7 +106,7 @@ scraper uses the first block that is the game's own, in page order:
 | `steamscope_http_request_duration_seconds` | histogram | method, route | request latency |
 | `steamscope_http_requests_in_flight` | gauge | - | requests currently being served |
 | `steamscope_http_panics_total` | counter | - | recovered handler panics |
-| `steamscope_login_attempts_total` | counter | outcome = success / bad_credentials / banned / rate_limited | authentication health and brute-force signal |
+| `steamscope_login_attempts_total` | counter | outcome = success / bad_credentials / banned / rate_limited / locked | authentication health and brute-force signal |
 | `steamscope_submissions_total` | counter | kind, outcome | game and bundle suggestions |
 | `steamscope_prediction_requests_total` | counter | result = hit / miss / insufficient | price-forecast lookups: served from the cache, computed, or too little history |
 | `steamscope_prediction_compute_seconds` | histogram | - | time to compute a forecast, including any ITAD calls |
@@ -146,7 +146,7 @@ sum(rate(steamscope_http_requests_total{status=~"5.."}[5m])) / sum(rate(steamsco
 1 - (sum(increase(steamscope_http_requests_total{status=~"5.."}[30d])) / sum(increase(steamscope_http_requests_total[30d])))
 
 # failed logins per minute (credential stuffing shows up here)
-sum(rate(steamscope_login_attempts_total{outcome=~"bad_credentials|rate_limited"}[5m])) * 60
+sum(rate(steamscope_login_attempts_total{outcome=~"bad_credentials|rate_limited|locked"}[5m])) * 60
 
 # hours since the last successful scrape
 (time() - steamscope_scrape_last_success_timestamp_seconds) / 3600

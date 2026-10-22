@@ -31,6 +31,9 @@ export class LoginComponent {
   protected password = '';
   protected submitting = signal(false);
   protected error = signal<string | null>(STEAM_MESSAGES[this.route.snapshot.queryParamMap.get('steam') ?? ''] ?? null);
+  protected notice = signal<string | null>(
+    this.route.snapshot.queryParamMap.get('reset') === 'done' ? 'Your password has been changed. Log in with the new one.' : null
+  );
   protected steamLoginUrl = this.auth.steamLoginUrl;
 
   protected submit() {
@@ -40,6 +43,7 @@ export class LoginComponent {
     }
     this.submitting.set(true);
     this.error.set(null);
+    this.notice.set(null);
     this.auth.login(this.login.trim(), this.password).subscribe({
       next: () => this.router.navigateByUrl(safeReturnUrl(this.route.snapshot.queryParamMap.get('returnUrl'))),
       error: (err) => {

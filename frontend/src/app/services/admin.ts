@@ -1,9 +1,9 @@
 import { Injectable, inject } from '@angular/core';
-import { HttpClient } from '@angular/common/http';
+import { HttpClient, HttpParams } from '@angular/common/http';
 import { Observable } from 'rxjs';
 
 import { API_URL } from '../api';
-import { AdminItem, AdminStats, AdminUser, BlacklistField, BlacklistMatch, BlacklistRule } from '../models/admin';
+import { AdminItem, AdminStats, AdminUser, AuditAction, AuditEntry, BlacklistField, BlacklistMatch, BlacklistRule } from '../models/admin';
 
 @Injectable({ providedIn: 'root' })
 export class AdminService {
@@ -60,5 +60,14 @@ export class AdminService {
 
   purgeBlacklistMatches(id: number): Observable<{ removed: number }> {
     return this.http.post<{ removed: number }>(`${this.base}/blacklist/${id}/purge`, {});
+  }
+
+  /** Newest first. before is an audit_id: entries older than it. */
+  getAuditLog(query: { action?: AuditAction | ''; before?: number; limit?: number } = {}): Observable<AuditEntry[]> {
+    let params = new HttpParams();
+    if (query.action) params = params.set('action', query.action);
+    if (query.before) params = params.set('before', query.before);
+    if (query.limit) params = params.set('limit', query.limit);
+    return this.http.get<AuditEntry[]>(`${this.base}/audit`, { params });
   }
 }

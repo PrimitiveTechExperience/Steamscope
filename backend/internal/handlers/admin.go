@@ -35,6 +35,11 @@ func (h *Handler) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusBadRequest, "you can't delete your own account here")
 		return
 	}
+	// Read who it was first: afterwards there is nothing left to say.
+	details := map[string]any{}
+	if target, err := h.DB.GetUserByID(r.Context(), id); err == nil {
+		details["username"], details["email"] = target.Username, target.Email
+	}
 	switch err := h.DB.DeleteUser(r.Context(), id); {
 	case errors.Is(err, database.ErrNotFound):
 		writeError(w, http.StatusNotFound, "no such user (admins can't be deleted)")
@@ -42,6 +47,10 @@ func (h *Handler) AdminDeleteUser(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, "admin delete user", err, "failed to delete user")
 	default:
 		log.Printf("admin %s deleted user %d", admin.Username, id)
+		h.audit(r, auditUserDelete, "user", strconv.FormatInt(id, 10), details)
+		if err := h.Sessions.DestroyAll(r.Context(), id); err != nil {
+			log.Printf("admin delete user: could not end sessions of user %d: %v", id, err)
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -71,12 +80,14 @@ func (h *Handler) AdminDeleteItem(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
+	name := h.DB.ItemName(r.Context(), kind, id)
 	switch err := h.DB.DeleteItem(r.Context(), kind, id); {
 	case errors.Is(err, database.ErrNotFound):
 		writeError(w, http.StatusNotFound, "no such game or bundle")
 	case err != nil:
 		serverError(w, r, "admin delete item", err, "failed to delete")
 	default:
+		h.audit(r, auditItemDelete, auditTargetType(kind), strconv.Itoa(id), map[string]any{"name": name})
 		if kind == "app" {
 			if err := h.DB.DeleteWishlistRequests(r.Context(), id); err != nil {
 				log.Printf("admin delete item: %v", err)
@@ -106,6 +117,7 @@ func (h *Handler) AdminApproveItem(w http.ResponseWriter, r *http.Request) {
 	if submitter != nil {
 		userID = *submitter
 	}
+	h.audit(r, auditItemApprove, auditTargetType(kind), strconv.Itoa(id), map[string]any{"submitted_by": submitter})
 	if !h.enqueueSubmission(r.Context(), steam.StoreKind(kind), id, userID) {
 		writeError(w, http.StatusServiceUnavailable, "too many submissions are being processed right now, try again shortly")
 		return
@@ -128,6 +140,7 @@ func (h *Handler) AdminRejectItem(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, "admin reject", err, "failed to reject")
 		return
 	}
+	h.audit(r, auditItemReject, auditTargetType(kind), strconv.Itoa(id), map[string]any{"submitted_by": submitter})
 	if kind == "app" {
 		if err := h.DB.DeleteWishlistRequests(r.Context(), id); err != nil {
 			log.Printf("admin reject: %v", err)
@@ -142,6 +155,14 @@ func (h *Handler) AdminRejectItem(w http.ResponseWriter, r *http.Request) {
 			fmt.Sprintf("Your submission of Steam %s wasn't approved.", what))
 	}
 	w.WriteHeader(http.StatusNoContent)
+}
+
+// auditTargetType names an admin item kind in the audit log.
+func auditTargetType(kind string) string {
+	if kind == "bundle" {
+		return "bundle"
+	}
+	return "game"
 }
 
 func (h *Handler) AdminStats(w http.ResponseWriter, r *http.Request) {
@@ -182,6 +203,29 @@ func (h *Handler) AdminModerateUser(w http.ResponseWriter, r *http.Request) {
 		serverError(w, r, "admin moderate user", err, "failed to update user")
 	default:
 		log.Printf("admin %s moderated user %d: %+v", admin.Username, id, req)
+		target := strconv.FormatInt(id, 10)
+		details := map[string]any{}
+		if u, err := h.DB.GetUserByID(r.Context(), id); err == nil {
+			details["username"] = u.Username
+		}
+		if req.IsBanned != nil {
+			action := auditUserUnban
+			if *req.IsBanned {
+				action = auditUserBan
+				// The ban already stops the sessions working; this clears them out.
+				if err := h.Sessions.DestroyAll(r.Context(), id); err != nil {
+					log.Printf("admin ban: could not end sessions of user %d: %v", id, err)
+				}
+			}
+			h.audit(r, action, "user", target, details)
+		}
+		if req.SubmissionsBlocked != nil {
+			action := auditUnblockSubmission
+			if *req.SubmissionsBlocked {
+				action = auditBlockSubmissions
+			}
+			h.audit(r, action, "user", target, details)
+		}
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -227,6 +271,8 @@ func (h *Handler) AdminAddBlacklistRule(w http.ResponseWriter, r *http.Request) 
 		serverError(w, r, "admin add blacklist rule", err, "failed to add rule")
 		return
 	}
+	h.audit(r, auditRuleAdd, "blacklist_rule", strconv.FormatInt(id, 10),
+		map[string]any{"field": req.Field, "pattern": req.Pattern, "note": req.Note})
 	rule, err := h.DB.GetBlacklistRule(r.Context(), id)
 	if err != nil {
 		serverError(w, r, "admin reload blacklist rule", err, "rule added, but failed to reload it")
@@ -241,12 +287,17 @@ func (h *Handler) AdminDeleteBlacklistRule(w http.ResponseWriter, r *http.Reques
 		writeError(w, http.StatusBadRequest, "invalid rule id")
 		return
 	}
+	details := map[string]any{}
+	if rule, err := h.DB.GetBlacklistRule(r.Context(), id); err == nil {
+		details = map[string]any{"field": rule.Field, "pattern": rule.Pattern, "note": rule.Note}
+	}
 	switch err := h.DB.DeleteBlacklistRule(r.Context(), id); {
 	case errors.Is(err, database.ErrNotFound):
 		writeError(w, http.StatusNotFound, "no such rule")
 	case err != nil:
 		serverError(w, r, "admin delete blacklist rule", err, "failed to delete rule")
 	default:
+		h.audit(r, auditRuleDelete, "blacklist_rule", strconv.FormatInt(id, 10), details)
 		w.WriteHeader(http.StatusNoContent)
 	}
 }
@@ -299,19 +350,24 @@ func (h *Handler) AdminBlacklistMatches(w http.ResponseWriter, r *http.Request) 
 
 // AdminPurgeBlacklistMatches removes every game on the site that a rule blocks.
 func (h *Handler) AdminPurgeBlacklistMatches(w http.ResponseWriter, r *http.Request) {
-	_, matches, status, err := h.matchingGames(r)
+	rule, matches, status, err := h.matchingGames(r)
 	if err != nil {
 		writeError(w, status, err.Error())
 		return
 	}
 	removed := 0
+	removedGames := []map[string]any{}
 	for _, m := range matches {
 		if err := h.DB.RejectGame(r.Context(), m.AppID); err != nil {
 			log.Printf("blacklist purge %d: %v", m.AppID, err)
 			continue
 		}
 		removed++
+		removedGames = append(removedGames, map[string]any{"app_id": m.AppID, "name": m.Name})
 	}
+	h.audit(r, auditRulePurge, "blacklist_rule", strconv.FormatInt(rule.RuleID, 10), map[string]any{
+		"field": rule.Field, "pattern": rule.Pattern, "removed": removed, "games": removedGames,
+	})
 	h.InvalidateCaches(r.Context())
 	writeJSON(w, http.StatusOK, map[string]int{"removed": removed})
 }

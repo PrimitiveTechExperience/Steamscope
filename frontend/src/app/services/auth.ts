@@ -66,6 +66,18 @@ export class AuthService {
     return this.http.post<void>(`${API_URL}/auth/logout`, {}).pipe(tap(() => this.user.set(null)));
   }
 
+  /** Asks for a reset link by email. The answer is the same whether or not the email has an account. */
+  requestPasswordReset(email: string): Observable<string> {
+    return this.http.post<{ message: string }>(`${API_URL}/auth/password-reset`, { email }).pipe(map((res) => res.message));
+  }
+
+  /** Sets a new password from a reset link. The account is signed out everywhere, this browser included. */
+  confirmPasswordReset(token: string, password: string): Observable<string> {
+    return this.http
+      .post<{ message: string }>(`${API_URL}/auth/password-reset/confirm`, { token, password })
+      .pipe(map((res) => res.message), tap(() => this.user.set(null)));
+  }
+
   /** Full-page navigations - the OpenID flow redirects through Steam. */
   steamLoginUrl = `${API_URL}/auth/steam/login`;
   steamLinkUrl = `${API_URL}/auth/steam/link`;
