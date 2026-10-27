@@ -28,7 +28,9 @@ services:
         API_URL: ${API_URL:-http://localhost:8080/api}
     environment:
       PORT: "4000"
+      # Set NG_ALLOWED_HOSTS in .env to the public hostname, or pages aren't server-rendered.
       NG_ALLOWED_HOSTS: ${NG_ALLOWED_HOSTS:-localhost}
+      CSP_REPORT_ONLY: ${CSP_REPORT_ONLY:-false}
     ports:
       - "4000:4000"
     depends_on:

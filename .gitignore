@@ -13,3 +13,7 @@ bin/
 logs/
 coverage/
 coverage.out
+
+# Local working notes (never committed)
+*_temp.md
+notes/

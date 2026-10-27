@@ -276,7 +276,7 @@ Environment variables (see `.env.example` for the full annotated list):
 | `DISABLE_SCHEDULER` | `true` when an external job runs the scrape |
 | `TEST_DATABASE_URL` | Postgres for integration tests; each test run uses a temporary schema |
 | `CSP_REPORT_ONLY` | SSR server only: `true` sends the page CSP as report-only |
-| `NG_ALLOWED_HOSTS` | SSR server only: host names it may render for (Angular's SSRF protection); others fall back to client rendering |
+| `NG_ALLOWED_HOSTS` | SSR server only: host names it server-renders for (Angular's SSRF protection). Unset, no host is allowed and every page falls back to client rendering; set it to the public hostname in production |
 
 ## API overview
 
