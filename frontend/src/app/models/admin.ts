@@ -73,3 +73,30 @@ export interface BlacklistMatch {
     app_id: number;
     name: string;
 }
+
+export type AuditAction =
+    | 'user.ban'
+    | 'user.unban'
+    | 'user.block_submissions'
+    | 'user.unblock_submissions'
+    | 'user.delete'
+    | 'item.delete'
+    | 'item.approve'
+    | 'item.reject'
+    | 'blacklist.add'
+    | 'blacklist.delete'
+    | 'blacklist.purge';
+
+/** One thing an admin did. details depends on the action. */
+export interface AuditEntry {
+    audit_id: number;
+    /** null once that admin's account is gone; admin_username still says who it was. */
+    admin_id: number | null;
+    admin_username: string;
+    action: AuditAction;
+    target_type: 'user' | 'game' | 'bundle' | 'blacklist_rule';
+    target_id: string;
+    details: Record<string, unknown>;
+    ip: string;
+    created_at: string;
+}

@@ -31,9 +31,12 @@ COPY --from=build /app/dist/frontend ./dist/frontend
 
 USER node
 EXPOSE 4000
+# Checks a static file: those are served before Angular's host check. Probing /
+# would get a 400, because 127.0.0.1 is not on the NG_ALLOWED_HOSTS list.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
-  CMD wget -qO- http://127.0.0.1:${PORT}/ >/dev/null || exit 1
+  CMD wget -qO- http://127.0.0.1:${PORT}/favicon.ico >/dev/null || exit 1
 
-# Angular rejects requests for unknown Host headers. Set this to your public
+# Angular only renders pages for Host headers on this list and answers 400 to
+# any other host (unset: every page falls back to client rendering). Set your public
 # hostname(s), comma separated:  -e NG_ALLOWED_HOSTS=app.example.com
 CMD ["node", "dist/frontend/server/server.mjs"]

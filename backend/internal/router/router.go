@@ -4,6 +4,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/auth"
 	"github.com/PrimitiveTechExperience/Steamscope/backend/internal/handlers"
@@ -38,6 +39,8 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handle("POST /api/auth/login", h.Login)
 	handle("POST /api/auth/logout", h.Logout)
 	handle("GET /api/auth/me", h.Me)
+	handle("POST /api/auth/password-reset", h.RequestPasswordReset)
+	handle("POST /api/auth/password-reset/confirm", h.ConfirmPasswordReset)
 	handle("GET /api/auth/steam/login", h.SteamLogin)
 	handle("GET /api/auth/steam/link", h.SteamLink)
 	handle("GET /api/auth/steam/callback", h.SteamCallback)
@@ -70,6 +73,7 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handle("DELETE /api/admin/users/{userID}", auth.RequireAdmin(h.AdminDeleteUser))
 	handle("PUT /api/admin/users/{userID}/moderation", auth.RequireAdmin(h.AdminModerateUser))
 	handle("GET /api/admin/stats", auth.RequireAdmin(h.AdminStats))
+	handle("GET /api/admin/audit", auth.RequireAdmin(h.AdminAuditLog))
 	handle("GET /api/admin/blacklist", auth.RequireAdmin(h.AdminListBlacklist))
 	handle("POST /api/admin/blacklist", auth.RequireAdmin(h.AdminAddBlacklistRule))
 	handle("DELETE /api/admin/blacklist/{ruleID}", auth.RequireAdmin(h.AdminDeleteBlacklistRule))
@@ -84,8 +88,46 @@ func New(h *handlers.Handler, frontendURL string) http.Handler {
 	handler = h.Sessions.Middleware(h.DB.GetUserByID)(handler)
 	handler = withOriginCheck(handler, frontendURL)
 	handler = withCORS(handler, frontendURL)
+	handler = withSecurityHeaders(handler, h.Config.Auth.CookieSecure)
 	handler = observability.Middleware(slog.New(slog.NewJSONHandler(os.Stdout, nil)), h.Config.AccessLog)(handler)
 	return handler
+}
+
+// apiCSP is the Content-Security-Policy for API responses. The API only
+// serves JSON (and redirects), so a browser that is somehow made to render
+// one as a page gets nothing: no scripts, styles, frames or form targets.
+const apiCSP = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'; form-action 'none'"
+
+// withSecurityHeaders sets the headers every API response carries. Responses
+// about the signed-in user are marked not to be stored by browsers or
+// proxies. HSTS is sent when the site is served over HTTPS, which is what
+// secure cookies mean here.
+func withSecurityHeaders(next http.Handler, https bool) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		h := w.Header()
+		h.Set("Content-Security-Policy", apiCSP)
+		h.Set("X-Content-Type-Options", "nosniff")
+		h.Set("X-Frame-Options", "DENY")
+		h.Set("Referrer-Policy", "no-referrer")
+		h.Set("Cross-Origin-Opener-Policy", "same-origin")
+		h.Set("Permissions-Policy", "camera=(), microphone=(), geolocation=(), payment=()")
+		if https {
+			h.Set("Strict-Transport-Security", "max-age=31536000")
+		}
+		if isPrivatePath(r.URL.Path) {
+			h.Set("Cache-Control", "no-store")
+		}
+		next.ServeHTTP(w, r)
+	})
+}
+
+func isPrivatePath(path string) bool {
+	for _, prefix := range []string{"/api/auth/", "/api/me", "/api/admin/"} {
+		if strings.HasPrefix(path, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func withCORS(next http.Handler, frontendURL string) http.Handler {

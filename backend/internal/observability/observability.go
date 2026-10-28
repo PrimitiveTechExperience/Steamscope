@@ -126,7 +126,7 @@ var (
 	})
 
 	// LoginAttempts counts logins by outcome: success, bad_credentials,
-	// banned or rate_limited.
+	// banned, rate_limited or locked (account lockout).
 	LoginAttempts = prometheus.NewCounterVec(prometheus.CounterOpts{
 		Name: "steamscope_login_attempts_total",
 		Help: "Login attempts, by outcome.",

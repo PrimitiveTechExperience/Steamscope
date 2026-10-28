@@ -49,13 +49,24 @@ func sessionKey(id string) string {
 	return "session:" + id
 }
 
+// userSessionsKey holds the IDs of a user's sessions, so all of them can be
+// ended at once (after a password reset). It can list sessions that have
+// already expired; ending those is harmless.
+func userSessionsKey(userID int64) string {
+	return "user_sessions:" + strconv.FormatInt(userID, 10)
+}
+
 // Create starts a new session for userID and sets the encrypted cookie.
 func (m *SessionManager) Create(ctx context.Context, w http.ResponseWriter, userID int64) error {
 	id, err := RandomToken(32)
 	if err != nil {
 		return err
 	}
-	if err := m.rdb.Set(ctx, sessionKey(id), userID, sessionTTL).Err(); err != nil {
+	pipe := m.rdb.TxPipeline()
+	pipe.Set(ctx, sessionKey(id), userID, sessionTTL)
+	pipe.SAdd(ctx, userSessionsKey(userID), id)
+	pipe.Expire(ctx, userSessionsKey(userID), sessionTTL)
+	if _, err := pipe.Exec(ctx); err != nil {
 		return fmt.Errorf("failed to store session: %w", err)
 	}
 	encoded, err := m.codec.Encode(CookieName, id)
@@ -95,6 +106,11 @@ func (m *SessionManager) Resolve(ctx context.Context, r *http.Request) (int64, b
 // Destroy deletes the server-side session and clears the cookie.
 func (m *SessionManager) Destroy(ctx context.Context, w http.ResponseWriter, r *http.Request) {
 	if id, ok := m.sessionID(r); ok {
+		if value, err := m.rdb.Get(ctx, sessionKey(id)).Result(); err == nil {
+			if userID, err := strconv.ParseInt(value, 10, 64); err == nil {
+				m.rdb.SRem(ctx, userSessionsKey(userID), id)
+			}
+		}
 		m.rdb.Del(ctx, sessionKey(id))
 	}
 	http.SetCookie(w, &http.Cookie{
@@ -106,6 +122,22 @@ func (m *SessionManager) Destroy(ctx context.Context, w http.ResponseWriter, r *
 		Secure:   m.secure,
 		SameSite: http.SameSiteLaxMode,
 	})
+}
+
+// DestroyAll ends every session the user has, on every device.
+func (m *SessionManager) DestroyAll(ctx context.Context, userID int64) error {
+	ids, err := m.rdb.SMembers(ctx, userSessionsKey(userID)).Result()
+	if err != nil {
+		return fmt.Errorf("failed to list sessions: %w", err)
+	}
+	keys := []string{userSessionsKey(userID)}
+	for _, id := range ids {
+		keys = append(keys, sessionKey(id))
+	}
+	if err := m.rdb.Del(ctx, keys...).Err(); err != nil {
+		return fmt.Errorf("failed to end sessions: %w", err)
+	}
+	return nil
 }
 
 func (m *SessionManager) sessionID(r *http.Request) (string, bool) {

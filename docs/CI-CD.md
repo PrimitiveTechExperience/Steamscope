@@ -249,7 +249,10 @@ The frontend is an Angular server-side-rendered app that runs on Node.
   as the build command. Set the production API address in `frontend/src/environments/environment.production.ts`
   (or generate it in a pre-build step) before building.
 * **Self-hosted:** use the Docker image (`frontend/Dockerfile`), or run `node dist/frontend/server/server.mjs`
-  behind the same reverse proxy. Set `NG_ALLOWED_HOSTS=app.example.com` so Angular accepts the hostname.
+  behind the same reverse proxy. Set `NG_ALLOWED_HOSTS=app.example.com` so Angular accepts the hostname
+  (with docker-compose, put it in `.env`). Without it, pages still load but are rendered in the browser only,
+  and the server logs `Header "host" ... is not allowed` for every request.
+* **Vercel or Netlify with SSR:** set `NG_ALLOWED_HOSTS` to the site's domain in the project's environment variables.
 
 **Cookies and CORS.** Login uses a `SameSite=Lax` cookie, and the API accepts state-changing requests only when
 their `Origin` equals `FRONTEND_URL`. Therefore:
@@ -285,7 +288,7 @@ Both images run as a non-root user and define a `HEALTHCHECK`.
 | Deploy: `Permission denied (publickey)` | key missing from the server's `authorized_keys`, or the secret has extra whitespace |
 | Deploy: `sudo: a password is required` | the `/etc/sudoers.d/steamscope` rule is missing |
 | Login works locally but not in production | cookie or CORS configuration, see section 7 |
-| The SSR page returns `400` for the domain | set `NG_ALLOWED_HOSTS` on the web server |
+| Pages return `400`, or load without server rendering; the web log says `Header "host" ... is not allowed` | set `NG_ALLOWED_HOSTS` on the web server to the public hostname |
 | The scrape appears to do nothing | check `logs/scrape-*.log`, the cookie file path, and `DATABASE_URL` in `.env` |
 
 ## Security notes

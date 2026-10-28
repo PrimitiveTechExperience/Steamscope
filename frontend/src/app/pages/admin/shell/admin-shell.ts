@@ -38,5 +38,6 @@ export class AdminShellComponent {
     { path: '/admin/games', label: 'Games & approvals' },
     { path: '/admin/users', label: 'Users' },
     { path: '/admin/blacklist', label: 'Blacklist' },
+    { path: '/admin/audit', label: 'Audit log' },
   ];
 }

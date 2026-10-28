@@ -7,22 +7,33 @@ import {
 import express from 'express';
 import { join } from 'node:path';
 
+import { environment } from './environments/environment';
+import { baseSecurityHeaders, inlineScriptSources, originOf, pageCsp } from './csp';
+
 const browserDistFolder = join(import.meta.dirname, '../browser');
 
 const app = express();
 const angularApp = new AngularNodeAppEngine();
 
+const apiOrigin = originOf(environment.apiUrl);
+// CSP_REPORT_ONLY=true sends the policy as report-only: the browser logs what
+// it would block instead of blocking it. Useful when trying out a change.
+const cspHeader = process.env['CSP_REPORT_ONLY'] === 'true' ? 'Content-Security-Policy-Report-Only' : 'Content-Security-Policy';
+
+app.disable('x-powered-by');
+
 /**
- * Example Express Rest API endpoints can be defined here.
- * Uncomment and define endpoints as necessary.
- *
- * Example:
- * ```ts
- * app.get('/api/{*splat}', (req, res) => {
- *   // Handle API request
- * });
- * ```
+ * Security headers on everything. HSTS only means something over HTTPS, so it
+ * is sent when the request came in that way (directly or through a proxy).
+ * The CSP set here allows no inline scripts at all; rendered pages replace it
+ * with one that allows Angular's (see withPageCsp).
  */
+app.use((req, res, next) => {
+  const https = req.secure || req.get('x-forwarded-proto') === 'https';
+  res.set(baseSecurityHeaders(https));
+  res.set(cspHeader, pageCsp([], apiOrigin));
+  next();
+});
 
 /**
  * Serve static files from /browser
@@ -41,11 +52,24 @@ app.use(
 app.use((req, res, next) => {
   angularApp
     .handle(req)
+    .then((response) => (response ? withPageCsp(response) : null))
     .then((response) =>
       response ? writeResponseToNodeResponse(response, res) : next(),
     )
     .catch(next);
 });
+
+/** Adds the CSP to a rendered page, allowing the inline scripts Angular put in it. */
+async function withPageCsp(response: Response): Promise<Response> {
+  if (!response.headers.get('content-type')?.includes('text/html')) {
+    return response;
+  }
+  const html = await response.text();
+  const headers = new Headers(response.headers);
+  headers.set(cspHeader, pageCsp(await inlineScriptSources(html), apiOrigin));
+  headers.delete('content-length');
+  return new Response(html, { status: response.status, statusText: response.statusText, headers });
+}
 
 /**
  * Start the server if this module is the main entry point, or it is ran via PM2.

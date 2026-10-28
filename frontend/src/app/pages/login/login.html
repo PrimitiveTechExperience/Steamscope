@@ -7,6 +7,10 @@
             Welcome back. No account yet? <a routerLink="/register" class="font-bold text-[var(--color-accent)] hover:underline">Sign up</a>
         </p>
 
+        @if (notice()) {
+            <p class="notice-message mt-4 border-2 border-[var(--color-discount)] px-3 py-2 text-sm text-[var(--color-discount)]">{{ notice() }}</p>
+        }
+
         @if (error()) {
             <p class="mt-4 border-2 border-[var(--color-accent)] bg-[var(--color-accent-soft)] px-3 py-2 text-sm text-[var(--color-accent)]">
                 {{ error() }}
@@ -35,6 +39,7 @@
                     class="border-2 border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-sm font-normal normal-case text-[var(--color-text)]"
                 />
             </label>
+            <a routerLink="/forgot-password" class="forgot-link -mt-2 self-end text-xs font-bold text-[var(--color-accent)] hover:underline">Forgot your password?</a>
             <button type="submit" [disabled]="submitting()" class="edge-btn bg-[var(--color-accent)] px-4 py-2.5 text-sm text-white disabled:opacity-60">
                 {{ submitting() ? 'Logging in...' : 'Log in' }}
             </button>

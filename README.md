@@ -19,7 +19,8 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
   whether the bundle beats buying its games separately, and a cover collage built from the games they contain.
 
 **For signed-in users**
-- Email-and-password accounts, plus "Sign in through Steam" (OpenID) and Steam profile cards.
+- Email-and-password accounts, plus "Sign in through Steam" (OpenID) and Steam profile cards. Forgotten passwords
+  can be reset by email, and an account under a password-guessing attack is locked for a while (see Security below).
 - A personal feed: watchlist (with pinning and target prices), games below their usual price, suggestions, recently
   played games from a linked Steam account (with a one-click "Track price" request) and a wishlist import (see below) and in-app notifications.
 - Suggest games or bundles for tracking by pasting a Steam store link. Suggestions go through admin approval
@@ -30,6 +31,8 @@ searchable catalogue with price charts, watchlists, price-drop notifications and
 - Approve, reject or delete submitted games and bundles; ban users or block their submissions.
 - A blacklist of rules (exact app ID, or regular expressions on game name, developer or publisher) with a preview
   of which existing games a rule would remove.
+- An audit log of every ban, deletion, approval and blacklist change: who did it, when, from which address, and
+  what it was about.
 
 **Operations**
 - Liveness and readiness probes, Prometheus metrics, request IDs on every response and structured JSON access logs.
@@ -223,6 +226,34 @@ cd frontend && npx ng build              # production build
 Run the scraper on a schedule with the files in [`deploy/`](deploy/) (cron, systemd timer or Windows Task
 Scheduler); see [docs/CI-CD.md](docs/CI-CD.md#6-scheduled-scrape).
 
+## Security
+
+- **Headers.** Every API response carries a Content-Security-Policy that allows nothing (`default-src 'none'`), plus
+  `X-Content-Type-Options: nosniff`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` and a Permissions-Policy.
+  Responses under `/api/auth/`, `/api/me` and `/api/admin/` are `Cache-Control: no-store`. HSTS is sent when
+  `COOKIE_SECURE=true`.
+- **Page CSP.** The SSR server (`frontend/src/server.ts`, rules in `frontend/src/csp.ts`) sends a CSP with every page.
+  Scripts must come from the site itself; the only inline scripts allowed are Angular's event-replay scripts, by their
+  SHA-256, worked out for each page, so an injected inline script does not run. Images are limited to Steam's image
+  hosts, fonts to Google Fonts, and API calls to the API's origin (taken from `environment.apiUrl`). Styles allow
+  `'unsafe-inline'`, which Angular's component styles and Chart.js need. The site cannot be framed. Set
+  `CSP_REPORT_ONLY=true` on the SSR server to have browsers report instead of block while trying out a change.
+- **Account lockout.** Ten failed sign-ins within an hour lock an account's password sign-in for 30 minutes, from every
+  address; the owner is emailed when it happens (if email is set up). This is on top of the per-address limit of 10
+  attempts per 15 minutes. Names with no account are counted the same way and get the same message, so a lockout
+  does not reveal whether an account exists. Sign-in through Steam and password reset still work while locked; a
+  successful sign-in or a reset clears the count. The counts live in Redis.
+- **Password reset.** "Forgot your password?" on the login page emails a link that works once, for one hour. The
+  answer is the same whether or not the address has an account, and the email is sent after the response, so its
+  timing gives nothing away either. Only a SHA-256 of the token is stored. Setting a new password uses up every
+  outstanding link, signs the account out on every device, lifts any lockout and emails the owner. Requests are
+  limited to 5 per hour per address and 3 links per hour per inbox. It needs the same SMTP settings as email alerts;
+  without them the page says reset is not available.
+- **Audit log.** Admin actions are written to `admin_audit_log` and shown under Admin, Audit log, filterable by kind.
+  An entry keeps the admin's name and the target's details (a deleted user's name and email, a rule's pattern, the
+  games a purge removed), so it still makes sense after either is gone. Banning or deleting a user also ends their
+  sessions.
+
 ## Configuration
 
 Environment variables (see `.env.example` for the full annotated list):
@@ -238,12 +269,14 @@ Environment variables (see `.env.example` for the full annotated list):
 | `TRACKED_APP_IDS` | Comma-separated app IDs tracked from the start |
 | `ITAD_API_KEY` | Enables price-history backfills |
 | `STEAM_WEB_API_KEY` | Enables Steam profile cards and wishlist import |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Enable email target-price alerts |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USERNAME`, `SMTP_PASSWORD`, `SMTP_FROM` | Enable email target-price alerts, password reset and lockout notices |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Enable browser push alerts (generate with `go run ./backend/cmd/vapid`) |
 | `REVIEW_FILTER`, `REVIEW_MAX_REVIEWS`, `REVIEW_LANGUAGE` | Review scraping options |
 | `METRICS_TOKEN` | If set, `/metrics` requires this bearer token |
 | `DISABLE_SCHEDULER` | `true` when an external job runs the scrape |
 | `TEST_DATABASE_URL` | Postgres for integration tests; each test run uses a temporary schema |
+| `CSP_REPORT_ONLY` | SSR server only: `true` sends the page CSP as report-only |
+| `NG_ALLOWED_HOSTS` | SSR server only: host names it server-renders for (Angular's SSRF protection). Unset, no host is allowed and every page falls back to client rendering; set it to the public hostname in production |
 
 ## API overview
 
@@ -252,14 +285,14 @@ All endpoints are under `/api`. Responses are JSON; errors have the form `{"erro
 | Area | Endpoints |
 | --- | --- |
 | Public data | `GET /games`, `/games/{id}`, `/games/{id}/reviews`, `/games/{id}/price-history`, `/games/{id}/prediction`, `/games/{id}/advice`, `/filters`, `/bundles`, `/bundles/{id}` |
-| Auth | `POST /auth/register`, `/auth/login`, `/auth/logout`; `GET /auth/me`; `GET /auth/steam/login`, `/auth/steam/link`, `/auth/steam/callback` |
+| Auth | `POST /auth/register`, `/auth/login`, `/auth/logout`, `/auth/password-reset`, `/auth/password-reset/confirm`; `GET /auth/me`; `GET /auth/steam/login`, `/auth/steam/link`, `/auth/steam/callback` |
 | Signed-in user | `/me/preferences`, `/me/watchlist`, `/me/notifications`, `/me/recent-searches`, `/me/steam-profile`, `/me/feed`, `/me/submissions`; `GET /me/wishlist/status`, `POST /me/wishlist/import`, `POST /me/wishlist/request`; `GET /me/alert-channels`, `POST`/`DELETE /me/push-subscription`, `POST /me/alerts/test`; `POST /submissions` |
-| Admin | `/admin/stats`, `/admin/users`, `/admin/items`, `/admin/blacklist` (requires an admin session) |
+| Admin | `/admin/stats`, `/admin/users`, `/admin/items`, `/admin/blacklist`, `GET /admin/audit?action=&before=&limit=` (requires an admin session) |
 | Operations | `GET /api/health`, `GET /api/ready`, `GET /metrics` |
 
 Status codes follow convention: `400` malformed input, `401` not signed in, `403` forbidden (including a blocked
 origin), `404` missing, `409` conflicts such as duplicate usernames, `422` rejected by the blacklist, `429` rate
-limited. The route table is in `backend/internal/router/router.go`.
+limited or account locked, `503` password reset without email configured. The route table is in `backend/internal/router/router.go`.
 
 ## Repository layout
 
